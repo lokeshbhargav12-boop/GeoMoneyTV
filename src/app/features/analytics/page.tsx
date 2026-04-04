@@ -102,202 +102,476 @@ const CAPITAL_FLOW = [
 ]
 
 export default function AnalyticsDashboardPage() {
-    const { email, setEmail, status, message, handleSubscribe } = useNewsletter()
+  const [selectedId, setSelectedId] = useState<string>('gold')
+  const [sentimentCache, setSentimentCache] = useState<Record<string, SentimentData>>({})
+  const [sentimentLoading, setSentimentLoading] = useState(false)
+  const [sentimentError, setSentimentError] = useState<string | null>(null)
 
-    return (
-        <main className="min-h-screen bg-gradient-to-br from-geo-dark via-black to-geo-dark text-white">
-            {/* Hero Section */}
-            <div className="relative overflow-hidden">
-                {/* Animated Background */}
-                <div className="absolute inset-0 overflow-hidden">
-                    <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" />
-                    <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-green-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-                </div>
+  const selected = INSTRUMENTS.find(i => i.id === selectedId) ?? INSTRUMENTS[0]
+  const sentiment: SentimentData | undefined = sentimentCache[selected.symbol]
 
-                <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-16 pb-24">
-                    <Link href="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-geo-gold transition-colors mb-12">
-                        <ArrowLeft className="w-4 h-4" />
-                        Back to Home
-                    </Link>
+  const fetchSentiment = useCallback(
+    async (symbol: string, forceRefresh = false) => {
+      if (!forceRefresh && sentimentCache[symbol]) return
+      setSentimentLoading(true)
+      setSentimentError(null)
+      try {
+        const res = await fetch('/api/ai/market-sentiment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol }),
+        })
+        if (!res.ok) throw new Error(`API error ${res.status}`)
+        const data: SentimentData = await res.json()
+        setSentimentCache(prev => ({ ...prev, [symbol]: data }))
+      } catch {
+        setSentimentError('Unable to load market intelligence. Please try again.')
+      } finally {
+        setSentimentLoading(false)
+      }
+    },
+    [sentimentCache],
+  )
 
-                    <div className="grid lg:grid-cols-2 gap-16 items-center">
-                        {/* Left - Content */}
-                        <motion.div
-                            initial={{ opacity: 0, x: -30 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.6 }}
-                        >
-                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/20 rounded-full border border-green-500/30 mb-6">
-                                <Clock className="w-4 h-4 text-green-400" />
-                                <span className="text-green-400 text-sm font-medium">Coming Soon</span>
-                            </div>
+  const handleRefresh = useCallback(() => {
+    setSentimentCache(prev => {
+      const next = { ...prev }
+      delete next[selected.symbol]
+      return next
+    })
+    fetchSentiment(selected.symbol, true)
+  }, [selected.symbol, fetchSentiment])
 
-                            <h1 className="text-5xl md:text-6xl font-bold mb-6">
-                                <span className="text-geo-gold">Analytics</span>
-                                <br />
-                                Dashboard
-                            </h1>
+  // Auto-fetch when the selected instrument changes
+  useEffect(() => {
+    fetchSentiment(selected.symbol)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected.symbol])
 
-                            <p className="text-xl text-gray-300 mb-8 leading-relaxed">
-                                Your real-time global macro monitor. Monitor commodities, currencies, rare earths,
-                                and economic indicators—all in one powerful dashboard.
-                            </p>
+  const trendColor =
+    sentiment?.trend === 'BULLISH' ? '#51cf66' :
+    sentiment?.trend === 'BEARISH' ? '#ff6b6b' :
+    sentiment ? '#f59f00' : '#888888'
 
-                            {/* Stats Preview */}
-                            <div className="grid grid-cols-3 gap-4 mb-8">
-                                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                                    <div className="text-2xl font-bold text-geo-gold">50+</div>
-                                    <div className="text-sm text-gray-400">Countries</div>
-                                </div>
-                                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                                    <div className="text-2xl font-bold text-geo-gold">200+</div>
-                                    <div className="text-sm text-gray-400">Data Points</div>
-                                </div>
-                                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                                    <div className="text-2xl font-bold text-geo-gold">24/7</div>
-                                    <div className="text-sm text-gray-400">Updates</div>
-                                </div>
-                            </div>
+  const trendBg =
+    sentiment?.trend === 'BULLISH' ? 'bg-green-950/30' :
+    sentiment?.trend === 'BEARISH' ? 'bg-red-950/30' :
+    sentiment ? 'bg-yellow-950/30' : 'bg-white/5'
 
-                            {/* Waitlist */}
-                            <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3">
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Enter your email for early access"
-                                    disabled={status === 'loading' || status === 'success'}
-                                    className="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold disabled:opacity-50"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={status === 'loading' || status === 'success'}
-                                    className="px-6 py-3 bg-gradient-to-r from-geo-gold to-yellow-600 text-black font-bold rounded-lg hover:from-yellow-500 hover:to-yellow-700 transition-all flex items-center gap-2 disabled:opacity-50"
-                                >
-                                    <Bell className="w-4 h-4" />
-                                    {status === 'loading' ? 'Joining...' : status === 'success' ? 'Joined!' : 'Join Waitlist'}
-                                </button>
-                            </form>
-                            {message && (
-                                <div className={`text-sm mt-3 ${status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-                                    {message}
-                                </div>
-                            )}
-                        </motion.div>
+  const trendBorder =
+    sentiment?.trend === 'BULLISH' ? 'border-green-500/30' :
+    sentiment?.trend === 'BEARISH' ? 'border-red-500/30' :
+    sentiment ? 'border-yellow-500/30' : 'border-white/10'
 
-                        {/* Right - Dashboard Mockup */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.2 }}
-                            className="relative"
-                        >
-                            {/* Dashboard Frame */}
-                            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-4 border border-white/10 shadow-2xl">
-                                {/* Top Bar */}
-                                <div className="flex items-center gap-2 mb-4">
-                                    <div className="w-3 h-3 rounded-full bg-red-500" />
-                                    <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                                    <div className="w-3 h-3 rounded-full bg-green-500" />
-                                    <div className="flex-1 text-center text-xs text-gray-500">analytics.geomoney.tv</div>
-                                </div>
+  const trendLabel =
+    sentiment?.trend === 'BULLISH' ? 'BOS ↑' :
+    sentiment?.trend === 'BEARISH' ? 'BOS ↓' :
+    sentiment ? 'ChoCH' : '—'
 
-                                {/* Dashboard Content */}
-                                <div className="bg-geo-dark rounded-lg p-4 space-y-4">
-                                    {/* Header Row */}
-                                    <div className="flex justify-between items-center">
-                                        <div className="text-geo-gold font-bold">Global Dashboard</div>
-                                        <div className="flex gap-2">
-                                            <div className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded">LIVE</div>
-                                        </div>
-                                    </div>
+  const TrendIcon =
+    sentiment?.trend === 'BULLISH' ? TrendingUp :
+    sentiment?.trend === 'BEARISH' ? TrendingDown :
+    Minus
 
-                                    {/* Chart Area */}
-                                    <div className="h-40 bg-white/5 rounded-lg flex items-end justify-around p-4 gap-1">
-                                        {[40, 65, 45, 80, 55, 70, 50, 85, 60, 75, 55, 90].map((height, i) => (
-                                            <div
-                                                key={i}
-                                                className="w-full bg-gradient-to-t from-geo-gold/50 to-geo-gold rounded-t"
-                                                style={{ height: `${height}%` }}
-                                            />
-                                        ))}
-                                    </div>
+  return (
+    <main className="min-h-screen bg-geo-dark text-white">
 
-                                    {/* Stats Row */}
-                                    <div className="grid grid-cols-3 gap-3">
-                                        <div className="bg-white/5 rounded-lg p-3">
-                                            <div className="text-xs text-gray-400">Gold</div>
-                                            <div className="font-bold text-white">$2,715</div>
-                                            <div className="text-xs text-green-400">+1.2%</div>
-                                        </div>
-                                        <div className="bg-white/5 rounded-lg p-3">
-                                            <div className="text-xs text-gray-400">Oil</div>
-                                            <div className="font-bold text-white">$72.50</div>
-                                            <div className="text-xs text-red-400">-0.8%</div>
-                                        </div>
-                                        <div className="bg-white/5 rounded-lg p-3">
-                                            <div className="text-xs text-gray-400">Copper</div>
-                                            <div className="font-bold text-white">$4.15</div>
-                                            <div className="text-xs text-green-400">+2.3%</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Decorative glow */}
-                            <div className="absolute -z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-blue-500/5 rounded-full blur-3xl" />
-                        </motion.div>
-                    </div>
-                </div>
+      {/* ── Dashboard Header (sticky below navbar) ─────────────────── */}
+      <div className="sticky z-20 border-b border-white/10 bg-black/60 backdrop-blur-xl" style={{ top: '104px' }}>
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 pt-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-gray-500 hover:text-geo-gold transition-colors">
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <BarChart3 className="w-5 h-5 text-geo-gold" />
+            <div>
+              <h1 className="text-sm font-bold text-white">GeoMoney Analytics</h1>
+              <p className="text-xs text-gray-500 hidden sm:block">Live Global Macro Intelligence</p>
             </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-500/10 border border-green-500/30 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-green-400 text-xs font-medium">LIVE</span>
+            </div>
+            <span className="text-xs text-gray-600 hidden md:block">Powered by TradingView · AI by GeoMoney</span>
+          </div>
+        </div>
 
-            {/* Features Grid */}
-            <section className="border-t border-white/10 py-20">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5 }}
-                        viewport={{ once: true }}
-                        className="text-center mb-12"
+        {/* Instrument Tabs */}
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 mt-1">
+          <div className="flex overflow-x-auto gap-0 pb-0" style={{ scrollbarWidth: 'none' }}>
+            {INSTRUMENTS.map(inst => (
+              <button
+                key={inst.id}
+                onClick={() => setSelectedId(inst.id)}
+                className={`flex-none px-4 py-2.5 text-xs font-bold tracking-wide border-b-2 transition-all whitespace-nowrap ${
+                  selectedId === inst.id ? '' : 'border-transparent text-gray-400 hover:text-gray-200'
+                }`}
+                style={
+                  selectedId === inst.id
+                    ? { borderBottomColor: inst.color, color: inst.color }
+                    : {}
+                }
+              >
+                {inst.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Page content ───────────────────────────────────────────── */}
+      <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 pt-28 pb-16 space-y-10" style={{ paddingTop: '1.5rem' }}>
+
+        {/* ── Section 1: Main Chart + Macro Quotes ─────────────────── */}
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4" style={{ height: '580px' }}>
+
+          {/* Main TradingView Advanced Chart */}
+          <div className="xl:col-span-3 rounded-xl border border-white/10 overflow-hidden bg-white/5" style={{ height: '580px' }}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={selected.symbol}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="h-full"
+              >
+                <TradingViewChart symbol={selected.symbol} interval="D" height={580} />
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Macro Market Quotes (correlation panel) */}
+          <div className="xl:col-span-1 rounded-xl border border-white/10 overflow-hidden bg-white/5 flex flex-col" style={{ height: '580px' }}>
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 flex-none">
+              <Globe className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-semibold text-white">Macro Markets</span>
+              <span className="ml-auto text-xs text-green-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+                Live
+              </span>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <TradingViewMarketQuotes height={532} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Section 2: Market Intelligence (SMC / Pine Script style) ─ */}
+        <section>
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <Brain className="w-5 h-5 text-purple-400" />
+              <h2 className="text-lg font-bold text-white">Market Intelligence</h2>
+              <span className="px-2.5 py-0.5 bg-purple-500/15 text-purple-400 text-xs rounded-full border border-purple-500/25 font-medium">
+                AI-POWERED
+              </span>
+            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={sentimentLoading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-gray-400 hover:text-white transition-all disabled:opacity-40"
+            >
+              <RefreshCw className={`w-3 h-3 ${sentimentLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          {/* Instrument label */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: selected.color }} />
+            <span className="text-sm text-gray-400">Analysing:</span>
+            <span className="text-sm font-bold" style={{ color: selected.color }}>{selected.name}</span>
+          </div>
+
+          {/* Loading state */}
+          {sentimentLoading && (
+            <div className="grid md:grid-cols-3 gap-4">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="h-52 bg-white/5 rounded-xl border border-white/10 animate-pulse" />
+              ))}
+            </div>
+          )}
+
+          {/* Error state */}
+          {sentimentError && !sentimentLoading && (
+            <div className="flex items-center gap-3 p-4 bg-red-950/20 border border-red-500/30 rounded-xl text-red-400">
+              <AlertCircle className="w-5 h-5 flex-none" />
+              <span className="text-sm">{sentimentError}</span>
+              <button onClick={handleRefresh} className="ml-auto text-xs underline hover:no-underline">
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Analysis cards */}
+          {sentiment && !sentimentLoading && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="space-y-4"
+            >
+              {/* Row 1 — 3 cards */}
+              <div className="grid md:grid-cols-3 gap-4">
+
+                {/* Card A: Macro Structure (BOS-style indicator) */}
+                <div className={`relative rounded-xl border ${trendBorder} ${trendBg} p-5 overflow-hidden`}>
+                  {/* Accent bar at top */}
+                  <div
+                    className="absolute top-0 left-0 right-0 h-0.5"
+                    style={{ backgroundColor: trendColor }}
+                  />
+                  <div className="text-xs text-gray-500 font-mono tracking-widest mb-3 uppercase">
+                    Macro Structure
+                  </div>
+
+                  {/* Big BOS label */}
+                  <div className="flex items-center gap-3 mb-1">
+                    <TrendIcon className="w-8 h-8" style={{ color: trendColor }} />
+                    <span className="text-3xl font-black tracking-tight" style={{ color: trendColor }}>
+                      {trendLabel}
+                    </span>
+                  </div>
+
+                  <div className="text-base font-bold mb-1" style={{ color: trendColor }}>
+                    {sentiment.trend}
+                  </div>
+                  <div className="text-xs text-gray-400 mb-4">{sentiment.structure}</div>
+
+                  {/* Trend strength meter */}
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-500">Trend Strength</span>
+                      <span style={{ color: trendColor }}>{sentiment.trend_strength}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${sentiment.trend_strength}%`, backgroundColor: trendColor }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-3 text-xs text-gray-300 italic border-t border-white/10 pt-3">
+                    &ldquo;{sentiment.signal}&rdquo;
+                  </div>
+                </div>
+
+                {/* Card B: Key Price Zones (demand/supply) */}
+                <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                  <div className="text-xs text-gray-500 font-mono tracking-widest mb-4 uppercase">
+                    Key Price Zones
+                  </div>
+
+                  {/* Supply zones */}
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 rounded-sm bg-red-500" />
+                      <span className="text-xs text-gray-400 font-mono uppercase tracking-wider">Supply Zones</span>
+                    </div>
+                    {sentiment.key_resistance.map((r, i) => (
+                      <div key={i} className="flex items-start gap-2 mb-1.5">
+                        <div className="w-1 h-3.5 rounded bg-red-500/50 flex-none mt-0.5" />
+                        <span className="text-xs text-red-300 leading-snug">{r}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Demand zones */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 rounded-sm bg-green-500" />
+                      <span className="text-xs text-gray-400 font-mono uppercase tracking-wider">Demand Zones</span>
+                    </div>
+                    {sentiment.key_support.map((s, i) => (
+                      <div key={i} className="flex items-start gap-2 mb-1.5">
+                        <div className="w-1 h-3.5 rounded bg-green-500/50 flex-none mt-0.5" />
+                        <span className="text-xs text-green-300 leading-snug">{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Card C: Macro Drivers + Bias Score */}
+                <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                  <div className="text-xs text-gray-500 font-mono tracking-widest mb-4 uppercase">
+                    Macro Drivers
+                  </div>
+                  <div className="space-y-2.5 mb-4">
+                    {sentiment.macro_drivers.map((driver, i) => (
+                      <div key={i} className="flex items-start gap-2.5">
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-none"
+                          style={{ backgroundColor: `${selected.color}25`, color: selected.color }}
+                        >
+                          {i + 1}
+                        </div>
+                        <span className="text-sm text-gray-300 leading-snug">{driver}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Bias score */}
+                  <div className="border-t border-white/10 pt-4">
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span className="text-red-400">Bearish</span>
+                      <span className="text-gray-500">Macro Bias</span>
+                      <span className="text-green-400">Bullish</span>
+                    </div>
+                    <div className="h-2 bg-white/10 rounded-full overflow-hidden relative">
+                      <div className="absolute inset-0 flex justify-center">
+                        <div className="w-px h-full bg-white/20" />
+                      </div>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: `${Math.abs(sentiment.bias_score) / 2}%`,
+                          marginLeft: sentiment.bias_score >= 0 ? '50%' : `${50 - Math.abs(sentiment.bias_score) / 2}%`,
+                        }}
+                        transition={{ duration: 0.8 }}
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: sentiment.bias_score >= 0 ? '#51cf66' : '#ff6b6b' }}
+                      />
+                    </div>
+                    <div
+                      className="text-center text-xs mt-1 font-bold"
+                      style={{ color: sentiment.bias_score >= 0 ? '#51cf66' : '#ff6b6b' }}
                     >
-                        <h2 className="text-3xl font-bold mb-4">
-                            Everything You Need to <span className="text-geo-gold">Understand Market Dynamics</span>
-                        </h2>
-                    </motion.div>
-
-                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {DASHBOARD_FEATURES.map((feature, idx) => (
-                            <motion.div
-                                key={idx}
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: idx * 0.1 }}
-                                viewport={{ once: true }}
-                                className="bg-white/5 rounded-xl border border-white/10 p-6 hover:border-geo-gold/30 transition-all group"
-                            >
-                                <feature.icon className={`w-10 h-10 ${feature.color} mb-4 group-hover:scale-110 transition-transform`} />
-                                <h3 className="text-lg font-bold mb-2">{feature.title}</h3>
-                                <p className="text-gray-400 text-sm">{feature.description}</p>
-                            </motion.div>
-                        ))}
+                      {sentiment.bias_score > 0 ? '+' : ''}{sentiment.bias_score}
                     </div>
+                  </div>
                 </div>
-            </section>
+              </div>
 
-            {/* CTA */}
-            <section className="border-t border-white/10 py-16 bg-gradient-to-b from-transparent to-blue-500/5">
-                <div className="mx-auto max-w-3xl px-4 text-center">
-                    <h3 className="text-2xl font-bold mb-4">Be the First to Experience It</h3>
-                    <p className="text-gray-400 mb-6">
-                        Join the waitlist and get priority access when we launch.
-                    </p>
-                    <div className="inline-flex items-center gap-4 text-geo-gold">
-                        <TrendingUp className="w-6 h-6" />
-                        <span className="font-medium">Coming Soon</span>
+              {/* Row 2 — full analysis + risk factors */}
+              <div className="grid md:grid-cols-3 gap-4">
+
+                {/* GeoMoney AI Analysis (2/3) */}
+                <div className="md:col-span-2 rounded-xl border border-white/10 bg-white/5 p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Brain className="w-4 h-4 text-purple-400" />
+                    <span className="text-xs text-gray-500 font-mono tracking-widest uppercase">
+                      GeoMoney AI Analysis
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-300 leading-relaxed">{sentiment.analysis}</p>
+                  {sentiment.timestamp && (
+                    <div className="mt-3 text-xs text-gray-600">
+                      Generated: {new Date(sentiment.timestamp).toLocaleString()}
                     </div>
+                  )}
                 </div>
-            </section>
-        </main>
-    )
+
+                {/* Risk Factors (1/3) */}
+                <div className="rounded-xl border border-yellow-500/20 bg-yellow-950/10 p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertCircle className="w-4 h-4 text-yellow-400" />
+                    <span className="text-xs text-gray-500 font-mono tracking-widest uppercase">
+                      Risk Factors
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {sentiment.risk_factors.map((risk, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-none mt-1.5" />
+                        <span className="text-sm text-yellow-200/80 leading-snug">{risk}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </section>
+
+        {/* ── Section 3: Global Macro View (mini charts grid) ────────── */}
+        <section>
+          <div className="flex items-center gap-3 mb-5">
+            <Globe className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-bold text-white">Global Macro View</h2>
+            <span className="text-xs text-gray-500">Track economic indicators across 50+ markets</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {INSTRUMENTS.map(inst => (
+              <div
+                key={inst.id}
+                onClick={() => setSelectedId(inst.id)}
+                role="button"
+                className="rounded-xl border overflow-hidden cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+                style={{
+                  borderColor: selectedId === inst.id ? inst.color : 'rgba(255,255,255,0.10)',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  boxShadow: selectedId === inst.id ? `0 0 16px ${inst.color}30` : 'none',
+                }}
+              >
+                <div className="px-3 pt-2.5 pb-0 flex items-center justify-between">
+                  <span className="text-xs font-bold" style={{ color: inst.color }}>{inst.label}</span>
+                  <span className="text-xs text-gray-600">{inst.name}</span>
+                </div>
+                <TradingViewMiniChart
+                  symbol={inst.symbol}
+                  height={140}
+                  dateRange="1M"
+                  trendLineColor={inst.lineColor}
+                  underLineColor={inst.bgColor}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Section 4: Capital Flow Intelligence ───────────────────── */}
+        <section>
+          <div className="flex items-center gap-3 mb-5">
+            <DollarSign className="w-5 h-5 text-geo-gold" />
+            <h2 className="text-lg font-bold text-white">Capital Flow Intelligence</h2>
+            <span className="text-xs text-gray-500">Key macro flow indicators</span>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            {CAPITAL_FLOW.map(inst => (
+              <div
+                key={inst.symbol}
+                className="rounded-xl border border-white/10 bg-white/5 overflow-hidden"
+              >
+                <div className="px-4 pt-4 pb-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: inst.color }} />
+                    <span className="text-sm font-bold" style={{ color: inst.color }}>{inst.label}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 leading-snug">{inst.desc}</p>
+                </div>
+                <TradingViewMiniChart
+                  symbol={inst.symbol}
+                  height={150}
+                  dateRange="3M"
+                  trendLineColor={inst.lineColor}
+                  underLineColor={inst.bgColor}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Footer disclaimer ──────────────────────────────────────── */}
+        <div className="border-t border-white/10 pt-6 text-center">
+          <p className="text-xs text-gray-600 leading-relaxed">
+            Charts powered by{' '}
+            <a
+              href="https://www.tradingview.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-gray-400 underline"
+            >
+              TradingView
+            </a>
+            {' '}· AI market analysis generated by GeoMoney Intelligence Engine ·{' '}
+            For informational purposes only. Not financial advice.
+          </p>
+        </div>
+      </div>
+    </main>
+  )
 }

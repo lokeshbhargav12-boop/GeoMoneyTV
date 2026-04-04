@@ -1,60 +1,60 @@
-'use client'
+"use client";
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef } from "react";
 
 interface TradingViewChartProps {
-  symbol?: string
-  interval?: string
-  height?: number
+  symbol?: string;
+  interval?: string;
+  height?: number;
 }
 
 export default function TradingViewChart({
-  symbol = 'XAUUSD',
-  interval = 'D',
+  symbol = "XAUUSD",
+  interval = "D",
   height = 560,
 }: TradingViewChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
+    const container = containerRef.current;
+    if (!container) return;
 
-    container.innerHTML = ''
+    container.innerHTML = "";
 
-    const script = document.createElement('script')
-    script.type = 'text/javascript'
-    script.async = true
+    const script = document.createElement("script");
+    script.type = "text/javascript";
+    script.async = true;
     script.src =
-      'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'
+      "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.text = JSON.stringify({
       autosize: true,
       symbol,
       interval,
-      timezone: 'Etc/UTC',
-      theme: 'dark',
-      style: '1',
-      locale: 'en',
-      backgroundColor: '#050505',
-      gridColor: 'rgba(255, 255, 255, 0.04)',
+      timezone: "Etc/UTC",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      backgroundColor: "#050505",
+      gridColor: "rgba(255, 255, 255, 0.04)",
       hide_top_toolbar: false,
       hide_legend: false,
       save_image: false,
       calendar: false,
-      studies: ['STD;Volume'],
-      support_host: 'https://www.tradingview.com',
-    })
-    container.appendChild(script)
+      studies: ["STD;Volume"],
+      support_host: "https://www.tradingview.com",
+    });
+    container.appendChild(script);
 
     return () => {
-      if (container) container.innerHTML = ''
-    }
-  }, [symbol, interval, height])
+      if (container) container.innerHTML = "";
+    };
+  }, [symbol, interval, height]);
 
   return (
     <div
       ref={containerRef}
       className="tradingview-widget-container w-full overflow-hidden"
-      style={{ height: `${height}px`, width: '100%' }}
+      style={{ height: `${height}px`, width: "100%" }}
     />
-  )
+  );
 }
