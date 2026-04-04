@@ -1,0 +1,181 @@
+# GeoMoney Web App Overhaul
+
+The site currently has a single-page layout where Hero, News, Videos, Rare Earth, Tools, and Newsletter are all stacked on one page. The AI Navigation assistant navigates to hash anchors (e.g., `/#news-grid`) which provides minimal value. News has no geopolitics filters. The article detail page has a poor sticky sidebar. Videos have no type differentiation. Several feature pages show "Coming Soon" and Tools page has locked "PRO" features.
+
+This overhaul re-architects the site into distinct routed pages, adds filtering/configuration, unlocks all features, and polishes the UI/UX.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Multi-page routing split**: The homepage will be simplified to Hero + Feature Cards + a brief news preview (3 articles) + Newsletter CTA. Full content moves to dedicated pages (`/news`, `/videos`, `/tools`, `/materials`). The AI Navigator will route users to these real pages instead of hash anchors.
+
+> [!IMPORTANT]
+> **Prisma schema change**: Adding a `videoType` field to the `Video` model. This requires running `npx prisma db push` or a migration. Make sure the database is accessible.
+
+> [!WARNING]
+> **Pro features unlock**: All locked Pro features in Tools page will be unlocked and made fully functional (no paywall). The "Subscribe to Unlock" buttons will be removed.
+
+---
+
+## Proposed Changes
+
+### 1. Shared Navigation Component
+
+#### [NEW] [Navbar.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/components/Navbar.tsx)
+- Persistent top navigation with logo, links to Home, News, Videos, Tools, Materials
+- Mobile hamburger menu
+- Sign-out button
+- Replaces the inline nav in `page.tsx`
+
+#### [MODIFY] [layout.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/layout.tsx)
+- Add `Navbar` and `Ticker` to the root layout so they persist across all pages
+
+---
+
+### 2. Homepage Slimming
+
+#### [MODIFY] [page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/page.tsx)
+- Remove inline nav (moved to Navbar)
+- Remove `Ticker` (moved to layout)
+- Keep Hero with AI Assistant
+- Keep Features cards
+- Add a compact news preview (3 articles with "View All" link)
+- Add a compact video preview (3 videos with "View All" link)
+- Remove full RareEarthSection and CommoditiesGradeGuide (moved to /materials and /tools)
+- Keep Newsletter CTA
+- Redesign bottom bar with proper anchor links to new pages
+
+---
+
+### 3. News Section Overhaul
+
+#### [MODIFY] [news/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/news/page.tsx)
+- Add category filter bar at top (Geopolitics, Economy, Commodities, Energy, Technology, All)
+- Categories pulled from admin-configurable settings
+- Client-side filtering with URL search params
+- Professional grid layout with better card design
+- Pagination support
+
+#### [MODIFY] [news/[slug]/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/news/%5Bslug%5D/page.tsx)
+- Complete redesign of article detail page
+- Article content in proper readable column (max-width ~700px, centered)
+- Clean typography with proper paragraph spacing
+- AI Analysis moved below the article content (not a sticky sidebar)
+- Source attribution block redesigned
+- Related articles section at bottom
+
+#### [MODIFY] [NewsAnalysis.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/components/NewsAnalysis.tsx)
+- Remove sticky positioning dependency
+- Full-width layout for inline placement
+
+#### [NEW] [api/admin/settings/news-categories/route.ts](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/api/admin/settings/news-categories/route.ts)
+- GET/POST endpoint for managing news category filters
+
+#### [MODIFY] [admin/settings/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/admin/settings/page.tsx)
+- Add new "Categories" tab for configuring news categories and geopolitics keyword filters
+- Categories list with add/remove functionality
+- Keywords for auto-categorization
+
+---
+
+### 4. Video Section - Dedicated Page
+
+#### [MODIFY] [schema.prisma](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/prisma/schema.prisma)
+- Add `videoType String @default("video")` field to Video model (values: "video", "short")
+
+#### [NEW] [videos/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/videos/page.tsx)
+- Two-tab layout: "YouTube Videos" and "YouTube Shorts"
+- Category/topic filter bar
+- Grid layout with proper video cards
+- Links to YouTube
+
+#### [MODIFY] [admin/videos/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/admin/videos/page.tsx)
+- Add `videoType` selector (Video / Short) when adding/editing videos
+
+#### [MODIFY] [api/admin/videos](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/api/admin/videos)
+- Update video CRUD to handle `videoType` field
+
+---
+
+### 5. Unlock All Features
+
+#### [MODIFY] [tools/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/tools/page.tsx)
+- Remove all `Lock` icons and "PRO" badges
+- Remove "Subscribe to Unlock" buttons
+- Make Real-Time Price Alerts, Advanced Grade Analysis, and Resource Estimation functional
+- Price Alerts: simple form to set threshold and store locally
+- Advanced Grade Analysis: expand grade data tables with more detailed analysis
+- Resource Estimation: tonnage × grade × recovery × price calculator
+
+#### [MODIFY] [features/newsletter/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/features/newsletter/page.tsx)
+- Connect subscribe form to `/api/newsletter` endpoint
+- Add success/error feedback
+
+#### [MODIFY] [features/weekly-brief/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/features/weekly-brief/page.tsx)
+- Connect subscribe form to `/api/newsletter` endpoint
+- Add success/error feedback
+
+#### [MODIFY] [features/app/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/features/app/page.tsx)
+- Connect "Notify Me" form to `/api/newsletter` endpoint
+
+#### [MODIFY] [features/analytics/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/features/analytics/page.tsx)
+- Connect waitlist form to `/api/newsletter` endpoint
+
+---
+
+### 6. AI Navigator Update
+
+#### [MODIFY] [api/ai/navigate/route.ts](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/api/ai/navigate/route.ts)
+- Update route mappings to use new dedicated pages:
+  - "news" → `/news`
+  - "videos" → `/videos`
+  - "tools" / "calculator" → `/tools`
+  - "rare earth" / "materials" → `/materials`
+  - "newsletter" → `/features/newsletter`
+  - "analytics" → `/features/analytics`
+  - "app" → `/features/app`
+  - "weekly brief" → `/features/weekly-brief`
+
+---
+
+### 7. Admin Dashboard Improvement
+
+#### [MODIFY] [admin/page.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/admin/page.tsx)
+- Fetch real stats from new API endpoint
+- Add video count card
+
+#### [NEW] [api/admin/stats/route.ts](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/api/admin/stats/route.ts)
+- Returns counts for articles, videos, newsletters, rareEarth, users
+
+#### [MODIFY] [admin/layout.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/admin/layout.tsx)
+- Add "Videos" link to admin nav (already exists, verify)
+
+---
+
+### 8. UI/UX Polish
+
+#### [MODIFY] [globals.css](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/app/globals.css)
+- Add smooth scroll behavior
+- Add custom scrollbar styles
+- Add article typography styles
+
+#### [MODIFY] [Hero.tsx](file:///c:/Users/nicus/Desktop/GeoMoney_Prod/GeoMoney/src/components/Hero.tsx)
+- Clean up hero text
+- Better mobile responsiveness
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Run `npx next build` to verify the app builds without errors after all changes
+
+### Manual Verification (Browser Testing)
+1. **Homepage**: Open `/` — should show Navbar, Hero with AI assistant, Feature cards, compact news preview, compact video preview, Newsletter, footer. All nav links should work.
+2. **News page**: Navigate to `/news` — should show filterable news list with category buttons. Click a category to filter. Click an article to go to detail.
+3. **News detail**: Open a news article — content should be well-formatted, AI Analysis should be below the article (not stuck in a sidebar), source link should work.
+4. **Videos page**: Navigate to `/videos` — should show two tabs (Videos, Shorts). Each tab shows relevant content.
+5. **Tools page**: Navigate to `/tools` — all tools should be functional, no locked features.
+6. **AI Navigator**: Type "show me news" in AI assistant — should navigate to `/news`. Type "show me videos" → should go to `/videos`.
+7. **Admin panel**: Go to `/admin/settings` → verify Categories tab exists and can add/remove news categories. Videos management should have videoType selector.
+8. **Feature pages**: Visit each `/features/*` page — subscribe/notify forms should work and connect to newsletter API.

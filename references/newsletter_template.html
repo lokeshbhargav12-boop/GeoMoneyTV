@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoMoney AI Insights</title>
+    <!--[if mso]>
+    <noscript>
+    <xml>
+    <o:OfficeDocumentSettings>
+      <o:PixelsPerInch>96</o:PixelsPerInch>
+    </o:OfficeDocumentSettings>
+    </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Base styles for responsive behavior (mostly inline for email clients though) */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { margin: 0; padding: 0; background-color: #0c0f12; -webkit-font-smoothing: antialiased; }
+        .wrapper { width: 100%; table-layout: fixed; background-color: #0c0f12; padding-bottom: 40px; }
+        .main { background-color: #12161a; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; font-family: 'Inter', Arial, sans-serif; color: #e2e8f0; border-radius: 12px; overflow: hidden; border: 1px solid #1f2937; margin-top: 40px; }
+        table { border-spacing: 0; }
+        td { padding: 0; }
+        .header { background: linear-gradient(135deg, #1e3a8a 0%, #064e3b 100%); padding: 40px 30px; text-align: center; }
+        .header-logo { font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px; margin: 0; }
+        .header-logo span { color: #10b981; }
+        .header-date { color: #94a3b8; font-size: 13px; font-weight: 500; margin-top: 10px; letter-spacing: 1px; text-transform: uppercase; }
+        .content { padding: 40px 30px; }
+        .greeting { font-size: 20px; font-weight: 600; color: #ffffff; margin-bottom: 20px; }
+        .intro-text { font-size: 15px; line-height: 1.6; color: #cbd5e1; margin-bottom: 30px; }
+        
+        /* Card component */
+        .card { background-color: #1a202c; border-radius: 10px; border: 1px solid #2d3748; padding: 25px; margin-bottom: 25px; }
+        .card-header { display: flex; align-items: center; margin-bottom: 15px; }
+        .card-icon { width: 32px; height: 32px; background-color: rgba(16, 185, 129, 0.1); border-radius: 8px; text-align: center; line-height: 32px; font-size: 16px; margin-right: 12px; color: #10b981; }
+        .card-title { font-size: 18px; font-weight: 600; color: #ffffff; margin: 0; }
+        .card-title.predict { color: #3b82f6; }
+        .card-icon.predict { background-color: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .card-title.geo { color: #f59e0b; }
+        .card-icon.geo { background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        
+        .card-content { font-size: 14px; line-height: 1.6; color: #94a3b8; }
+        .highlight { color: #10b981; font-weight: 500; }
+        
+        /* Stats row */
+        .stats-table { width: 100%; margin-top: 15px; }
+        .stat-box { background-color: #0c0f12; border-radius: 8px; padding: 12px; text-align: center; width: 48%; }
+        .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+        .stat-val { font-size: 16px; font-weight: 600; color: #e2e8f0; }
+        .stat-val.up { color: #10b981; }
+        .stat-val.down { color: #ef4444; }
+
+        /* Prediction Badge */
+        .prediction-badge { display: inline-block; background: linear-gradient(90deg, rgba(59,130,246,0.2) 0%, rgba(139,92,246,0.2) 100%); border: 1px solid rgba(139,92,246,0.3); color: #c4b5fd; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; margin-top: 15px; letter-spacing: 0.5px; }
+
+        .cta-container { text-align: center; margin: 40px 0 20px; }
+        .cta-button { display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 30px; border-radius: 8px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3); transition: background-color 0.3s ease; }
+        .cta-button:hover { background-color: #059669; }
+
+        .footer { background-color: #0c0f12; border-top: 1px solid #1f2937; padding: 30px; text-align: center; }
+        .footer-text { font-size: 12px; color: #64748b; margin-bottom: 10px; line-height: 1.5; }
+        .footer-links { margin-top: 15px; }
+        .footer-links a { color: #94a3b8; text-decoration: none; font-size: 12px; margin: 0 10px; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+        .footer-links a:hover { border-bottom-color: #94a3b8; }
+        
+        .ai-disclaimer { font-size: 11px; color: #475569; font-style: italic; margin-top: 20px; border-top: 1px dashed #1f2937; padding-top: 15px; }
+
+        @media screen and (max-width: 600px) {
+            .main { border-radius: 0; margin-top: 0; border: none; }
+            .header { padding: 30px 20px; }
+            .content { padding: 30px 20px; }
+            .stat-box { display: block; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <center class="wrapper">
+        <table class="main" width="100%">
+            <!-- Header -->
+            <tr>
+                <td class="header">
+                    <h1 class="header-logo">Geo<span>Money</span></h1>
+                    <div class="header-date">{{date_today}} | AI Intelligence Brief</div>
+                </td>
+            </tr>
+            
+            <!-- Body Content -->
+            <tr>
+                <td class="content">
+                    <div class="greeting">Hello {{user_name}},</div>
+                    <div class="intro-text">
+                        Welcome to your personalized intelligence briefing. Our AI models have analyzed over 14,000 global news sources, economic indicators, and geopolitical shifts over the last 24 hours to bring you system signals and intelligence.
+                    </div>
+
+                    <!-- AI Summary Card -->
+                    <div class="card">
+                        <table width="100%">
+                            <tr>
+                                <td>
+                                    <div class="card-header">
+                                        <div class="card-icon">🧠</div>
+                                        <h2 class="card-title">AI Market Summary</h2>
+                                    </div>
+                                    <div class="card-content">
+                                        Global markets are exhibiting <span class="highlight">cautious optimism</span> amid tightening energy supply chains. Tech equities continue to decouple from traditional manufacturing sectors, driven by breakthroughs in automated infrastructure. 
+                                        <br><br>
+                                        Meanwhile, emerging market bonds are experiencing increased volatility due to sudden policy shifts in the Indo-Pacific region.
+                                    </div>
+                                    <table class="stats-table">
+                                        <tr>
+                                            <td class="stat-box" style="margin-right: 2%;">
+                                                <div class="stat-label">AI Sentiment</div>
+                                                <div class="stat-val up">Positive Pressure (68%)</div>
+                                            </td>
+                                            <td class="stat-box">
+                                                <div class="stat-label">Volatility Index</div>
+                                                <div class="stat-val down">Low (14.2)</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Geopolitical Shifts Card -->
+                    <div class="card">
+                        <table width="100%">
+                            <tr>
+                                <td>
+                                    <div class="card-header">
+                                        <div class="card-icon geo">🌍</div>
+                                        <h2 class="card-title geo">Geopolitical Flashpoints</h2>
+                                    </div>
+                                    <div class="card-content">
+                                        <strong>1. Renewable Trade Tariffs:</strong> New cross-border carbon tax implementations are accelerating the shift toward localized clean energy grids, particularly in the Eurozone.
+                                        <br><br>
+                                        <strong>2. Supply Chain Rerouting:</strong> Critical mineral exports have seen a 12% logistical diversion away from traditional maritime choke points, elevating the strategic value of land-based corridors into Central Asia.
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- AI Prediction Card -->
+                    <div class="card">
+                        <table width="100%">
+                            <tr>
+                                <td>
+                                    <div class="card-header">
+                                        <div class="card-icon predict">⚡</div>
+                                        <h2 class="card-title predict">The Oracle: 7-Day Scenario Outlook</h2>
+                                    </div>
+                                    <div class="card-content">
+                                        Based on real-time neural network analysis of policy sentiment and capital flows, we observe a high probability scenario in the clean energy commodity sector.
+                                        <br><br>
+                                        <strong>Scenario Projection:</strong> Lithium and Cobalt futures are projected to experience a <span style="color: #3b82f6; font-weight: 500;">support level test within 48-72 hours</span> due to upcoming regulatory announcements. Energy ecosystem equities (smart grids, storage) may outperform legacy utilities.
+                                        <br>
+                                        <div class="prediction-badge">CONFIDENCE SCORE: 87.4%</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- CTA -->
+                    <div class="cta-container">
+                        <a href="{{dashboard_url}}" class="cta-button">View Deep Analysis in Dashboard</a>
+                    </div>
+                </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+                <td class="footer">
+                    <div class="footer-text">
+                        You are receiving this intelligence brief because you are subscribed to GeoMoney Pro analytics.
+                    </div>
+                    <div class="footer-links">
+                        <a href="{{settings_url}}">Manage Preferences</a>
+                        <a href="{{unsubscribe_url}}">Unsubscribe</a>
+                        <a href="{{web_version_url}}">View in Browser</a>
+                    </div>
+                    <div class="ai-disclaimer">
+                        Disclaimer: The scenario projections and summaries in this email are generated by artificial intelligence models for informational purposes only. Do not interpret this as direct financial advice. Always conduct your own research before making any decisions.
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </center>
+</body>
+</html>

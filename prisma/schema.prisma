@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String
+  image         String?
+  role          String    @default("user") // user, admin
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  articles      Article[]
+  sessions      Session[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Article {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String?  @db.Text
+  content     String   @db.LongText
+  aiSummary   String?  @db.LongText
+  aiAnalysis  String?  @db.LongText
+  imageUrl    String?
+  sourceUrl   String?  @db.Text
+  sourceName  String?
+  category    String
+  featured    Boolean  @default(false)
+  published   Boolean  @default(false)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([slug])
+  @@index([category])
+}
+
+model Video {
+  id          String   @id @default(cuid())
+  title       String
+  url         String
+  thumbnail   String?
+  source      String   @default("manual") // manual, youtube_channel
+  videoType   String   @default("video") // video, short
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SiteSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model RareEarthMaterial {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  symbol      String   @unique
+  category    String
+  price       Float?
+  unit        String?
+  description String?  @db.Text
+  imageUrl    String?
+  supply      String?  @db.Text
+  demand      String?  @db.Text
+  countries   String?  @db.Text // JSON string of countries
+  applications String? @db.Text // JSON string of applications
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([category])
+}
+
+model Newsletter {
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  active              Boolean  @default(true)
+  materialPreferences String?  @db.Text // JSON string of selected categories/topics
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([email])
+}
+
+model NewsletterReport {
+  id          String   @id @default(cuid())
+  subject     String
+  htmlContent String   @db.LongText
+  sentTo      String   @db.LongText // JSON array of emails
+  sentCount   Int      @default(0)
+  sentAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([sentAt])
+}
+
+model CommodityPrice {
+  id        String   @id @default(cuid())
+  label     String
+  symbol    String   @unique
+  price     Float
+  change    Float?
+  previousClose Float?
+  type      String
+  updatedAt DateTime @updatedAt
+}

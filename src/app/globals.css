@@ -24,3 +24,19 @@ body {
     text-wrap: balance;
   }
 }
+
+/* Google Translate UI fixes */
+.goog-te-banner-frame.skiptranslate,
+.skiptranslate.goog-te-gadget {
+    display: none !important;
+} 
+body {
+    top: 0px !important; 
+}
+.goog-text-highlight {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+font {
+    background-color: transparent !important;
+}
