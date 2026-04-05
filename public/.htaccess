@@ -1,30 +1,14 @@
+Options -MultiViews -Indexes
+
 RewriteEngine On
-RewriteBase /
+ProxyPreserveHost On
 
-# Redirect trailing slashes (exclude _next static assets)
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_URI} !/$
-RewriteCond %{REQUEST_URI} !^/_next/
-RewriteRule ^(.*)$ $1/ [L,R=301]
+# Proxy ALL requests directly to Next.js — no file-existence checks
+# (file-existence checks block /_next/static/ when any _next dir exists at webroot)
+RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
 
-# Pass all requests to Next.js app running on port 3000
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ http://localhost:3000/$1 [P,L]
-
-# Handle WebSocket upgrades
-RewriteCond %{HTTP:Upgrade} websocket [NC]
-RewriteCond %{HTTP:Connection} upgrade [NC]
-RewriteRule ^/?$ "ws://localhost:3000/" [P,L]
-
-# Set proper headers for static assets
+# Security headers
 <IfModule mod_headers.c>
-  # Cache static assets
-  <FilesMatch "\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">
-    Header set Cache-Control "public, max-age=31536000, immutable"
-  </FilesMatch>
-  
-  # Security headers
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
   Header set X-XSS-Protection "1; mode=block"
