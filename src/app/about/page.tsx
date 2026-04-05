@@ -38,7 +38,7 @@ const ABOUT_LINKS = [
     href: '/about/contact',
     icon: MessageSquare,
     title: 'Contact Us',
-    description: 'Get in touch with the GeoMoney team for inquiries and support.',,
+    description: 'Get in touch with the GeoMoney team for inquiries and support.',
     color: 'text-emerald-400',
     bg: 'bg-emerald-500/10',
     border: 'border-emerald-500/20',
