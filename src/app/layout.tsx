@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import Ticker from "@/components/Ticker";
 import Script from "next/script";
 import { prisma } from "@/lib/prisma";
+import { unstable_noStore as noStore } from "next/cache";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
 };
 
 async function getLogoUrl() {
+  noStore();
   try {
     const logoSetting = await prisma.siteSettings.findUnique({
       where: { key: "logo_url" },

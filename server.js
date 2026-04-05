@@ -2,6 +2,7 @@ const { createServer } = require("http");
 const { parse } = require("url");
 const next = require("next");
 const path = require("path");
+const https = require("https");
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "0.0.0.0";
@@ -16,7 +17,37 @@ const app = next({
 
 const handle = app.getRequestHandler();
 
+function runNewsSync() {
+  console.log(`[Scheduler] Running news sync at ${new Date().toISOString()}`);
+  const options = {
+    hostname: "127.0.0.1",
+    port: port,
+    path: "/api/cron/sync",
+    method: "GET",
+  };
+  const req = require("http").request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => { data += chunk; });
+    res.on("end", () => {
+      try {
+        const result = JSON.parse(data);
+        console.log(`[Scheduler] Sync complete — news: ${result.synced?.news ?? "?"}`, `tickers: ${result.synced?.tickers ?? "?"}`, `videos: ${result.synced?.videos?.added ?? "?"}`);
+      } catch {
+        console.log("[Scheduler] Sync response:", data.slice(0, 200));
+      }
+    });
+  });
+  req.on("error", (err) => console.error("[Scheduler] Sync failed:", err.message));
+  req.end();
+}
+
 app.prepare().then(() => {
+  // Run news sync immediately on startup, then every hour
+  setTimeout(() => {
+    runNewsSync();
+    setInterval(runNewsSync, 60 * 60 * 1000);
+  }, 15000); // wait 15s after boot before first sync
+
   createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true);
