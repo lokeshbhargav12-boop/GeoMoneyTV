@@ -5,13 +5,7 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 const prismaClientSingleton = () => {
-  return new PrismaClient({
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
-      },
-    },
-  })
+  return new PrismaClient()
 }
 
 export const prisma = globalForPrisma.prisma ?? prismaClientSingleton()
