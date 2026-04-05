@@ -1,9 +1,10 @@
 RewriteEngine On
 RewriteBase /
 
-# Redirect trailing slashes
+# Redirect trailing slashes (exclude _next static assets)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_URI} !/$
+RewriteCond %{REQUEST_URI} !^/_next/
 RewriteRule ^(.*)$ $1/ [L,R=301]
 
 # Pass all requests to Next.js app running on port 3000

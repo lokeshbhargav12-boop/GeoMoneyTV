@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // For Node.js server deployment (NOT static export)
-  output: "standalone",
-
   // Ensure assets are properly referenced
   assetPrefix: process.env.ASSET_PREFIX || "",
 
