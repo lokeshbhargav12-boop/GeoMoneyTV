@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy && next build",
+    "build": "prisma db push && next build",
+    "seed": "node scripts/create-admin.js && node scripts/init-settings.js",
     "start": "node server.js",
     "lint": "next lint",
     "postbuild": "echo 'Build completed successfully'",
