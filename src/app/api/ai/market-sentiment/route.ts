@@ -87,12 +87,13 @@ No markdown. No explanation. JSON only.`
         const data = await response.json()
         const content: string = data.choices?.[0]?.message?.content ?? ''
 
-        const jsonMatch = content.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) {
+        // Parse JSON — strip markdown fences by extracting from first { to last }
+        const firstBrace = content.indexOf('{')
+        const lastBrace = content.lastIndexOf('}')
+        if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
             throw new Error('No JSON object found in AI response')
         }
-
-        const sentiment = JSON.parse(jsonMatch[0])
+        const sentiment = JSON.parse(content.substring(firstBrace, lastBrace + 1))
 
         return NextResponse.json({
             symbol,

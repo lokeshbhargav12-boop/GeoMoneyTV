@@ -94,25 +94,17 @@ INSTRUCTIONS:
             throw new Error('No content received from AI');
         }
 
-        // Parse JSON from response (handle potential markdown code blocks)
+        // Parse JSON — strip markdown fences by extracting from first { to last }
         let analysisJson;
         try {
-            // Try direct parse first
-            analysisJson = JSON.parse(contentStr);
-        } catch {
-            // Try extracting JSON from markdown code block
-            const jsonMatch = contentStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (jsonMatch) {
-                analysisJson = JSON.parse(jsonMatch[1].trim());
-            } else {
-                // Try finding JSON object in text
-                const braceMatch = contentStr.match(/\{[\s\S]*\}/);
-                if (braceMatch) {
-                    analysisJson = JSON.parse(braceMatch[0]);
-                } else {
-                    throw new Error('Could not parse AI response as JSON');
-                }
+            const firstBrace = contentStr.indexOf('{');
+            const lastBrace = contentStr.lastIndexOf('}');
+            if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+                throw new Error('No JSON object found in AI response');
             }
+            analysisJson = JSON.parse(contentStr.substring(firstBrace, lastBrace + 1));
+        } catch {
+            throw new Error('Could not parse AI response as JSON');
         }
 
         return NextResponse.json(analysisJson);

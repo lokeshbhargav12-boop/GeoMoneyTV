@@ -134,23 +134,17 @@ export async function POST(req: Request) {
       throw new Error('No content received from AI');
     }
 
-    // Parse JSON from response
-    let cleanContent = rawContent.trim();
-
-    if (cleanContent.includes('```json')) {
-      const jsonMatch = cleanContent.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonMatch) cleanContent = jsonMatch[1].trim();
-    } else if (cleanContent.includes('```')) {
-      const codeMatch = cleanContent.match(/```\s*([\s\S]*?)\s*```/);
-      if (codeMatch) cleanContent = codeMatch[1].trim();
-    }
-
+    // Parse JSON — strip markdown fences by extracting from first { to last }
+    let cleanContent = rawContent;
     const firstBrace = cleanContent.indexOf('{');
     const lastBrace = cleanContent.lastIndexOf('}');
 
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      cleanContent = cleanContent.substring(firstBrace, lastBrace + 1);
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+      console.error('JSON Parse Error. Raw content:', rawContent);
+      throw new Error('Failed to parse AI response as JSON');
     }
+
+    cleanContent = cleanContent.substring(firstBrace, lastBrace + 1);
 
     let analysis;
     try {
