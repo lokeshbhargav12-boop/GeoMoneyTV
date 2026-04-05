@@ -1,6 +1,7 @@
 node_modules
 
 .next
+public/_next
 dist
 .env*
 *.zip
