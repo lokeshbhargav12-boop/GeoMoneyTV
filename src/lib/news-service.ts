@@ -191,7 +191,7 @@ async function fetchFullContent(url: string): Promise<string | null> {
     const reader = new Readability(dom.window.document)
     const article = reader.parse()
 
-    return article ? article.textContent : null
+    return article ? (article.textContent ?? null) : null
   } catch (error) {
     console.warn(`Failed to fetch full content for ${url}:`, error)
     return null
