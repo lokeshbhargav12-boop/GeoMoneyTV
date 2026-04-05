@@ -2,8 +2,8 @@ import Link from 'next/link'
 import { FileText, Shield, BrainCircuit, MessageSquare, ChevronRight } from 'lucide-react'
 
 export const metadata = {
-  title: 'About Us | GeoMoney TV',
-  description: 'Learn about GeoMoney TV — terms, privacy, research methodology, and how to contact us.',
+  title: 'About Us | GeoMoney',
+  description: 'Learn about GeoMoney — terms, privacy, research methodology, and how to contact us.',
 }
 
 const ABOUT_LINKS = [
@@ -38,7 +38,7 @@ const ABOUT_LINKS = [
     href: '/about/contact',
     icon: MessageSquare,
     title: 'Contact Us',
-    description: 'Get in touch with the GeoMoney TV team for inquiries and support.',
+    description: 'Get in touch with the GeoMoney team for inquiries and support.',,
     color: 'text-emerald-400',
     bg: 'bg-emerald-500/10',
     border: 'border-emerald-500/20',
@@ -64,7 +64,7 @@ export default function AboutPage() {
               The platform brings together multiple layers of analysis, including The GeoMoney Brief, the GeoMoney Intelligence Report, analytical tools, and AI-assisted research systems. Each component is designed to provide analytical perspectives on underlying global systems.
             </p>
             <p className="text-base text-gray-400 leading-relaxed">
-              GeoMoney TV is the video and media arm of the GeoMoney platform. It delivers visual briefings and analysis across geopolitics, markets, and energy systems.
+              GeoMoney is the video and media arm of the GeoMoney platform. It delivers visual briefings and analysis across geopolitics, markets, and energy systems.
             </p>
             <p className="text-sm text-gray-500 leading-relaxed italic mt-6 border-l-2 border-geo-gold/30 pl-4">
               All content is provided for informational and analytical purposes only and does not constitute financial, investment, legal, or other professional advice.
@@ -98,7 +98,7 @@ export default function AboutPage() {
         {/* Compliance Footer */}
         <div className="mt-16 border-t border-white/10 pt-8">
           <p className="text-gray-500 text-sm leading-relaxed max-w-3xl">
-            GeoMoney TV provides geopolitical and market analysis for informational purposes only. 
+            GeoMoney provides geopolitical and market analysis for informational purposes only. 
             This content does not constitute financial, investment, legal, or other professional advice 
             and is not intended to guide decision-making. The content is based on publicly available 
             information and analytical interpretation and may not be complete or accurate. Any actions 
