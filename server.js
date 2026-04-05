@@ -4,13 +4,11 @@ const next = require("next");
 const path = require("path");
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = "localhost";
+const hostname = "0.0.0.0";
 const port = process.env.PORT || 3000;
 
 const app = next({
   dev,
-  hostname,
-  port,
   conf: {
     distDir: ".next",
   },
@@ -44,7 +42,7 @@ app.prepare().then(() => {
       console.error(err);
       process.exit(1);
     })
-    .listen(port, () => {
-      console.log(`> Ready on http://${hostname}:${port}`);
+    .listen(port, hostname, () => {
+      console.log(`> Ready on http://0.0.0.0:${port}`);
     });
 });
