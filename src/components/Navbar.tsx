@@ -75,7 +75,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
   if (pathname?.startsWith("/admin")) return null;
 
   return (
-    <nav className="fixed top-10 z-40 w-full bg-black/60 backdrop-blur-xl border-b border-white/5">
+    <nav className="fixed top-16 z-40 w-full bg-black/60 backdrop-blur-xl border-b border-white/5">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
@@ -91,6 +91,9 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             )}
             <span className="text-lg font-bold tracking-widest text-white hidden sm:block">
               GeoMoney
+            </span>
+            <span className="hidden sm:inline-block text-[10px] font-bold tracking-widest text-yellow-400 border border-yellow-400/50 rounded px-1.5 py-0.5 bg-yellow-400/10">
+              BETA
             </span>
           </Link>
 

@@ -11,7 +11,7 @@ import { unstable_cache } from "next/cache";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "GeoMoney",
+  title: "GeoMoney — Beta",
   description: "Strategic intelligence for decision makers worldwide.",
 };
 
@@ -59,8 +59,16 @@ export default async function RootLayout({
             strategy="afterInteractive"
           />
 
+          {/* Beta Banner */}
+          <div className="fixed top-0 z-[60] w-full bg-yellow-500/90 text-black text-xs text-center py-1 font-semibold tracking-wide">
+            Beta Version — Features may change.{" "}
+            <a href="/about/contact" className="underline hover:text-black/70">
+              Share feedback
+            </a>
+          </div>
+
           {/* Fixed Ticker */}
-          <div className="fixed top-0 z-50 w-full">
+          <div className="fixed top-6 z-50 w-full">
             <Ticker />
           </div>
           {/* Persistent Navbar */}

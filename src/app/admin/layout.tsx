@@ -84,6 +84,9 @@ export default function AdminLayout({
         <div className="flex items-center gap-3 px-6 h-16 border-b border-white/10 shrink-0">
           <div className="h-8 w-8 rounded-full bg-gradient-to-br from-geo-gold to-yellow-600 shrink-0" />
           <span className="text-lg font-bold tracking-wide">Admin Panel</span>
+          <span className="text-[9px] font-bold tracking-widest text-yellow-400 border border-yellow-400/50 rounded px-1 py-0.5 bg-yellow-400/10 shrink-0">
+            BETA
+          </span>
           <button
             onClick={() => setSidebarOpen(false)}
             className="ml-auto lg:hidden text-gray-400 hover:text-white"
