@@ -174,10 +174,10 @@ export default function AnalyticsDashboardPage() {
     Minus
 
   return (
-    <main className="min-h-screen bg-geo-dark text-white">
+    <main className="min-h-screen bg-geo-dark text-white pt-32">
 
       {/* ── Dashboard Header (sticky below navbar) ─────────────────── */}
-      <div className="sticky z-20 border-b border-white/10 bg-black/60 backdrop-blur-xl" style={{ top: '104px' }}>
+      <div className="sticky z-20 border-b border-white/10 bg-black/60 backdrop-blur-xl" style={{ top: '128px' }}>
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 pt-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/" className="text-gray-500 hover:text-geo-gold transition-colors">
@@ -222,7 +222,7 @@ export default function AnalyticsDashboardPage() {
       </div>
 
       {/* ── Page content ───────────────────────────────────────────── */}
-      <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 pt-28 pb-16 space-y-10" style={{ paddingTop: '1.5rem' }}>
+      <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 pt-6 pb-16 space-y-10">
 
         {/* ── Section 1: Main Chart + Macro Quotes ─────────────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-4" style={{ height: '580px' }}>
