@@ -63,49 +63,75 @@ Return ONLY a valid JSON object with EXACTLY these fields:
 
 No markdown. No explanation. JSON only.`
 
-    try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://geomoney.tv',
-                'X-Title': 'GeoMoney Market Intelligence',
-            },
-            body: JSON.stringify({
-                model: 'arcee-ai/trinity-large-preview:free',
-                messages: [{ role: 'user', content: prompt }],
-                temperature: 0.65,
-                max_tokens: 900,
-            }),
-        })
+    // Models tried in order — first available wins
+    const MODELS = [
+        'google/gemini-2.0-flash-exp:free',
+        'meta-llama/llama-3.3-70b-instruct:free',
+        'mistralai/mistral-7b-instruct:free',
+    ]
 
-        if (!response.ok) {
-            throw new Error(`OpenRouter responded with ${response.status}`)
+    let lastError: string = 'No models available'
+
+    for (const model of MODELS) {
+        try {
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://geomoney.tv',
+                    'X-Title': 'GeoMoney Market Intelligence',
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: 0.65,
+                    max_tokens: 900,
+                }),
+            })
+
+            if (!response.ok) {
+                const errBody = await response.text()
+                lastError = `${model}: HTTP ${response.status} — ${errBody}`
+                console.warn('Market sentiment model failed, trying next:', lastError)
+                continue
+            }
+
+            const data = await response.json()
+            const content: string = data.choices?.[0]?.message?.content ?? ''
+
+            if (!content) {
+                lastError = `${model}: empty response`
+                console.warn('Market sentiment model returned empty content, trying next')
+                continue
+            }
+
+            // Parse JSON — strip markdown fences by extracting from first { to last }
+            const firstBrace = content.indexOf('{')
+            const lastBrace = content.lastIndexOf('}')
+            if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+                lastError = `${model}: no JSON in response`
+                console.warn('Market sentiment model returned no JSON, trying next:', content.slice(0, 200))
+                continue
+            }
+
+            const sentiment = JSON.parse(content.substring(firstBrace, lastBrace + 1))
+
+            return NextResponse.json({
+                symbol,
+                instrumentName,
+                ...sentiment,
+                timestamp: new Date().toISOString(),
+            })
+        } catch (error) {
+            lastError = `${model}: ${error instanceof Error ? error.message : String(error)}`
+            console.warn('Market sentiment model threw, trying next:', lastError)
         }
-
-        const data = await response.json()
-        const content: string = data.choices?.[0]?.message?.content ?? ''
-
-        // Parse JSON — strip markdown fences by extracting from first { to last }
-        const firstBrace = content.indexOf('{')
-        const lastBrace = content.lastIndexOf('}')
-        if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-            throw new Error('No JSON object found in AI response')
-        }
-        const sentiment = JSON.parse(content.substring(firstBrace, lastBrace + 1))
-
-        return NextResponse.json({
-            symbol,
-            instrumentName,
-            ...sentiment,
-            timestamp: new Date().toISOString(),
-        })
-    } catch (error) {
-        console.error('Market sentiment API error:', error)
-        return NextResponse.json(
-            { error: 'Failed to generate market analysis. Please try again.' },
-            { status: 500 }
-        )
     }
+
+    console.error('All market sentiment models failed. Last error:', lastError)
+    return NextResponse.json(
+        { error: 'Failed to generate market analysis. Please try again.' },
+        { status: 500 }
+    )
 }
