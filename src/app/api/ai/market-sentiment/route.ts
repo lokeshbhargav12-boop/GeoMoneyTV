@@ -34,9 +34,14 @@ export async function POST(req: Request) {
 
     const instrumentName = INSTRUMENT_NAMES[symbol] ?? symbol
 
-    // Read admin-configured model (same pattern as /api/ai/summarize)
-    const aiSetting = await prisma.siteSettings.findUnique({ where: { key: 'ai_model' } })
-    const adminModel = aiSetting?.value || ''
+    // Read admin-configured model — wrapped in try/catch so a DB panic doesn't kill the route
+    let adminModel = process.env.OPENROUTER_AI_MODEL || ''
+    try {
+        const aiSetting = await prisma.siteSettings.findUnique({ where: { key: 'ai_model' } })
+        if (aiSetting?.value) adminModel = aiSetting.value
+    } catch (dbErr) {
+        console.warn('market-sentiment: DB lookup for ai_model failed, using env/fallback:', dbErr instanceof Error ? dbErr.message : String(dbErr))
+    }
 
     const prompt = `You are a senior macro market strategist and geopolitical intelligence analyst for GeoMoney TV — an international financial and geopolitical intelligence platform focused on commodities, energy, and critical materials.
 
@@ -70,9 +75,9 @@ No markdown. No explanation. JSON only.`
 
     // Models tried in order — admin-configured model first, then fallbacks
     const FALLBACKS = [
-        'qwen/qwen2.5-72b-instruct:free',
-        'deepseek/deepseek-r1:free',
-        'meta-llama/llama-3.3-70b-instruct:free',
+        'google/gemma-3-27b-it:free',
+        'meta-llama/llama-4-scout:free',
+        'microsoft/phi-4:free',
     ]
     const MODELS = adminModel
         ? [adminModel, ...FALLBACKS.filter(m => m !== adminModel)]
@@ -139,7 +144,7 @@ No markdown. No explanation. JSON only.`
 
     console.error('All market sentiment models failed. Last error:', lastError)
     return NextResponse.json(
-        { error: 'Failed to generate market analysis. Please try again.', debug: lastError, modelsAttempted: MODELS },
+        { error: 'Failed to generate market analysis. Please try again.' },
         { status: 500 }
     )
 }
