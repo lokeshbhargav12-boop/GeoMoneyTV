@@ -3,6 +3,18 @@ const { parse } = require("url");
 const next = require("next");
 const path = require("path");
 const https = require("https");
+const fs = require("fs");
+
+// ── Startup cleanup ──────────────────────────────────────────────────────────
+// Remove public/_next if it exists. A stale _next folder inside public_html
+// causes Apache to serve old, hashed CSS/JS files instead of proxying the
+// live /_next/static/ requests to Next.js, resulting in an unstyled page.
+const staleNextDir = path.join(__dirname, "public", "_next");
+if (fs.existsSync(staleNextDir)) {
+  fs.rmSync(staleNextDir, { recursive: true, force: true });
+  console.log("[Startup] Removed stale public/_next directory.");
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "0.0.0.0";

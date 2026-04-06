@@ -3,6 +3,10 @@ Options -MultiViews -Indexes
 RewriteEngine On
 ProxyPreserveHost On
 
+# Force HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
 # Proxy ALL requests directly to Next.js — no file-existence checks
 # (file-existence checks block /_next/static/ when any _next dir exists at webroot)
 RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
