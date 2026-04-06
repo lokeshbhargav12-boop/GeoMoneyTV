@@ -1,36 +1,27 @@
 const fs = require('fs');
 const path = require('path');
 
-const srcStatic = path.join(__dirname, '..', '.next', 'static');
-const destStatic = path.join(__dirname, '..', 'public', '_next', 'static');
+// ── DEPRECATED ────────────────────────────────────────────────────────────────
+// copy-static.js is NO LONGER NEEDED and should NOT be run.
+//
+// Previously this copied .next/static → public/_next/static so Apache could
+// serve CSS/JS directly. This caused a critical bug: after every rebuild the
+// CSS file hash changes, but Apache kept serving the OLD hash from public/_next,
+// resulting in a completely unstyled page for users.
+//
+// The fix: Apache now proxies ALL requests (including /_next/static/) to
+// Next.js via the RewriteRule in public/.htaccess. Next.js serves its own
+// static files correctly with the current build hash.
+//
+// server.js also auto-deletes public/_next at startup to remove any stale copy.
+// ─────────────────────────────────────────────────────────────────────────────
 
-console.log('Copying Next.js static files for Hostinger compatibility...');
+const publicNextDir = path.join(__dirname, '..', 'public', '_next');
 
-if (fs.existsSync(srcStatic)) {
-  // Ensure public/_next exists
-  const publicNextDir = path.join(__dirname, '..', 'public', '_next');
-  if (!fs.existsSync(publicNextDir)) {
-    fs.mkdirSync(publicNextDir, { recursive: true });
-  }
-
-  // Recursive copy function
-  function copyRecursiveSync(src, dest) {
-    const exists = fs.existsSync(src);
-    const stats = exists && fs.statSync(src);
-    const isDirectory = exists && stats.isDirectory();
-    if (isDirectory) {
-      if (!fs.existsSync(dest)) fs.mkdirSync(dest);
-      fs.readdirSync(src).forEach((childItemName) => {
-        copyRecursiveSync(path.join(src, childItemName), path.join(dest, childItemName));
-      });
-    } else {
-      fs.copyFileSync(src, dest);
-    }
-  }
-
-  copyRecursiveSync(srcStatic, destStatic);
-  console.log('✅ Successfully copied .next/static to public/_next/static');
-  console.log('This ensures LiteSpeed/Apache on Hostinger can serve the CSS/JS files directly.');
+if (fs.existsSync(publicNextDir)) {
+  fs.rmSync(publicNextDir, { recursive: true, force: true });
+  console.log('✅ Removed stale public/_next directory (safe to ignore this script).');
 } else {
-  console.log('⚠️ .next/static does not exist. Make sure to run this after next build.');
+  console.log('ℹ️  public/_next does not exist — nothing to clean up.');
 }
+console.warn('⚠️  copy-static.js is deprecated. Do not run it. Apache proxy handles /_next/ now.');
