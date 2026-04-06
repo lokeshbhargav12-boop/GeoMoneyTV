@@ -8,12 +8,7 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url)
         const category = searchParams.get('category')
         const search = searchParams.get('search')
-        const limit = parseInt(searchParams.get('limit') || '100')
-
-        // Debug: check total articles and published count
-        const totalCount = await prisma.article.count()
-        const publishedCount = await prisma.article.count({ where: { published: true } })
-        console.log(`[Articles API] Total articles: ${totalCount}, Published: ${publishedCount}`)
+        const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50)
 
         const where: any = { published: true }
 
@@ -35,7 +30,6 @@ export async function GET(req: Request) {
                 title: true,
                 slug: true,
                 description: true,
-                content: true,
                 imageUrl: true,
                 sourceName: true,
                 category: true,
@@ -46,8 +40,11 @@ export async function GET(req: Request) {
             take: limit,
         })
 
-        console.log(`[Articles API] Returning ${articles.length} articles`)
-        return NextResponse.json(articles)
+        return NextResponse.json(articles, {
+            headers: {
+                'Cache-Control': 's-maxage=60, stale-while-revalidate=120',
+            },
+        })
     } catch (error) {
         console.error('Error fetching articles:', error)
         return NextResponse.json([], { status: 200 })

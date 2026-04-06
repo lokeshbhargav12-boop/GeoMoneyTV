@@ -7,11 +7,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow 60 seconds (Vercel max for Hobby/Pro limits vary)
 
 export async function GET(req: Request) {
-    // SECURITY: In production, you should verify a CRON_SECRET header to prevent public access
-    // const authHeader = req.headers.get('authorization');
-    // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    //     return new Response('Unauthorized', { status: 401 });
-    // }
+    // Require a secret token to prevent anyone from triggering expensive syncs
+    const authHeader = req.headers.get('authorization')
+    const cronSecret = process.env.CRON_SECRET
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        return new Response('Unauthorized', { status: 401 })
+    }
 
     try {
         console.log("Starting Scheduled Sync Job...");

@@ -6,7 +6,7 @@ import Navbar from "@/components/Navbar";
 import Ticker from "@/components/Ticker";
 import Script from "next/script";
 import { prisma } from "@/lib/prisma";
-import { unstable_noStore as noStore } from "next/cache";
+import { unstable_cache } from "next/cache";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -15,17 +15,20 @@ export const metadata: Metadata = {
   description: "Strategic intelligence for decision makers worldwide.",
 };
 
-async function getLogoUrl() {
-  noStore();
-  try {
-    const logoSetting = await prisma.siteSettings.findUnique({
-      where: { key: "logo_url" },
-    });
-    return logoSetting?.value || null;
-  } catch {
-    return null;
-  }
-}
+const getLogoUrl = unstable_cache(
+  async () => {
+    try {
+      const logoSetting = await prisma.siteSettings.findUnique({
+        where: { key: "logo_url" },
+      });
+      return logoSetting?.value || null;
+    } catch {
+      return null;
+    }
+  },
+  ["logo_url"],
+  { revalidate: 300 }, // cache for 5 minutes
+);
 
 export default async function RootLayout({
   children,

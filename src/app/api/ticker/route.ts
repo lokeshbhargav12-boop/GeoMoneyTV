@@ -13,11 +13,19 @@ export async function GET() {
       data = await getMiningCommodityData();
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': 's-maxage=60, stale-while-revalidate=300',
+      },
+    });
   } catch (error) {
     console.error("Ticker API Error:", error);
     // Return fallback data even on error
     const fallbackData = await getMiningCommodityData();
-    return NextResponse.json(fallbackData);
+    return NextResponse.json(fallbackData, {
+      headers: {
+        'Cache-Control': 's-maxage=60, stale-while-revalidate=300',
+      },
+    });
   }
 }

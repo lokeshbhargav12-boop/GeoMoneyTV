@@ -24,20 +24,31 @@ function runNewsSync() {
     port: port,
     path: "/api/cron/sync",
     method: "GET",
+    headers: {
+      Authorization: `Bearer ${process.env.CRON_SECRET || ""}`,
+    },
   };
   const req = require("http").request(options, (res) => {
     let data = "";
-    res.on("data", (chunk) => { data += chunk; });
+    res.on("data", (chunk) => {
+      data += chunk;
+    });
     res.on("end", () => {
       try {
         const result = JSON.parse(data);
-        console.log(`[Scheduler] Sync complete — news: ${result.synced?.news ?? "?"}`, `tickers: ${result.synced?.tickers ?? "?"}`, `videos: ${result.synced?.videos?.added ?? "?"}`);
+        console.log(
+          `[Scheduler] Sync complete — news: ${result.synced?.news ?? "?"}`,
+          `tickers: ${result.synced?.tickers ?? "?"}`,
+          `videos: ${result.synced?.videos?.added ?? "?"}`,
+        );
       } catch {
         console.log("[Scheduler] Sync response:", data.slice(0, 200));
       }
     });
   });
-  req.on("error", (err) => console.error("[Scheduler] Sync failed:", err.message));
+  req.on("error", (err) =>
+    console.error("[Scheduler] Sync failed:", err.message),
+  );
   req.end();
 }
 

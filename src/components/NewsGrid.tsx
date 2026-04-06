@@ -13,12 +13,21 @@ async function getArticles(query?: string) {
       where.OR = [
         { title: { contains: query } },
         { description: { contains: query } },
-        { content: { contains: query } },
       ];
     }
 
     const articles = await prisma.article.findMany({
       where,
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        description: true,
+        imageUrl: true,
+        sourceName: true,
+        category: true,
+        createdAt: true,
+      },
       orderBy: {
         createdAt: "desc",
       },

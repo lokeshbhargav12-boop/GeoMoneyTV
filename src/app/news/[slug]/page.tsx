@@ -5,6 +5,9 @@ import { ArrowLeft, Calendar, ExternalLink, Tag } from "lucide-react";
 import NewsImage from "@/components/NewsImage";
 import ArticleContent from "@/components/ArticleContent";
 
+// Cache article pages for 5 minutes
+export const revalidate = 300;
+
 interface NewsPageProps {
   params: {
     slug: string;
