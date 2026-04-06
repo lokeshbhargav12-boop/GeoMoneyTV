@@ -6,14 +6,23 @@ const https = require("https");
 const fs = require("fs");
 
 // ── Startup cleanup ──────────────────────────────────────────────────────────
-// Remove public/_next if it exists. A stale _next folder inside public_html
-// causes Apache to serve old, hashed CSS/JS files instead of proxying the
-// live /_next/static/ requests to Next.js, resulting in an unstyled page.
-const staleNextDir = path.join(__dirname, "public", "_next");
-if (fs.existsSync(staleNextDir)) {
-  fs.rmSync(staleNextDir, { recursive: true, force: true });
-  console.log("[Startup] Removed stale public/_next directory.");
-}
+// Remove public_html/_next if it exists. A stale _next folder outside
+// the Next.js process causes Apache/Passenger to serve old static files.
+const staleNextDirPublic = path.join(__dirname, "public", "_next");
+const staleNextDirRoot = path.join(__dirname, "_next");
+
+try {
+  if (fs.existsSync(staleNextDirPublic)) {
+    fs.rmSync(staleNextDirPublic, { recursive: true, force: true });
+  }
+} catch (e) {}
+
+try {
+  // Be very careful not to delete .next, only _next which is generated if users copy static exports
+  if (fs.existsSync(staleNextDirRoot) && !staleNextDirRoot.endsWith(".next")) {
+    fs.rmSync(staleNextDirRoot, { recursive: true, force: true });
+  }
+} catch (e) {}
 // ─────────────────────────────────────────────────────────────────────────────
 
 const dev = process.env.NODE_ENV !== "production";
@@ -64,6 +73,8 @@ function runNewsSync() {
   req.end();
 }
 
+let missingStaticAssetsCount = 0;
+
 app.prepare().then(() => {
   // Run news sync immediately on startup, then every hour
   setTimeout(() => {
@@ -73,8 +84,47 @@ app.prepare().then(() => {
 
   createServer(async (req, res) => {
     try {
+      // Fix for proxies that pass absolute URLs like HTTP/1.1 proxy requests
+      if (req.url && req.url.startsWith("http")) {
+        try {
+          const u = new URL(req.url);
+          req.url = u.pathname + u.search;
+        } catch (e) {}
+      }
+
       const parsedUrl = parse(req.url, true);
       const { pathname, query } = parsedUrl;
+
+      // Anti-White-Screen / Cache Invalidater:
+      // If Next.js consistently returns 404 for its own generated CSS/JS files,
+      // it means the App Router HTML cache in memory is Stale (points to an older build).
+      // Restarting the Node process forces the RAM cache to clear and loads the new HTML.
+      res.on("finish", () => {
+        if (
+          res.statusCode === 404 &&
+          pathname &&
+          pathname.startsWith("/_next/static/")
+        ) {
+          missingStaticAssetsCount++;
+          if (missingStaticAssetsCount >= 3) {
+            console.error(
+              `[FATAL] Missing Next.js static assets detected (stale HTML cache). Initiating auto-recovery restart...`,
+            );
+            try {
+              const restartTxt = path.join(__dirname, "tmp", "restart.txt");
+              if (fs.existsSync(path.dirname(restartTxt)))
+                fs.writeFileSync(restartTxt, Date.now().toString());
+            } catch (e) {}
+            setTimeout(() => process.exit(1), 500); // Allow current request to finish, then crash/restart
+          }
+        } else if (
+          res.statusCode === 200 &&
+          pathname &&
+          pathname.startsWith("/_next/static/")
+        ) {
+          missingStaticAssetsCount = 0; // Reset counter on successful static asset serving
+        }
+      });
 
       // Handle service worker
       if (pathname === "/sw.js") {

@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Automatically statically generated HTML and standalone server structure
+  output: "standalone",
+
   // Ensure assets are properly referenced
   assetPrefix: process.env.ASSET_PREFIX || "",
 
