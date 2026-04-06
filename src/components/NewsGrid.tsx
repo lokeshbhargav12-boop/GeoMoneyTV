@@ -144,7 +144,8 @@ export default async function NewsGrid({
                   {featuredArticle.title}
                 </h3>
                 <p className="line-clamp-2 text-gray-300">
-                  {featuredArticle.description || 'Read the full article for details.'}
+                  {featuredArticle.description ||
+                    "Read the full article for details."}
                   ...
                 </p>
               </div>
