@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 // ── DEPRECATED ────────────────────────────────────────────────────────────────
 // copy-static.js is NO LONGER NEEDED and should NOT be run.
@@ -16,12 +16,16 @@ const path = require('path');
 // server.js also auto-deletes public/_next at startup to remove any stale copy.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const publicNextDir = path.join(__dirname, '..', 'public', '_next');
+const publicNextDir = path.join(__dirname, "..", "public", "_next");
 
 if (fs.existsSync(publicNextDir)) {
   fs.rmSync(publicNextDir, { recursive: true, force: true });
-  console.log('✅ Removed stale public/_next directory (safe to ignore this script).');
+  console.log(
+    "✅ Removed stale public/_next directory (safe to ignore this script).",
+  );
 } else {
-  console.log('ℹ️  public/_next does not exist — nothing to clean up.');
+  console.log("ℹ️  public/_next does not exist — nothing to clean up.");
 }
-console.warn('⚠️  copy-static.js is deprecated. Do not run it. Apache proxy handles /_next/ now.');
+console.warn(
+  "⚠️  copy-static.js is deprecated. Do not run it. Apache proxy handles /_next/ now.",
+);
