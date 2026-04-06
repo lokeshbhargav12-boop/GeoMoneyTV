@@ -131,7 +131,7 @@ No markdown. No explanation. JSON only.`
 
     console.error('All market sentiment models failed. Last error:', lastError)
     return NextResponse.json(
-        { error: 'Failed to generate market analysis. Please try again.' },
+        { error: 'Failed to generate market analysis. Please try again.', debug: lastError },
         { status: 500 }
     )
 }
