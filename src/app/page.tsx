@@ -129,7 +129,7 @@ export default async function Home({
                       {article.title}
                     </h3>
                     <p className="text-xs text-gray-400 line-clamp-2 mb-3 flex-1">
-                      {article.description || article.content.substring(0, 120)}
+                      {article.description || 'Read the full article for details.'}
                       ...
                     </p>
                     <span className="text-xs font-semibold text-geo-gold mt-auto flex items-center gap-1">
