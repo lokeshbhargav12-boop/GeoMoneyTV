@@ -13,7 +13,7 @@ npm run build
 # Remove public/_next AGAIN in case copy-static.js or any plugin recreated it during build.
 # A stale public/_next in public_html causes Apache to serve old CSS hashes → unstyled pages.
 if (Test-Path "public/_next") {
-    Write-Host "Removing public/_next created during build (not needed — Apache proxy handles this)..." -ForegroundColor Yellow
+    Write-Host "Removing public/_next created during build (not needed - Apache proxy handles this)..." -ForegroundColor Yellow
     Remove-Item -Recurse -Force "public/_next"
 }
 

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma db push && next build",
+    "build": "next build",
     "seed": "node scripts/create-admin.js && node scripts/init-settings.js",
     "start": "node server.js",
     "lint": "next lint",
