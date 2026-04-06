@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 
 const OPENROUTER_API_KEY =
     process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY
@@ -33,6 +34,10 @@ export async function POST(req: Request) {
 
     const instrumentName = INSTRUMENT_NAMES[symbol] ?? symbol
 
+    // Read admin-configured model (same pattern as /api/ai/summarize)
+    const aiSetting = await prisma.siteSettings.findUnique({ where: { key: 'ai_model' } })
+    const adminModel = aiSetting?.value || ''
+
     const prompt = `You are a senior macro market strategist and geopolitical intelligence analyst for GeoMoney TV — an international financial and geopolitical intelligence platform focused on commodities, energy, and critical materials.
 
 Analyze the current global macro environment for: ${instrumentName}
@@ -63,12 +68,15 @@ Return ONLY a valid JSON object with EXACTLY these fields:
 
 No markdown. No explanation. JSON only.`
 
-    // Models tried in order — first available wins
-    const MODELS = [
-        'google/gemini-2.0-flash-exp:free',
+    // Models tried in order — admin-configured model first, then fallbacks
+    const FALLBACKS = [
+        'qwen/qwen2.5-72b-instruct:free',
+        'deepseek/deepseek-r1:free',
         'meta-llama/llama-3.3-70b-instruct:free',
-        'mistralai/mistral-7b-instruct:free',
     ]
+    const MODELS = adminModel
+        ? [adminModel, ...FALLBACKS.filter(m => m !== adminModel)]
+        : FALLBACKS
 
     let lastError: string = 'No models available'
 
@@ -131,7 +139,7 @@ No markdown. No explanation. JSON only.`
 
     console.error('All market sentiment models failed. Last error:', lastError)
     return NextResponse.json(
-        { error: 'Failed to generate market analysis. Please try again.', debug: lastError },
+        { error: 'Failed to generate market analysis. Please try again.' },
         { status: 500 }
     )
 }
