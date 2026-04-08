@@ -53,8 +53,8 @@ export default function TradingViewChart({
   return (
     <div
       ref={containerRef}
-      className="tradingview-widget-container w-full overflow-hidden"
-      style={{ height: `${height}px`, width: "100%" }}
+      className="tradingview-widget-container w-full h-full overflow-hidden"
+      style={{ width: "100%" }}
     />
   );
 }
