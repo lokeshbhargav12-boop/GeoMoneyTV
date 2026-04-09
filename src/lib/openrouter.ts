@@ -6,17 +6,22 @@ const OPENROUTER_API_KEY =
 /**
  * Models tried in sequence when the primary model fails.
  * Ordered by reliability on the free tier.
+ * Last verified: April 2026 — remove any model that consistently returns 404.
  */
 const FALLBACK_MODELS = [
-  'google/gemma-3-27b-it:free',
-  'meta-llama/llama-4-scout:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemini-2.0-flash-exp:free',
-  'microsoft/phi-4:free',
-  'deepseek/deepseek-r1:free',
-  'qwen/qwen3-235b-a22b:free',
-  'mistralai/mistral-7b-instruct:free',
+  'google/gemma-3-27b-it:free',             // Google AI Studio — 100% uptime
+  'google/gemma-4-26b-a4b-it:free',          // Gemma 4 MoE — high availability
+  'meta-llama/llama-3.3-70b-instruct:free',  // Meta Llama 3.3 70B — confirmed
+  'nvidia/nemotron-3-super-120b-a12b:free',  // NVIDIA Nemotron 120B — confirmed
+  'openai/gpt-oss-120b:free',               // OpenAI open-source 120B — confirmed
+  'minimax/minimax-m2.5:free',              // MiniMax M2.5 — confirmed
+  'deepseek/deepseek-r1:free',              // DeepSeek R1
+  'microsoft/phi-4:free',                   // Microsoft Phi-4
+  'z-ai/glm-4.5-air:free',                  // GLM 4.5 Air — confirmed backup
 ]
+
+/** Per-model request timeout in milliseconds. Prevents slow models blocking the chain. */
+const MODEL_TIMEOUT_MS = 20_000
 
 export interface OpenRouterResult {
   content: string
@@ -57,8 +62,12 @@ export async function callOpenRouter(
 
   for (const model of models) {
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS)
+
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           Authorization: `Bearer ${OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
@@ -71,7 +80,7 @@ export async function callOpenRouter(
           temperature,
           max_tokens: maxTokens,
         }),
-      })
+      }).finally(() => clearTimeout(timeoutId))
 
       if (!res.ok) {
         const body = await res.text()
