@@ -42,6 +42,8 @@ export default function TradingViewMiniChart({
       isTransparent: true,
       autosize: true,
       largeChartUrl: "",
+      no_referrals: true,
+      hide_legend: true,
     });
     container.appendChild(script);
 

@@ -7,12 +7,12 @@ const OPENROUTER_API_KEY =
 const INSTRUMENT_NAMES: Record<string, string> = {
     XAUUSD: 'Gold (XAU/USD)',
     'TVC:USOIL': 'WTI Crude Oil',
-    'COMEX:HG1!': 'Copper (COMEX Futures)',
-    'TVC:DXY': 'US Dollar Index (DXY)',
+    'CAPITALCOM:COPPER': 'Copper',
+    'CAPITALCOM:DXY': 'US Dollar Index (DXY)',
     'CAPITALCOM:US500': 'S&P 500 Index',
-    'NYMEX:NG1!': 'Natural Gas (NYMEX Futures)',
-    'COMEX:SI1!': 'Silver (COMEX Futures)',
-    'TVC:US10Y': 'US 10-Year Treasury Yield',
+    'CAPITALCOM:NATURALGAS': 'Natural Gas',
+    'CAPITALCOM:SILVER': 'Silver',
+    'CBOT:ZN1!': 'US 10-Year Treasury Note',
 }
 
 export async function POST(req: Request) {

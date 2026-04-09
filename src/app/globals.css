@@ -40,3 +40,16 @@ body {
 font {
     background-color: transparent !important;
 }
+
+/* ── Hide TradingView attribution / copyright ───────────────────────────── */
+.tradingview-widget-copyright,
+.tv-embed-widget-wrapper__footer,
+.tv-embed-widget-powered-by {
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
+/* Ensure chart containers clip any overflowing widget content */
+.tradingview-widget-container {
+    overflow: hidden !important;
+}

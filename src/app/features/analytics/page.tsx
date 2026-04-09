@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft,
@@ -92,7 +93,7 @@ const INSTRUMENTS = [
   {
     id: "copper",
     label: "COPPER",
-    symbol: "COMEX:HG1!",
+    symbol: "CAPITALCOM:COPPER",
     name: "Copper",
     color: "#cd7f32",
     lineColor: "rgba(205,127,50,1)",
@@ -101,7 +102,7 @@ const INSTRUMENTS = [
   {
     id: "dxy",
     label: "USD / DXY",
-    symbol: "TVC:DXY",
+    symbol: "CAPITALCOM:DXY",
     name: "US Dollar Index",
     color: "#4dabf7",
     lineColor: "rgba(77,171,247,1)",
@@ -119,7 +120,7 @@ const INSTRUMENTS = [
   {
     id: "natgas",
     label: "NAT GAS",
-    symbol: "NYMEX:NG1!",
+    symbol: "CAPITALCOM:NATURALGAS",
     name: "Natural Gas",
     color: "#ff85c2",
     lineColor: "rgba(255,133,194,1)",
@@ -128,7 +129,7 @@ const INSTRUMENTS = [
   {
     id: "silver",
     label: "SILVER",
-    symbol: "COMEX:SI1!",
+    symbol: "CAPITALCOM:SILVER",
     name: "Silver",
     color: "#c8d6e5",
     lineColor: "rgba(200,214,229,1)",
@@ -137,8 +138,8 @@ const INSTRUMENTS = [
   {
     id: "us10y",
     label: "US 10Y",
-    symbol: "TVC:US10Y",
-    name: "10Y Treasury",
+    symbol: "CBOT:ZN1!",
+    name: "US Treasury Note",
     color: "#a29bfe",
     lineColor: "rgba(162,155,254,1)",
     bgColor: "rgba(162,155,254,0.12)",
@@ -147,7 +148,7 @@ const INSTRUMENTS = [
 
 const CAPITAL_FLOW = [
   {
-    symbol: "TVC:DXY",
+    symbol: "CAPITALCOM:DXY",
     label: "Dollar Index (DXY)",
     desc: "Measures USD strength globally. A rising DXY typically compresses commodity prices.",
     color: "#4dabf7",
@@ -163,8 +164,8 @@ const CAPITAL_FLOW = [
     bgColor: "rgba(212,175,55,0.12)",
   },
   {
-    symbol: "TVC:US10Y",
-    label: "10-Year Treasury Yield",
+    symbol: "CBOT:ZN1!",
+    label: "10-Year Treasury Note",
     desc: "Global risk-free rate benchmark. Rising yields signal risk-off, pressuring commodities.",
     color: "#a29bfe",
     lineColor: "rgba(162,155,254,1)",
@@ -173,6 +174,7 @@ const CAPITAL_FLOW = [
 ];
 
 export default function AnalyticsDashboardPage() {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string>("gold");
   const [sentimentCache, setSentimentCache] = useState<
     Record<string, SentimentData>
@@ -676,7 +678,10 @@ export default function AnalyticsDashboardPage() {
             {INSTRUMENTS.map((inst) => (
               <div
                 key={inst.id}
-                onClick={() => setSelectedId(inst.id)}
+                onClick={() => {
+                  setSelectedId(inst.id);
+                  router.push(`/news?search=${encodeURIComponent(inst.name)}`);
+                }}
                 role="button"
                 className="rounded-xl border overflow-hidden cursor-pointer transition-all duration-200 hover:scale-[1.02]"
                 style={{
@@ -700,13 +705,17 @@ export default function AnalyticsDashboardPage() {
                   </span>
                   <span className="text-xs text-gray-600">{inst.name}</span>
                 </div>
-                <TradingViewMiniChart
-                  symbol={inst.symbol}
-                  height={140}
-                  dateRange="1M"
-                  trendLineColor={inst.lineColor}
-                  underLineColor={inst.bgColor}
-                />
+                {/* Overlay intercepts all clicks on the TV iframe (prevents TV redirects) */}
+                <div className="relative">
+                  <TradingViewMiniChart
+                    symbol={inst.symbol}
+                    height={140}
+                    dateRange="1M"
+                    trendLineColor={inst.lineColor}
+                    underLineColor={inst.bgColor}
+                  />
+                  <div className="absolute inset-0 z-10" />
+                </div>
               </div>
             ))}
           </div>
@@ -746,13 +755,17 @@ export default function AnalyticsDashboardPage() {
                     {inst.desc}
                   </p>
                 </div>
-                <TradingViewMiniChart
-                  symbol={inst.symbol}
-                  height={150}
-                  dateRange="3M"
-                  trendLineColor={inst.lineColor}
-                  underLineColor={inst.bgColor}
-                />
+                {/* Overlay intercepts TV iframe clicks */}
+                <div className="relative">
+                  <TradingViewMiniChart
+                    symbol={inst.symbol}
+                    height={150}
+                    dateRange="3M"
+                    trendLineColor={inst.lineColor}
+                    underLineColor={inst.bgColor}
+                  />
+                  <div className="absolute inset-0 z-10" />
+                </div>
               </div>
             ))}
           </div>
