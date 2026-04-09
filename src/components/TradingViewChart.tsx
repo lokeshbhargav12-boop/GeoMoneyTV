@@ -42,6 +42,7 @@ export default function TradingViewChart({
       calendar: false,
       hide_logo: true,
       no_referrals: true,
+      watermark: "",
       studies: ["STD;Volume"],
       support_host: "https://www.tradingview.com",
     });

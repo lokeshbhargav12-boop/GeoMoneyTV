@@ -679,7 +679,9 @@ export default function AnalyticsDashboardPage() {
               <div
                 key={inst.id}
                 onClick={() => {
-                  router.push(`/features/analytics/instrument/${encodeSymbolParam(inst.symbol)}`);
+                  router.push(
+                    `/features/analytics/instrument/${encodeSymbolParam(inst.symbol)}`,
+                  );
                 }}
                 role="button"
                 className="rounded-xl border overflow-hidden cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
@@ -698,12 +700,15 @@ export default function AnalyticsDashboardPage() {
                   </span>
                   <span
                     className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                    style={{ color: inst.color, backgroundColor: `${inst.color}18` }}
+                    style={{
+                      color: inst.color,
+                      backgroundColor: `${inst.color}18`,
+                    }}
                   >
                     {inst.name}
                   </span>
                 </div>
-                {/* Mini chart — overlay covers TV branding in bottom-right corner */}
+                {/* Mini chart */}
                 <div className="relative">
                   <TradingViewMiniChart
                     symbol={inst.symbol}
@@ -712,10 +717,8 @@ export default function AnalyticsDashboardPage() {
                     trendLineColor={inst.lineColor}
                     underLineColor={inst.bgColor}
                   />
-                  {/* Full click interceptor */}
+                  {/* Click interceptor — prevents TV iframe navigation */}
                   <div className="absolute inset-0 z-10" />
-                  {/* TV logo cover — bottom-right corner */}
-                  <div className="absolute bottom-0 right-0 w-16 h-6 z-20 bg-[#050505]" />
                 </div>
               </div>
             ))}
@@ -737,7 +740,11 @@ export default function AnalyticsDashboardPage() {
             {CAPITAL_FLOW.map((inst) => (
               <div
                 key={inst.symbol}
-                onClick={() => router.push(`/features/analytics/instrument/${encodeSymbolParam(inst.symbol)}`)}
+                onClick={() =>
+                  router.push(
+                    `/features/analytics/instrument/${encodeSymbolParam(inst.symbol)}`,
+                  )
+                }
                 role="button"
                 className="rounded-xl border border-white/10 bg-white/5 overflow-hidden cursor-pointer transition-all hover:scale-[1.01] hover:border-white/20"
               >
@@ -758,7 +765,7 @@ export default function AnalyticsDashboardPage() {
                     {inst.desc}
                   </p>
                 </div>
-                {/* Overlay intercepts TV iframe clicks + covers TV logo */}
+                {/* Overlay intercepts TV iframe clicks */}
                 <div className="relative">
                   <TradingViewMiniChart
                     symbol={inst.symbol}
@@ -768,7 +775,6 @@ export default function AnalyticsDashboardPage() {
                     underLineColor={inst.bgColor}
                   />
                   <div className="absolute inset-0 z-10" />
-                  <div className="absolute bottom-0 right-0 w-16 h-6 z-20 bg-[#0d0d0d]" />
                 </div>
               </div>
             ))}

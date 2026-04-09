@@ -30,17 +30,19 @@ export default function TradingViewMiniChart({
     script.async = true;
     script.src =
       "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+    // Render the widget 32 px taller than the visible area so the TV logo
+    // row at the bottom is clipped by the outer container's overflow:hidden.
     script.text = JSON.stringify({
       symbol,
       width: "100%",
-      height,
+      height: height + 32,
       locale: "en",
       dateRange,
       colorTheme: "dark",
       trendLineColor,
       underLineColor,
       isTransparent: true,
-      autosize: true,
+      autosize: false,
       largeChartUrl: "",
       no_referrals: true,
       hide_legend: true,
@@ -53,10 +55,13 @@ export default function TradingViewMiniChart({
   }, [symbol, height, dateRange, trendLineColor, underLineColor]);
 
   return (
-    <div
-      ref={containerRef}
-      className="tradingview-widget-container w-full overflow-hidden"
-      style={{ height: `${height}px` }}
-    />
+    // Outer div clips the extra 32 px that hides the TV logo
+    <div style={{ height: `${height}px`, overflow: "hidden" }}>
+      <div
+        ref={containerRef}
+        className="tradingview-widget-container w-full overflow-hidden"
+        style={{ height: `${height + 32}px` }}
+      />
+    </div>
   );
 }
