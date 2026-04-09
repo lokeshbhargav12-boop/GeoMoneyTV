@@ -440,17 +440,103 @@ export default function SettingsPage() {
         <div className="space-y-6">
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
             <h2 className="text-lg font-medium text-white">AI Model Configuration</h2>
-            <p className="mt-1 text-sm text-gray-400">Configure the AI model used for analysis and summarization.</p>
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-400 mb-2">OpenRouter Model ID</label>
-              <input type="text" placeholder="e.g. arcee-ai/trinity-large-preview:free" value={aiModel}
-                onChange={(e) => setAiModel(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/50 px-4 py-2 text-white placeholder-gray-500" />
-              <p className="mt-2 text-xs text-gray-500">Specify the model ID from OpenRouter that you wish to use.</p>
+            <p className="mt-1 text-sm text-gray-400">
+              Choose which OpenRouter model powers all AI features — market sentiment, news analysis, energy intelligence, and article summaries.
+            </p>
+
+            {/* Popular model presets */}
+            <div className="mt-5">
+              <label className="block text-sm font-medium text-gray-300 mb-3">Quick-select a model</label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {[
+                  { id: "google/gemma-3-27b-it:free", name: "Gemma 3 27B (free)", tag: "Recommended", desc: "Google — strong reasoning, free tier" },
+                  { id: "meta-llama/llama-4-scout:free", name: "Llama 4 Scout (free)", tag: "Fast", desc: "Meta — fast and capable, free tier" },
+                  { id: "microsoft/phi-4:free", name: "Phi-4 (free)", tag: "Efficient", desc: "Microsoft — compact but smart" },
+                  { id: "google/gemini-2.0-flash-exp:free", name: "Gemini 2.0 Flash (free)", tag: "New", desc: "Google — multimodal, very fast" },
+                  { id: "deepseek/deepseek-r1:free", name: "DeepSeek R1 (free)", tag: "Reasoning", desc: "DeepSeek — strong chain-of-thought" },
+                  { id: "qwen/qwen3-235b-a22b:free", name: "Qwen3 235B (free)", tag: "Powerful", desc: "Alibaba — large context, analytical" },
+                  { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet", tag: "Premium", desc: "Anthropic — best quality (paid)" },
+                  { id: "openai/gpt-4o", name: "GPT-4o", tag: "Premium", desc: "OpenAI — flagship model (paid)" },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setAiModel(m.id)}
+                    className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-all ${
+                      aiModel === m.id
+                        ? "border-green-500/60 bg-green-500/10"
+                        : "border-white/10 bg-black/30 hover:border-white/30 hover:bg-white/5"
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 w-4 h-4 flex-none rounded-full border-2 flex items-center justify-center ${
+                        aiModel === m.id ? "border-green-500" : "border-white/30"
+                      }`}
+                    >
+                      {aiModel === m.id && (
+                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-white">{m.name}</span>
+                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                          m.tag === "Recommended" ? "bg-green-500/20 text-green-400" :
+                          m.tag === "Premium" ? "bg-yellow-500/20 text-yellow-400" :
+                          m.tag === "New" ? "bg-blue-500/20 text-blue-400" :
+                          "bg-white/10 text-gray-400"
+                        }`}>{m.tag}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{m.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Custom / manual model ID */}
+            <div className="mt-5">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Custom model ID <span className="text-gray-500 font-normal">(or paste any OpenRouter model ID)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. mistralai/mistral-7b-instruct:free"
+                value={aiModel}
+                onChange={(e) => setAiModel(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-black/50 px-4 py-2 text-white placeholder-gray-500 focus:border-green-500/40 focus:outline-none"
+              />
+              <p className="mt-1.5 text-xs text-gray-500">
+                Browse all available models at{" "}
+                <a
+                  href="https://openrouter.ai/models"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-geo-gold hover:underline"
+                >
+                  openrouter.ai/models
+                </a>
+              </p>
+            </div>
+
+            {/* API key notice */}
+            <div className="mt-5 flex items-start gap-3 rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+              <svg className="w-4 h-4 text-blue-400 flex-none mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-blue-300">
+                Your <strong>OpenRouter API key</strong> is read automatically from the{" "}
+                <code className="bg-white/10 px-1 rounded">OPENROUTER_API_KEY</code>{" "}
+                environment variable — no need to enter it here.
+              </p>
+            </div>
+
             <div className="mt-6">
-              <button onClick={saveAiSettings} disabled={saving}
-                className="rounded-lg bg-green-600 px-6 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50">
+              <button
+                onClick={saveAiSettings}
+                disabled={saving}
+                className="rounded-lg bg-green-600 px-6 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
                 {saving ? "Saving..." : "Save AI Settings"}
               </button>
             </div>

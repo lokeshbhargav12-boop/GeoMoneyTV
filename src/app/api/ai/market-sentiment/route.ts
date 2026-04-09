@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { getAiModel } from '@/lib/get-ai-model'
 
 const OPENROUTER_API_KEY =
     process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY
@@ -34,14 +34,7 @@ export async function POST(req: Request) {
 
     const instrumentName = INSTRUMENT_NAMES[symbol] ?? symbol
 
-    // Read admin-configured model — wrapped in try/catch so a DB panic doesn't kill the route
-    let adminModel = process.env.OPENROUTER_AI_MODEL || ''
-    try {
-        const aiSetting = await prisma.siteSettings.findUnique({ where: { key: 'ai_model' } })
-        if (aiSetting?.value) adminModel = aiSetting.value
-    } catch (dbErr) {
-        console.warn('market-sentiment: DB lookup for ai_model failed, using env/fallback:', dbErr instanceof Error ? dbErr.message : String(dbErr))
-    }
+    const adminModel = await getAiModel()
 
     const prompt = `You are a senior macro market strategist and geopolitical intelligence analyst for GeoMoney TV — an international financial and geopolitical intelligence platform focused on commodities, energy, and critical materials.
 

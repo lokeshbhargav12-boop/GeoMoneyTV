@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getAiModel } from '@/lib/get-ai-model';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
 
@@ -19,10 +19,7 @@ export async function POST(req: Request) {
         }
 
         // Fetch AI Model setting
-        const aiSetting = await prisma.siteSettings.findUnique({
-            where: { key: 'ai_model' }
-        });
-        const aiModel = aiSetting?.value || 'arcee-ai/trinity-large-preview:free';
+        const aiModel = await getAiModel();
 
         const prompt = `
 You are a senior energy geopolitics analyst working for GeoMoney TV — a geopolitical and market intelligence platform.
