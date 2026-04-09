@@ -47,16 +47,6 @@ export default async function VideosPage() {
                 {/* Navigation Chip Tabs */}
                 <div className="flex flex-wrap gap-4 mb-10">
                     <a
-                        href="#shorts"
-                        className="group flex items-center gap-2 px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:border-geo-gold/50 hover:bg-white/10 transition-all cursor-pointer shadow-lg"
-                    >
-                        <Clapperboard className="w-5 h-5 text-geo-gold group-hover:scale-110 transition-transform" />
-                        <span className="font-bold text-white">Quick Briefing</span>
-                        <span className="bg-white/10 text-gray-300 group-hover:bg-geo-gold/20 group-hover:text-geo-gold px-2.5 py-0.5 rounded-full text-xs font-bold transition-colors">
-                            {shorts.length}
-                        </span>
-                    </a>
-                    <a
                         href="#long-videos"
                         className="group flex items-center gap-2 px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:border-geo-gold/50 hover:bg-white/10 transition-all cursor-pointer shadow-lg"
                     >
@@ -64,6 +54,16 @@ export default async function VideosPage() {
                         <span className="font-bold text-white">Global Briefings</span>
                         <span className="bg-white/10 text-gray-300 group-hover:bg-geo-gold/20 group-hover:text-geo-gold px-2.5 py-0.5 rounded-full text-xs font-bold transition-colors">
                             {regularVideos.length}
+                        </span>
+                    </a>
+                    <a
+                        href="#shorts"
+                        className="group flex items-center gap-2 px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:border-geo-gold/50 hover:bg-white/10 transition-all cursor-pointer shadow-lg"
+                    >
+                        <Clapperboard className="w-5 h-5 text-geo-gold group-hover:scale-110 transition-transform" />
+                        <span className="font-bold text-white">Quick Briefing</span>
+                        <span className="bg-white/10 text-gray-300 group-hover:bg-geo-gold/20 group-hover:text-geo-gold px-2.5 py-0.5 rounded-full text-xs font-bold transition-colors">
+                            {shorts.length}
                         </span>
                     </a>
                 </div>

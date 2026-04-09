@@ -139,10 +139,11 @@ export async function syncVideosToDatabase(): Promise<{ added: number; total: nu
             durationMap[item.id] = duration
           })
 
-          // Videos ≤ 60 seconds are classified as shorts
+          // Videos ≤ 180 seconds (3 min) are classified as shorts
+          // YouTube extended the Shorts limit from 60s to 3 minutes in 2023
           batch.forEach((video) => {
             const duration = durationMap[video.videoId]
-            if (duration !== undefined && duration <= 60) {
+            if (duration !== undefined && duration <= 180) {
               video.videoType = 'short'
               // Use portrait thumbnail for shorts
               video.thumbnail = `https://i.ytimg.com/vi/${video.videoId}/oar2.jpg`
@@ -175,7 +176,7 @@ export async function syncVideosToDatabase(): Promise<{ added: number; total: nu
         })
         addedCount++
       } else if (existing.videoType === 'video' && video.videoType === 'short') {
-        // Update previously misclassified videos
+        // Update previously misclassified videos (e.g. old 60s threshold → new 180s threshold)
         await prisma.video.update({
           where: { id: existing.id },
           data: { videoType: 'short', thumbnail: video.thumbnail },
