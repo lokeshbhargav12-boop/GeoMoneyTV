@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAiModel } from '@/lib/get-ai-model';
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+import { callOpenRouterJson } from '@/lib/openrouter';
 
 export async function POST(req: Request) {
     try {
@@ -10,16 +8,6 @@ export async function POST(req: Request) {
         if (!query) {
             return NextResponse.json({ error: 'query is required' }, { status: 400 });
         }
-
-        if (!OPENROUTER_API_KEY) {
-            return NextResponse.json(
-                { error: 'OpenRouter API Key not configured' },
-                { status: 500 }
-            );
-        }
-
-        // Fetch AI Model setting
-        const aiModel = await getAiModel();
 
         const prompt = `
 You are a senior energy geopolitics analyst working for GeoMoney TV — a geopolitical and market intelligence platform.
@@ -58,51 +46,11 @@ INSTRUCTIONS:
 - Cover both renewable and traditional energy where relevant
 `;
 
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://geomoney.com',
-                'X-Title': 'GeoMoney TV',
-            },
-            body: JSON.stringify({
-                model: aiModel,
-                messages: [
-                    { role: 'user', content: prompt },
-                ],
-                temperature: 0.3,
-            }),
+        const { data: analysisJson } = await callOpenRouterJson(prompt, {
+            temperature: 0.3,
+            maxTokens: 800,
+            caller: 'energy',
         });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('OpenRouter API Error:', errorText);
-            return NextResponse.json(
-                { error: `AI service error: ${response.statusText}` },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        const contentStr = data.choices[0]?.message?.content?.trim();
-
-        if (!contentStr) {
-            throw new Error('No content received from AI');
-        }
-
-        // Parse JSON — strip markdown fences by extracting from first { to last }
-        let analysisJson;
-        try {
-            const firstBrace = contentStr.indexOf('{');
-            const lastBrace = contentStr.lastIndexOf('}');
-            if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-                throw new Error('No JSON object found in AI response');
-            }
-            analysisJson = JSON.parse(contentStr.substring(firstBrace, lastBrace + 1));
-        } catch {
-            throw new Error('Could not parse AI response as JSON');
-        }
 
         return NextResponse.json(analysisJson);
 
@@ -114,3 +62,4 @@ INSTRUCTIONS:
         );
     }
 }
+

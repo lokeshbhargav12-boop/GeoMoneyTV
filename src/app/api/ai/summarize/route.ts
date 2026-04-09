@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAiModel } from '@/lib/get-ai-model';
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+import { callOpenRouter } from '@/lib/openrouter';
 
 export async function POST(req: Request) {
     try {
@@ -45,15 +43,6 @@ export async function POST(req: Request) {
             });
         }
 
-        if (!OPENROUTER_API_KEY) {
-            return NextResponse.json(
-                { error: 'OpenRouter API Key not configured' },
-                { status: 500 }
-            );
-        }
-
-        const aiModel = await getAiModel();
-
         const prompt = `
       You are a senior geopolitical and financial journalist writing for GeoMoney TV.
       
@@ -78,36 +67,13 @@ export async function POST(req: Request) {
       Write the article now:
     `;
 
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://geomoney.com',
-                'X-Title': 'GeoMoney TV',
-            },
-            body: JSON.stringify({
-                model: aiModel,
-                messages: [
-                    { role: 'user', content: prompt },
-                ],
-                temperature: 0.3,
-            }),
+        const { content: aiSummary } = await callOpenRouter(prompt, {
+            temperature: 0.3,
+            maxTokens: 900,
+            caller: 'summarize',
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('OpenRouter API Error:', errorText);
-            return NextResponse.json(
-                { error: `AI service error: ${response.statusText}` },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        const aiSummary = data.choices[0]?.message?.content?.trim();
-
-        if (!aiSummary) {
+        if (!aiSummary?.trim()) {
             throw new Error('No content received from AI');
         }
 

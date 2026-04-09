@@ -1,17 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAiModel } from '@/lib/get-ai-model';
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+import { callOpenRouterJson } from '@/lib/openrouter';
 
 export async function POST(req: Request) {
-  if (!OPENROUTER_API_KEY) {
-    return NextResponse.json(
-      { error: 'OpenRouter API Key not configured' },
-      { status: 500 }
-    );
-  }
-
   try {
     const { text, title, articleId } = await req.json();
 
@@ -93,63 +84,15 @@ export async function POST(req: Request) {
       }
     `;
 
-    const aiModel = await getAiModel();
-
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://geomoney.com',
-        'X-Title': 'GeoMoney TV',
-      },
-      body: JSON.stringify({
-        model: aiModel,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.1,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenRouter API Error:', errorText);
-      return NextResponse.json(
-        { error: `OpenRouter API error: ${response.statusText}` },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-    const rawContent = data.choices[0]?.message?.content;
-
-    if (!rawContent) {
-      throw new Error('No content received from AI');
-    }
-
-    // Parse JSON — strip markdown fences by extracting from first { to last }
-    let cleanContent = rawContent;
-    const firstBrace = cleanContent.indexOf('{');
-    const lastBrace = cleanContent.lastIndexOf('}');
-
-    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-      console.error('JSON Parse Error. Raw content:', rawContent);
-      throw new Error('Failed to parse AI response as JSON');
-    }
-
-    cleanContent = cleanContent.substring(firstBrace, lastBrace + 1);
-
-    let analysis;
-    try {
-      analysis = JSON.parse(cleanContent);
-    } catch (parseError) {
-      console.error('JSON Parse Error. Raw content:', rawContent);
-      throw new Error('Failed to parse AI response as JSON');
-    }
+    const { data: analysis } = await callOpenRouterJson<{
+      summary: string;
+      key_points: string[];
+      bias: { score: number; category: string; explanation: string };
+      sentiment: { score: number; label: string };
+      hidden_context: string;
+      price_impact: unknown[];
+      predictions: unknown[];
+    }>(prompt, { temperature: 0.1, maxTokens: 1200, caller: 'bias' });
 
     // Ensure price_impact and predictions arrays exist
     if (!analysis.price_impact) analysis.price_impact = [];
