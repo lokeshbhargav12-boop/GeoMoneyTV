@@ -690,7 +690,7 @@ export default function AnalyticsDashboardPage() {
                   backgroundColor: "rgba(255,255,255,0.03)",
                 }}
               >
-                {/* Header row — label + name, covers top-right TV logo area */}
+                {/* Header row */}
                 <div className="px-3 pt-2.5 pb-0 flex items-center justify-between bg-black/20">
                   <span
                     className="text-xs font-bold"
@@ -716,9 +716,10 @@ export default function AnalyticsDashboardPage() {
                     dateRange="1M"
                     trendLineColor={inst.lineColor}
                     underLineColor={inst.bgColor}
+                    logoCoverColor="#0c0c0c"
                   />
                   {/* Click interceptor — prevents TV iframe navigation */}
-                  <div className="absolute inset-0 z-10" />
+                  <div className="absolute inset-0 z-20" />
                 </div>
               </div>
             ))}
@@ -773,8 +774,9 @@ export default function AnalyticsDashboardPage() {
                     dateRange="3M"
                     trendLineColor={inst.lineColor}
                     underLineColor={inst.bgColor}
+                    logoCoverColor="#0c0c0c"
                   />
-                  <div className="absolute inset-0 z-10" />
+                  <div className="absolute inset-0 z-20" />
                 </div>
               </div>
             ))}

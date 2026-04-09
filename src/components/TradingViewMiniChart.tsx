@@ -8,6 +8,7 @@ interface TradingViewMiniChartProps {
   dateRange?: "1D" | "1M" | "3M" | "1Y" | "5Y";
   trendLineColor?: string;
   underLineColor?: string;
+  logoCoverColor?: string;
 }
 
 export default function TradingViewMiniChart({
@@ -16,6 +17,7 @@ export default function TradingViewMiniChart({
   dateRange = "1M",
   trendLineColor = "rgba(212, 175, 55, 1)",
   underLineColor = "rgba(212, 175, 55, 0.12)",
+  logoCoverColor = "#0d0d0d",
 }: TradingViewMiniChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +37,7 @@ export default function TradingViewMiniChart({
     script.text = JSON.stringify({
       symbol,
       width: "100%",
-      height: height + 32,
+      height: height,
       locale: "en",
       dateRange,
       colorTheme: "dark",
@@ -55,12 +57,24 @@ export default function TradingViewMiniChart({
   }, [symbol, height, dateRange, trendLineColor, underLineColor]);
 
   return (
-    // Outer div clips the extra 32 px that hides the TV logo
-    <div style={{ height: `${height}px`, overflow: "hidden" }}>
+    <div style={{ position: "relative", height: `${height}px`, overflow: "hidden" }}>
       <div
         ref={containerRef}
         className="tradingview-widget-container w-full overflow-hidden"
-        style={{ height: `${height + 32}px` }}
+        style={{ height: `${height}px` }}
+      />
+      {/* Cover the TradingView logo — top-right corner of the widget iframe */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          width: "56px",
+          height: "36px",
+          background: logoCoverColor,
+          zIndex: 10,
+          pointerEvents: "none",
+        }}
       />
     </div>
   );
