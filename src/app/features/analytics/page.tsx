@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft,
-  Activity,
   Globe,
   Brain,
   TrendingUp,
@@ -18,6 +17,7 @@ import {
   BarChart3,
   DollarSign,
 } from "lucide-react";
+import { encodeSymbolParam } from "@/components/MacroMarketsPanel";
 
 const TradingViewChart = dynamic(
   () => import("@/components/TradingViewChart"),
@@ -44,8 +44,8 @@ const TradingViewMiniChart = dynamic(
   },
 );
 
-const TradingViewMarketQuotes = dynamic(
-  () => import("@/components/TradingViewMarketQuotes"),
+const MacroMarketsPanel = dynamic(
+  () => import("@/components/MacroMarketsPanel"),
   {
     ssr: false,
     loading: () => (
@@ -357,7 +357,7 @@ export default function AnalyticsDashboardPage() {
             </AnimatePresence>
           </div>
 
-          {/* Macro Market Quotes (correlation panel) */}
+          {/* Macro Markets panel — native, no iframe */}
           <div className="xl:col-span-1 rounded-xl border border-white/10 overflow-hidden bg-white/5 flex flex-col h-[560px] xl:h-[580px]">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 flex-none">
               <Globe className="w-4 h-4 text-blue-400" />
@@ -370,7 +370,7 @@ export default function AnalyticsDashboardPage() {
               </span>
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
-              <TradingViewMarketQuotes />
+              <MacroMarketsPanel />
             </div>
           </div>
         </div>
@@ -679,42 +679,43 @@ export default function AnalyticsDashboardPage() {
               <div
                 key={inst.id}
                 onClick={() => {
-                  setSelectedId(inst.id);
-                  router.push(`/news?search=${encodeURIComponent(inst.name)}`);
+                  router.push(`/features/analytics/instrument/${encodeSymbolParam(inst.symbol)}`);
                 }}
                 role="button"
-                className="rounded-xl border overflow-hidden cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+                className="rounded-xl border overflow-hidden cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
                 style={{
-                  borderColor:
-                    selectedId === inst.id
-                      ? inst.color
-                      : "rgba(255,255,255,0.10)",
+                  borderColor: "rgba(255,255,255,0.10)",
                   backgroundColor: "rgba(255,255,255,0.03)",
-                  boxShadow:
-                    selectedId === inst.id
-                      ? `0 0 16px ${inst.color}30`
-                      : "none",
                 }}
               >
-                <div className="px-3 pt-2.5 pb-0 flex items-center justify-between">
+                {/* Header row — label + name, covers top-right TV logo area */}
+                <div className="px-3 pt-2.5 pb-0 flex items-center justify-between bg-black/20">
                   <span
                     className="text-xs font-bold"
                     style={{ color: inst.color }}
                   >
                     {inst.label}
                   </span>
-                  <span className="text-xs text-gray-600">{inst.name}</span>
+                  <span
+                    className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+                    style={{ color: inst.color, backgroundColor: `${inst.color}18` }}
+                  >
+                    {inst.name}
+                  </span>
                 </div>
-                {/* Overlay intercepts all clicks on the TV iframe (prevents TV redirects) */}
+                {/* Mini chart — overlay covers TV branding in bottom-right corner */}
                 <div className="relative">
                   <TradingViewMiniChart
                     symbol={inst.symbol}
-                    height={140}
+                    height={130}
                     dateRange="1M"
                     trendLineColor={inst.lineColor}
                     underLineColor={inst.bgColor}
                   />
+                  {/* Full click interceptor */}
                   <div className="absolute inset-0 z-10" />
+                  {/* TV logo cover — bottom-right corner */}
+                  <div className="absolute bottom-0 right-0 w-16 h-6 z-20 bg-[#050505]" />
                 </div>
               </div>
             ))}
@@ -736,7 +737,9 @@ export default function AnalyticsDashboardPage() {
             {CAPITAL_FLOW.map((inst) => (
               <div
                 key={inst.symbol}
-                className="rounded-xl border border-white/10 bg-white/5 overflow-hidden"
+                onClick={() => router.push(`/features/analytics/instrument/${encodeSymbolParam(inst.symbol)}`)}
+                role="button"
+                className="rounded-xl border border-white/10 bg-white/5 overflow-hidden cursor-pointer transition-all hover:scale-[1.01] hover:border-white/20"
               >
                 <div className="px-4 pt-4 pb-2">
                   <div className="flex items-center gap-2 mb-1">
@@ -755,7 +758,7 @@ export default function AnalyticsDashboardPage() {
                     {inst.desc}
                   </p>
                 </div>
-                {/* Overlay intercepts TV iframe clicks */}
+                {/* Overlay intercepts TV iframe clicks + covers TV logo */}
                 <div className="relative">
                   <TradingViewMiniChart
                     symbol={inst.symbol}
@@ -765,6 +768,7 @@ export default function AnalyticsDashboardPage() {
                     underLineColor={inst.bgColor}
                   />
                   <div className="absolute inset-0 z-10" />
+                  <div className="absolute bottom-0 right-0 w-16 h-6 z-20 bg-[#0d0d0d]" />
                 </div>
               </div>
             ))}
