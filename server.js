@@ -113,7 +113,10 @@ function runIntelligenceReport() {
     });
   });
   req.on("error", (err) =>
-    console.error("[Scheduler] Intelligence report request failed:", err.message),
+    console.error(
+      "[Scheduler] Intelligence report request failed:",
+      err.message,
+    ),
   );
   req.end();
 }
@@ -162,8 +165,8 @@ app.prepare().then(() => {
     setInterval(runNewsSync, 60 * 60 * 1000);
   }, 15000); // wait 15s after boot before first sync
 
-  // Daily Intelligence Report — 11:00 AM IST = 05:30 UTC
-  scheduleDailyAt(5, 30, "Intelligence Report", runIntelligenceReport);
+  // Daily Intelligence Report — 11:10 AM IST = 05:40 UTC
+  scheduleDailyAt(5, 40, "Intelligence Report", runIntelligenceReport);
 
   createServer(async (req, res) => {
     try {
