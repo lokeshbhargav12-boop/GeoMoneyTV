@@ -73,6 +73,86 @@ function runNewsSync() {
   req.end();
 }
 
+function runIntelligenceReport() {
+  console.log(
+    `[Scheduler] Running daily intelligence report at ${new Date().toISOString()}`,
+  );
+  const options = {
+    hostname: "127.0.0.1",
+    port: port,
+    path: "/api/cron/intelligence-report",
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${process.env.CRON_SECRET || ""}`,
+    },
+  };
+  const req = require("http").request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => {
+      data += chunk;
+    });
+    res.on("end", () => {
+      try {
+        const result = JSON.parse(data);
+        if (result.success) {
+          console.log(
+            `[Scheduler] Intelligence report sent — ${result.sentCount}/${result.totalRecipients} recipients.`,
+          );
+        } else {
+          console.error(
+            "[Scheduler] Intelligence report failed:",
+            result.error,
+          );
+        }
+      } catch {
+        console.log(
+          "[Scheduler] Intelligence report response:",
+          data.slice(0, 200),
+        );
+      }
+    });
+  });
+  req.on("error", (err) =>
+    console.error("[Scheduler] Intelligence report request failed:", err.message),
+  );
+  req.end();
+}
+
+/**
+ * Schedule a callback to run daily at a specific UTC hour and minute.
+ * Fires once at the next occurrence, then repeats every 24 hours.
+ */
+function scheduleDailyAt(utcHour, utcMinute, label, fn) {
+  function msUntilNext() {
+    const now = new Date();
+    const next = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        utcHour,
+        utcMinute,
+        0,
+        0,
+      ),
+    );
+    if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+    return next - now;
+  }
+
+  function schedule() {
+    const delay = msUntilNext();
+    const fireAt = new Date(Date.now() + delay).toISOString();
+    console.log(`[Scheduler] ${label} scheduled — next run at ${fireAt} UTC`);
+    setTimeout(() => {
+      fn();
+      setInterval(fn, 24 * 60 * 60 * 1000);
+    }, delay);
+  }
+
+  schedule();
+}
+
 let missingStaticAssetsCount = 0;
 
 app.prepare().then(() => {
@@ -81,6 +161,9 @@ app.prepare().then(() => {
     runNewsSync();
     setInterval(runNewsSync, 60 * 60 * 1000);
   }, 15000); // wait 15s after boot before first sync
+
+  // Daily Intelligence Report — 11:00 AM IST = 05:30 UTC
+  scheduleDailyAt(5, 30, "Intelligence Report", runIntelligenceReport);
 
   createServer(async (req, res) => {
     try {
