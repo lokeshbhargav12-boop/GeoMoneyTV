@@ -57,7 +57,13 @@ export default function TradingViewMiniChart({
   }, [symbol, height, dateRange, trendLineColor, underLineColor]);
 
   return (
-    <div style={{ position: "relative", height: `${height}px`, overflow: "hidden" }}>
+    <div
+      style={{
+        position: "relative",
+        height: `${height}px`,
+        overflow: "hidden",
+      }}
+    >
       <div
         ref={containerRef}
         className="tradingview-widget-container w-full overflow-hidden"
@@ -71,6 +77,19 @@ export default function TradingViewMiniChart({
           right: 0,
           width: "56px",
           height: "36px",
+          background: logoCoverColor,
+          zIndex: 10,
+          pointerEvents: "none",
+        }}
+      />
+      {/* Cover the bottom watermark / "available on TradingView" bar */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: "32px",
           background: logoCoverColor,
           zIndex: 10,
           pointerEvents: "none",
