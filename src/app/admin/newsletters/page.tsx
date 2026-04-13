@@ -6,6 +6,20 @@ import {
   Plus, Trash2, Zap, Calendar, Timer, Brain, Newspaper,
 } from 'lucide-react'
 
+// Safe JSON parse -- handles HTML error pages from timeouts/crashes
+async function safeJson(res: Response): Promise<any> {
+  const text = await res.text()
+  try {
+    return JSON.parse(text)
+  } catch {
+    const status = res.status
+    if (status === 504 || status === 502) throw new Error('Request timed out. Try again.')
+    if (status === 401 || status === 403) throw new Error('Session expired. Please refresh and sign in again.')
+    if (status >= 500) throw new Error('Server error (' + status + '). Check runtime logs for details.')
+    throw new Error('Unexpected response (' + status + '). Please try again.')
+  }
+}
+
 // â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface Subscriber {
   id: string
@@ -103,7 +117,7 @@ export default function NewslettersPage() {
   async function fetchSubscribers() {
     try {
       const res = await fetch('/api/newsletter')
-      const data = await res.json()
+      const data = await safeJson(res)
       setSubscribers(data.subscribers || [])
     } catch {}
     finally { setLoading(false) }
@@ -112,7 +126,7 @@ export default function NewslettersPage() {
   async function fetchSentReports() {
     try {
       const res = await fetch('/api/admin/newsletter/send')
-      const data = await res.json()
+      const data = await safeJson(res)
       setSentReports(data.reports || [])
     } catch {}
   }
@@ -130,7 +144,7 @@ export default function NewslettersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: newEmail }),
       })
-      const data = await res.json()
+      const data = await safeJson(res)
       if (!res.ok) throw new Error(data.error || 'Failed')
       setAddResult({ ok: true, msg: data.message })
       setNewEmail('')
@@ -167,7 +181,7 @@ export default function NewslettersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type }),
       })
-      const data = await res.json()
+      const data = await safeJson(res)
       if (!res.ok) throw new Error(data.error || 'Failed')
       setState({
         loading: false,
@@ -197,7 +211,7 @@ export default function NewslettersPage() {
     setSendResult(null)
     try {
       const res = await fetch('/api/admin/newsletter/generate', { method: 'POST' })
-      const data = await res.json()
+      const data = await safeJson(res)
       if (!res.ok) throw new Error(data.error || 'Generation failed')
       setGeneratedSubject(data.subject)
       setGeneratedHtml(data.htmlContent)
@@ -220,7 +234,7 @@ export default function NewslettersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject: generatedSubject, htmlContent: generatedHtml, testEmail }),
       })
-      const data = await res.json()
+      const data = await safeJson(res)
       if (!res.ok) throw new Error(data.error || 'Send failed')
       setSendResult(`âœ… Test email sent to ${testEmail}!`)
       fetchSentReports()
@@ -242,7 +256,7 @@ export default function NewslettersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject: generatedSubject, htmlContent: generatedHtml, recipients: 'all' }),
       })
-      const data = await res.json()
+      const data = await safeJson(res)
       if (!res.ok) throw new Error(data.error || 'Send failed')
       setSendResult(`âœ… Sent to ${data.sentCount}/${data.totalRecipients} recipients!`)
       fetchSentReports()

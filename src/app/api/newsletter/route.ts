@@ -42,13 +42,22 @@ export async function POST(req: Request) {
       smtpSettings.forEach((s) => (smtp[s.key] = s.value))
 
       if (smtp.smtp_user && smtp.smtp_pass) {
+        const smtpPort = parseInt(smtp.smtp_port || '587')
+        const smtpSecure = smtpPort === 465
         const transporter = nodemailer.createTransport({
           host: smtp.smtp_host || 'smtp.gmail.com',
-          port: parseInt(smtp.smtp_port || '587'),
-          secure: false,
+          port: smtpPort,
+          secure: smtpSecure,
+          requireTLS: !smtpSecure,
+          connectionTimeout: 15000,
+          greetingTimeout: 15000,
+          socketTimeout: 30000,
           auth: {
             user: smtp.smtp_user,
             pass: smtp.smtp_pass,
+          },
+          tls: {
+            rejectUnauthorized: false,
           },
         })
 

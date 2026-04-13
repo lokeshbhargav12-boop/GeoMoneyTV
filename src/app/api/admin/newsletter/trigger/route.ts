@@ -11,14 +11,14 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  if ((session?.user as any)?.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { type } = await req.json()
-
   try {
+    const session = await getServerSession(authOptions)
+    if ((session?.user as any)?.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { type } = await req.json()
+
     let subject: string
     let htmlContent: string
 
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error(`[admin/trigger] ${type} failed:`, message)
+    console.error(`[admin/trigger] failed:`, message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

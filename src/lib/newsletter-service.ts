@@ -3,6 +3,48 @@ import { getAiModel } from '@/lib/get-ai-model'
 import nodemailer from 'nodemailer'
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Shared helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function fetchOpenRouterWithRetry(
+  body: Record<string, any>,
+  apiKey: string,
+  maxRetries = 3,
+): Promise<any> {
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'HTTP-Referer': 'https://geomoneytv.com',
+    'X-Title': 'GeoMoney Intelligence Report',
+  }
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+
+    if (res.ok) return res.json()
+
+    const errText = await res.text()
+
+    // Rate-limited (429) or server error (5xx) — retry with backoff
+    if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
+      const backoff = Math.min(2000 * 2 ** attempt, 15000) // 2s, 4s, 8s, max 15s
+      console.warn(`[OpenRouter] ${res.status} on attempt ${attempt + 1}, retrying in ${backoff}ms…`)
+      await new Promise((r) => setTimeout(r, backoff))
+      continue
+    }
+
+    console.error('[OpenRouter] API error:', errText)
+    throw new Error(`AI generation failed (HTTP ${res.status}): ${errText.slice(0, 200)}`)
+  }
+
+  throw new Error('AI generation failed after retries')
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GeoMoney Daily Intelligence Report
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -99,29 +141,12 @@ OUTPUT FORMAT — respond ONLY with valid JSON, no markdown fences, no extra key
   "watchpoints": ["watchpoint 1", "watchpoint 2", "watchpoint 3", "watchpoint 4", "watchpoint 5", "watchpoint 6", "watchpoint 7"]
 }`
 
-  const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://geomoneytv.com',
-      'X-Title': 'GeoMoney Intelligence Report',
-    },
-    body: JSON.stringify({
-      model: aiModel,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 3500,
-      temperature: 0.4,
-    }),
-  })
-
-  if (!aiResponse.ok) {
-    const errText = await aiResponse.text()
-    console.error('AI API error:', errText)
-    throw new Error('AI generation failed for intelligence report')
-  }
-
-  const aiData = await aiResponse.json()
+  const aiData = await fetchOpenRouterWithRetry({
+    model: aiModel,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 3500,
+    temperature: 0.4,
+  }, apiKey)
   let raw = aiData.choices?.[0]?.message?.content || '{}'
   raw = raw.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim()
 
@@ -498,27 +523,11 @@ Use gold (#D4AF37) for headings. Include proper spacing and professional typogra
 Make the newsletter look premium and data-rich. Include specific numbers and percentages where possible.
 Do NOT include any wrapping markdown code blocks, ONLY return raw HTML.`
 
-  const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://geomoneytv.com',
-    },
-    body: JSON.stringify({
-      model: aiModel,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 4000,
-    }),
-  })
-
-  if (!aiResponse.ok) {
-    const errData = await aiResponse.text()
-    console.error('AI API error:', errData)
-    throw new Error('AI generation failed')
-  }
-
-  const aiData = await aiResponse.json()
+  const aiData = await fetchOpenRouterWithRetry({
+    model: aiModel,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 4000,
+  }, apiKey)
   let htmlContent = aiData.choices?.[0]?.message?.content || ''
 
   // Clean up markdown code fences if present
@@ -552,7 +561,7 @@ Do NOT include any wrapping markdown code blocks, ONLY return raw HTML.`
 
   const subject = `GeoMoney TV Intelligence Report – ${currentDate}`
 
-  return { subject, htmlContent }
+  return { subject, htmlContent: fullHtml }
 }
 
 export async function sendNewsletter(subject: string, htmlContent: string, recipients: string[] | 'all' | string) {
