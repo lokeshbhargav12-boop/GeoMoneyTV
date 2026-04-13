@@ -48,9 +48,9 @@ export async function generateIntelligenceReport(): Promise<{ subject: string; h
 
   // Identify key ticker proxies for Market Snapshot section
   const remx = tickers.find(t => t.symbol?.toUpperCase().includes('REMX'))
-  const mp   = tickers.find(t => t.symbol?.toUpperCase() === 'MP')
-  const uup  = tickers.find(t => t.symbol?.toUpperCase().includes('UUP') || t.label?.toUpperCase().includes('DOLLAR'))
-  const uso  = tickers.find(t => t.symbol?.toUpperCase().includes('USO') || t.label?.toUpperCase().includes('OIL') || t.label?.toUpperCase().includes('WTI'))
+  const mp = tickers.find(t => t.symbol?.toUpperCase() === 'MP')
+  const uup = tickers.find(t => t.symbol?.toUpperCase().includes('UUP') || t.label?.toUpperCase().includes('DOLLAR'))
+  const uso = tickers.find(t => t.symbol?.toUpperCase().includes('USO') || t.label?.toUpperCase().includes('OIL') || t.label?.toUpperCase().includes('WTI'))
 
   const fmtTicker = (t: typeof tickers[0] | undefined, fallback: string) => {
     if (!t) return fallback
@@ -571,13 +571,22 @@ export async function sendNewsletter(subject: string, htmlContent: string, recip
   }
 
   // Create transporter
+  const smtpPort = parseInt(smtp.smtp_port || '587')
+  const smtpSecure = smtpPort === 465
   const transporter = nodemailer.createTransport({
     host: smtp.smtp_host || 'smtp.gmail.com',
-    port: parseInt(smtp.smtp_port || '587'),
-    secure: false, // true for 465, false for other ports
+    port: smtpPort,
+    secure: smtpSecure,           // true for port 465 (SSL), false for 587 (STARTTLS)
+    requireTLS: !smtpSecure,      // enforce STARTTLS upgrade on port 587
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 30000,
     auth: {
       user: smtp.smtp_user,
       pass: smtp.smtp_pass,
+    },
+    tls: {
+      rejectUnauthorized: false,  // allow self-signed certs on shared hosting
     },
   })
 
