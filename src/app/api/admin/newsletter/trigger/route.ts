@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import {
-  generateIntelligenceReport,
-  generateNewsletterContent,
+  generateWeeklyReport,
+  generateDailyReport,
   sendNewsletter,
 } from '@/lib/newsletter-service'
 
@@ -21,20 +21,27 @@ export async function POST(req: Request) {
 
     let subject: string
     let htmlContent: string
+    let reportType: 'daily' | 'weekly'
 
-    if (type === 'intelligence-report') {
-      ;({ subject, htmlContent } = await generateIntelligenceReport())
-    } else if (type === 'weekly-newsletter') {
-      ;({ subject, htmlContent } = await generateNewsletterContent())
+    if (type === 'daily-report') {
+      ;({ subject, htmlContent } = await generateDailyReport())
+      reportType = 'daily'
+    } else if (type === 'weekly-report') {
+      ;({ subject, htmlContent } = await generateWeeklyReport())
+      reportType = 'weekly'
     } else {
-      return NextResponse.json({ error: 'Invalid type. Use "intelligence-report" or "weekly-newsletter".' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid type. Use "daily-report" or "weekly-report".' }, { status: 400 })
     }
 
-    const result = await sendNewsletter(subject, htmlContent, 'all')
+    const result = await sendNewsletter(subject, htmlContent, 'all', {
+      reportType,
+      attachPdf: true,
+    })
 
     return NextResponse.json({
       success: true,
       subject,
+      reportType,
       sentCount: result.sentCount,
       totalRecipients: result.totalRecipients,
       errors: result.errors,

@@ -97,8 +97,8 @@ export async function syncVideosToDatabase(): Promise<{ added: number; total: nu
       const publishedAt = new Date(snippet.publishedAt)
       const url = `https://www.youtube.com/watch?v=${videoId}`
       // Use maxresdefault for best quality, fallback to hqdefault
-      const thumbnail = snippet.thumbnails?.maxres?.url 
-        || snippet.thumbnails?.high?.url 
+      const thumbnail = snippet.thumbnails?.maxres?.url
+        || snippet.thumbnails?.high?.url
         || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
 
       videosToAdd.push({

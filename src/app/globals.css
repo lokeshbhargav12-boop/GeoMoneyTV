@@ -28,28 +28,28 @@ body {
 /* Google Translate UI fixes */
 .goog-te-banner-frame.skiptranslate,
 .skiptranslate.goog-te-gadget {
-    display: none !important;
-} 
+  display: none !important;
+}
 body {
-    top: 0px !important; 
+  top: 0px !important;
 }
 .goog-text-highlight {
-    background-color: transparent !important;
-    box-shadow: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
 font {
-    background-color: transparent !important;
+  background-color: transparent !important;
 }
 
 /* ── Hide TradingView attribution / copyright ───────────────────────────── */
 .tradingview-widget-copyright,
 .tv-embed-widget-wrapper__footer,
 .tv-embed-widget-powered-by {
-    display: none !important;
-    height: 0 !important;
-    overflow: hidden !important;
+  display: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
 }
 /* Ensure chart containers clip any overflowing widget content */
 .tradingview-widget-container {
-    overflow: hidden !important;
+  overflow: hidden !important;
 }

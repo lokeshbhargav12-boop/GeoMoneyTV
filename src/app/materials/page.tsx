@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { ArrowLeft, Atom } from 'lucide-react'
+import { ArrowLeft, Atom, Star } from 'lucide-react'
 
 interface RareEarthMaterial {
     id: string
@@ -15,9 +16,12 @@ interface RareEarthMaterial {
 }
 
 export default function MaterialsPage() {
+    const { data: session } = useSession()
     const [materials, setMaterials] = useState<RareEarthMaterial[]>([])
     const [loading, setLoading] = useState(true)
     const [activeCategory, setActiveCategory] = useState<string>('All')
+    const [trackedIds, setTrackedIds] = useState<Set<string>>(new Set())
+    const [trackingInProgress, setTrackingInProgress] = useState<string | null>(null)
 
     const categories = ['All', ...Array.from(new Set(materials.map(m => m.category)))]
     const filteredMaterials = activeCategory === 'All' ? materials : materials.filter(m => m.category === activeCategory)
@@ -31,6 +35,45 @@ export default function MaterialsPage() {
             })
             .catch(() => setLoading(false))
     }, [])
+
+    // Fetch user's tracked materials
+    useEffect(() => {
+        if (!session?.user) return
+        fetch('/api/user/tracked-materials')
+            .then(res => res.json())
+            .then(data => {
+                if (data.tracked) {
+                    setTrackedIds(new Set(data.tracked.map((t: any) => t.materialId)))
+                }
+            })
+            .catch(() => {})
+    }, [session])
+
+    const toggleTrack = useCallback(async (e: React.MouseEvent, materialId: string) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (!session?.user) return
+        setTrackingInProgress(materialId)
+
+        const isTracked = trackedIds.has(materialId)
+        try {
+            const res = await fetch('/api/user/tracked-materials', {
+                method: isTracked ? 'DELETE' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ materialId }),
+            })
+            if (res.ok) {
+                setTrackedIds(prev => {
+                    const next = new Set(prev)
+                    if (isTracked) next.delete(materialId)
+                    else next.add(materialId)
+                    return next
+                })
+            }
+        } catch {} finally {
+            setTrackingInProgress(null)
+        }
+    }, [session, trackedIds])
 
     return (
         <div className="min-h-screen bg-geo-dark text-white pt-28 pb-24">
@@ -110,7 +153,23 @@ export default function MaterialsPage() {
                                 </div>
                                 <div className="mt-4 flex items-center justify-between">
                                     <span className="text-xs text-gray-500">Critical Material</span>
-                                    <span className="text-geo-gold group-hover:translate-x-1 transition-transform">→</span>
+                                    <div className="flex items-center gap-2">
+                                        {session?.user && (
+                                            <button
+                                                onClick={(e) => toggleTrack(e, material.id)}
+                                                disabled={trackingInProgress === material.id}
+                                                className={`p-1.5 rounded-md transition-all ${
+                                                    trackedIds.has(material.id)
+                                                        ? 'text-geo-gold bg-geo-gold/20'
+                                                        : 'text-gray-500 hover:text-geo-gold hover:bg-white/10'
+                                                } disabled:opacity-50`}
+                                                title={trackedIds.has(material.id) ? 'Untrack material' : 'Track material'}
+                                            >
+                                                <Star className={`w-4 h-4 ${trackedIds.has(material.id) ? 'fill-current' : ''}`} />
+                                            </button>
+                                        )}
+                                        <span className="text-geo-gold group-hover:translate-x-1 transition-transform">→</span>
+                                    </div>
                                 </div>
                             </Link>
                         ))}

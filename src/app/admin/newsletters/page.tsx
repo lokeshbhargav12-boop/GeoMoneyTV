@@ -20,7 +20,7 @@ async function safeJson(res: Response): Promise<any> {
   }
 }
 
-// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Types
 interface Subscriber {
   id: string
   email: string
@@ -33,6 +33,7 @@ interface SentReport {
   subject: string
   sentCount: number
   sentAt: string
+  reportType?: string
 }
 
 interface TriggerState {
@@ -40,7 +41,7 @@ interface TriggerState {
   result: { ok: boolean; msg: string } | null
 }
 
-// â”€â”€ Countdown hook â€” computes ms until next daily UTC time â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Countdown hook
 function useCountdown(utcHour: number, utcMinute: number) {
   const [countdown, setCountdown] = useState('--:--:--')
   const [nextRunIST, setNextRunIST] = useState('')
@@ -79,7 +80,7 @@ function useCountdown(utcHour: number, utcMinute: number) {
   return { countdown, nextRunIST }
 }
 
-// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Page
 export default function NewslettersPage() {
   const [activeTab, setActiveTab] = useState<'subscribers' | 'compose' | 'sent'>('subscribers')
   const [subscribers, setSubscribers] = useState<Subscriber[]>([])
@@ -92,10 +93,11 @@ export default function NewslettersPage() {
   const [addResult, setAddResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   // Manual triggers
-  const [reportTrigger, setReportTrigger] = useState<TriggerState>({ loading: false, result: null })
-  const [newsletterTrigger, setNewsletterTrigger] = useState<TriggerState>({ loading: false, result: null })
+  const [dailyTrigger, setDailyTrigger] = useState<TriggerState>({ loading: false, result: null })
+  const [weeklyTrigger, setWeeklyTrigger] = useState<TriggerState>({ loading: false, result: null })
 
   // Compose state
+  const [composeType, setComposeType] = useState<'daily' | 'weekly'>('weekly')
   const [generating, setGenerating] = useState(false)
   const [sending, setSending] = useState(false)
   const [generatedSubject, setGeneratedSubject] = useState('')
@@ -168,11 +170,11 @@ export default function NewslettersPage() {
     } catch {}
   }
 
-  async function handleTrigger(type: 'intelligence-report' | 'weekly-newsletter') {
-    const label = type === 'intelligence-report' ? 'Daily Intelligence Report' : 'Weekly Newsletter'
-    if (!confirm(`Send the ${label} to all ${activeCount} active subscribers now?`)) return
+  async function handleTrigger(type: 'daily-report' | 'weekly-report') {
+    const label = type === 'daily-report' ? 'Daily Materials Report' : 'Weekly Intelligence Report'
+    if (!confirm(`Send the ${label} (with PDF attachment) to all ${activeCount} active subscribers now?`)) return
 
-    const setState = type === 'intelligence-report' ? setReportTrigger : setNewsletterTrigger
+    const setState = type === 'daily-report' ? setDailyTrigger : setWeeklyTrigger
     setState({ loading: true, result: null })
 
     try {
@@ -185,7 +187,7 @@ export default function NewslettersPage() {
       if (!res.ok) throw new Error(data.error || 'Failed')
       setState({
         loading: false,
-        result: { ok: true, msg: `Sent to ${data.sentCount}/${data.totalRecipients} subscribers.` },
+        result: { ok: true, msg: `Sent to ${data.sentCount}/${data.totalRecipients} subscribers (${data.reportType} report with PDF).` },
       })
       fetchSentReports()
     } catch (err: any) {
@@ -210,7 +212,11 @@ export default function NewslettersPage() {
     setGenerating(true)
     setSendResult(null)
     try {
-      const res = await fetch('/api/admin/newsletter/generate', { method: 'POST' })
+      const res = await fetch('/api/admin/newsletter/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: composeType }),
+      })
       const data = await safeJson(res)
       if (!res.ok) throw new Error(data.error || 'Generation failed')
       setGeneratedSubject(data.subject)
@@ -236,10 +242,10 @@ export default function NewslettersPage() {
       })
       const data = await safeJson(res)
       if (!res.ok) throw new Error(data.error || 'Send failed')
-      setSendResult(`âœ… Test email sent to ${testEmail}!`)
+      setSendResult(`Test email sent to ${testEmail}!`)
       fetchSentReports()
     } catch (err: any) {
-      setSendResult(`âŒ ${err.message}`)
+      setSendResult(`Error: ${err.message}`)
     } finally {
       setSending(false)
     }
@@ -258,10 +264,10 @@ export default function NewslettersPage() {
       })
       const data = await safeJson(res)
       if (!res.ok) throw new Error(data.error || 'Send failed')
-      setSendResult(`âœ… Sent to ${data.sentCount}/${data.totalRecipients} recipients!`)
+      setSendResult(`Sent to ${data.sentCount}/${data.totalRecipients} recipients!`)
       fetchSentReports()
     } catch (err: any) {
-      setSendResult(`âŒ ${err.message}`)
+      setSendResult(`Error: ${err.message}`)
     } finally {
       setSending(false)
     }
@@ -281,10 +287,10 @@ export default function NewslettersPage() {
           <Mail className="w-8 h-8 text-purple-400" />
           Newsletter Management
         </h1>
-        <p className="mt-2 text-gray-400">AI-powered intelligence reports for your subscribers</p>
+        <p className="mt-2 text-gray-400">Daily Materials &amp; Weekly Intelligence reports with PDF attachments</p>
       </div>
 
-      {/* â”€â”€ Scheduler Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Scheduler Panel */}
       <div className="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-white/[0.03]">
           <Timer className="w-5 h-5 text-geo-gold" />
@@ -293,13 +299,13 @@ export default function NewslettersPage() {
         </div>
 
         <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10">
-          {/* Daily Intelligence Report */}
+          {/* Daily Materials Report */}
           <div className="p-6 space-y-4">
             <div className="flex items-center gap-2">
               <Brain className="w-4 h-4 text-purple-400" />
-              <span className="text-sm font-semibold text-white">Daily Intelligence Report</span>
+              <span className="text-sm font-semibold text-white">Daily Materials Report</span>
               <span className="ml-auto text-[10px] bg-green-500/15 text-green-400 border border-green-500/25 px-2 py-0.5 rounded-full font-medium tracking-wide">
-                AUTO Â· DAILY
+                AUTO + PDF
               </span>
             </div>
 
@@ -316,75 +322,85 @@ export default function NewslettersPage() {
               </div>
             </div>
 
+            <p className="text-[11px] text-gray-500">
+              Focus: Critical materials, supply chains, geopolitical exposure. Sent as PDF attachment.
+            </p>
+
             <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
               <Clock className="w-3.5 h-3.5" />
               Fires at 05:50 UTC (11:20 AM IST) every day automatically
             </div>
 
             <button
-              onClick={() => handleTrigger('intelligence-report')}
-              disabled={reportTrigger.loading || activeCount === 0}
+              onClick={() => handleTrigger('daily-report')}
+              disabled={dailyTrigger.loading || activeCount === 0}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-purple-400 text-sm font-medium transition-all disabled:opacity-40"
             >
-              {reportTrigger.loading ? (
-                <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Sendingâ€¦</>
+              {dailyTrigger.loading ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Generating &amp; Sending...</>
               ) : (
-                <><Zap className="w-3.5 h-3.5" />Send Now Â· {activeCount} subscriber{activeCount !== 1 ? 's' : ''}</>
+                <><Zap className="w-3.5 h-3.5" />Send Now (PDF) &middot; {activeCount} subscriber{activeCount !== 1 ? 's' : ''}</>
               )}
             </button>
 
-            {reportTrigger.result && (
-              <div className={`text-xs px-3 py-2 rounded-lg ${reportTrigger.result.ok ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                {reportTrigger.result.ok ? 'âœ…' : 'âŒ'} {reportTrigger.result.msg}
+            {dailyTrigger.result && (
+              <div className={`text-xs px-3 py-2 rounded-lg ${dailyTrigger.result.ok ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                {dailyTrigger.result.msg}
               </div>
             )}
           </div>
 
-          {/* Weekly Newsletter */}
+          {/* Weekly Intelligence Report */}
           <div className="p-6 space-y-4">
             <div className="flex items-center gap-2">
               <Newspaper className="w-4 h-4 text-blue-400" />
-              <span className="text-sm font-semibold text-white">Weekly Newsletter</span>
+              <span className="text-sm font-semibold text-white">Weekly Intelligence Report</span>
               <span className="ml-auto text-[10px] bg-blue-500/15 text-blue-400 border border-blue-500/25 px-2 py-0.5 rounded-full font-medium tracking-wide">
-                MANUAL
+                MANUAL + PDF
               </span>
             </div>
 
             <div className="flex items-end gap-8">
               <div>
                 <div className="text-[11px] text-gray-500 mb-1 uppercase tracking-wider">Format</div>
-                <div className="text-base font-bold text-white">AI Market Report</div>
+                <div className="text-base font-bold text-white">Full Intelligence Report</div>
               </div>
               <div>
                 <div className="text-[11px] text-gray-500 mb-1 uppercase tracking-wider">Last Sent</div>
                 <div className="text-sm font-medium text-gray-300">
-                  {sentReports[0]
+                  {sentReports.find(r => r.reportType === 'weekly')
+                    ? new Date(sentReports.find(r => r.reportType === 'weekly')!.sentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : sentReports[0]
                     ? new Date(sentReports[0].sentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                     : 'Never'}
                 </div>
               </div>
             </div>
 
+            <p className="text-[11px] text-gray-500">
+              Full thesis, scenario outlook, transmission maps, compliance-checked. Sent as PDF attachment.
+            </p>
+
             <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
               <Calendar className="w-3.5 h-3.5" />
-              Trigger manually or use "Compose &amp; Send" for custom content
+              Trigger manually or use &quot;Compose &amp; Send&quot; for preview
             </div>
 
             <button
-              onClick={() => handleTrigger('weekly-newsletter')}
-              disabled={newsletterTrigger.loading || activeCount === 0}
+              onClick={() => handleTrigger('weekly-report')}
+              disabled={weeklyTrigger.loading || activeCount === 0}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded-lg text-blue-400 text-sm font-medium transition-all disabled:opacity-40"
             >
-              {newsletterTrigger.loading ? (
-                <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Sendingâ€¦</>
+              {weeklyTrigger.loading ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Generating &amp; Sending...</>
               ) : (
-                <><Zap className="w-3.5 h-3.5" />Send Now Â· {activeCount} subscriber{activeCount !== 1 ? 's' : ''}</>
+                <><Zap className="w-3.5 h-3.5" />Send Now (PDF) &middot; {activeCount} subscriber{activeCount !== 1 ? 's' : ''}</>
               )}
             </button>
 
-            {newsletterTrigger.result && (
-              <div className={`text-xs px-3 py-2 rounded-lg ${newsletterTrigger.result.ok ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                {newsletterTrigger.result.ok ? 'âœ…' : 'âŒ'} {newsletterTrigger.result.msg}
+            {weeklyTrigger.result && (
+              <div className={`text-xs px-3 py-2 rounded-lg ${weeklyTrigger.result.ok ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                {weeklyTrigger.result.msg}
               </div>
             )}
           </div>
@@ -412,7 +428,7 @@ export default function NewslettersPage() {
         ))}
       </div>
 
-      {/* â”€â”€ Subscribers Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Subscribers Tab */}
       {activeTab === 'subscribers' && (
         <div className="space-y-6">
           {/* Add subscriber */}
@@ -441,7 +457,7 @@ export default function NewslettersPage() {
             </div>
             {addResult && (
               <p className={`mt-2.5 text-xs ${addResult.ok ? 'text-green-400' : 'text-red-400'}`}>
-                {addResult.ok ? 'âœ…' : 'âŒ'} {addResult.msg}
+                {addResult.msg}
               </p>
             )}
           </div>
@@ -517,23 +533,48 @@ export default function NewslettersPage() {
         </div>
       )}
 
-      {/* â”€â”€ Compose Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Compose Tab */}
       {activeTab === 'compose' && (
         <div className="space-y-6">
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-            <h2 className="text-lg font-medium text-white mb-2">Generate AI Prediction Report</h2>
+            <h2 className="text-lg font-medium text-white mb-2">Generate AI Report</h2>
             <p className="text-sm text-gray-400 mb-4">
-              The AI will analyze current articles, materials prices, and market data to generate a comprehensive report.
+              Choose a report type then generate. Both use the compliance engine and can be sent as PDF attachments.
             </p>
+
+            {/* Report type selector */}
+            <div className="flex gap-3 mb-5">
+              <button
+                onClick={() => setComposeType('daily')}
+                className={`flex-1 rounded-lg border p-4 text-left transition-all ${composeType === 'daily' ? 'border-purple-500/50 bg-purple-500/10' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Brain className="w-4 h-4 text-purple-400" />
+                  <span className="text-sm font-semibold text-white">Daily Materials Report</span>
+                </div>
+                <p className="text-xs text-gray-500">Critical materials focus, supply chain analysis, geopolitical exposure</p>
+              </button>
+              <button
+                onClick={() => setComposeType('weekly')}
+                className={`flex-1 rounded-lg border p-4 text-left transition-all ${composeType === 'weekly' ? 'border-blue-500/50 bg-blue-500/10' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Newspaper className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-semibold text-white">Weekly Intelligence Report</span>
+                </div>
+                <p className="text-xs text-gray-500">Full thesis, scenario outlook, transmission maps, market snapshot</p>
+              </button>
+            </div>
+
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="flex items-center gap-2 rounded-lg bg-purple-600 px-6 py-3 font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
+              className={`flex items-center gap-2 rounded-lg px-6 py-3 font-medium text-white transition-colors disabled:opacity-50 ${composeType === 'daily' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
               {generating ? (
-                <><RefreshCw className="w-4 h-4 animate-spin" />Generating Reportâ€¦</>
+                <><RefreshCw className="w-4 h-4 animate-spin" />Generating {composeType === 'daily' ? 'Daily' : 'Weekly'} Report...</>
               ) : (
-                <><Sparkles className="w-4 h-4" />Generate AI Report</>
+                <><Sparkles className="w-4 h-4" />Generate {composeType === 'daily' ? 'Daily Materials' : 'Weekly Intelligence'} Report</>
               )}
             </button>
           </div>
@@ -542,7 +583,7 @@ export default function NewslettersPage() {
             <>
               <div className="rounded-lg border border-white/10 bg-white/5 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-medium text-white">Generated Newsletter</h2>
+                  <h2 className="text-lg font-medium text-white">Generated Report</h2>
                   <button
                     onClick={() => setShowPreview(!showPreview)}
                     className="flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300"
@@ -560,17 +601,17 @@ export default function NewslettersPage() {
                     <iframe
                       srcDoc={generatedHtml}
                       className="w-full min-h-[500px]"
-                      title="Newsletter Preview"
+                      title="Report Preview"
                     />
                   </div>
                 )}
               </div>
 
               <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-6">
-                <h2 className="text-lg font-medium text-yellow-400 mb-4">Send Newsletter</h2>
+                <h2 className="text-lg font-medium text-yellow-400 mb-4">Send Report</h2>
 
                 <div className="mb-4 p-4 rounded-lg bg-black/30 border border-white/10">
-                  <h3 className="text-sm font-medium text-white mb-3">ðŸ§ª Test Send</h3>
+                  <h3 className="text-sm font-medium text-white mb-3">Test Send</h3>
                   <div className="flex gap-3">
                     <input
                       type="email"
@@ -585,15 +626,15 @@ export default function NewslettersPage() {
                       className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                     >
                       <Send className="w-4 h-4" />
-                      {sending ? 'Sendingâ€¦' : 'Send Test'}
+                      {sending ? 'Sending...' : 'Send Test'}
                     </button>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-lg bg-black/30 border border-white/10">
-                  <h3 className="text-sm font-medium text-white mb-3">ðŸ“¨ Send to All Subscribers</h3>
+                  <h3 className="text-sm font-medium text-white mb-3">Send to All Subscribers</h3>
                   <p className="text-xs text-gray-400 mb-3">
-                    This will send the newsletter to all {activeCount} active subscribers.
+                    This will send the generated report to all {activeCount} active subscribers.
                   </p>
                   <button
                     onClick={handleSendAll}
@@ -601,12 +642,12 @@ export default function NewslettersPage() {
                     className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50"
                   >
                     <Send className="w-4 h-4" />
-                    {sending ? 'Sendingâ€¦' : `Send to ${activeCount} Subscribers`}
+                    {sending ? 'Sending...' : `Send to ${activeCount} Subscribers`}
                   </button>
                 </div>
 
                 {sendResult && (
-                  <div className={`mt-4 p-3 rounded-lg text-sm ${sendResult.startsWith('âœ…') ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                  <div className={`mt-4 p-3 rounded-lg text-sm ${sendResult.startsWith('Error') ? 'bg-red-500/10 text-red-400' : 'bg-green-500/10 text-green-400'}`}>
                     {sendResult}
                   </div>
                 )}
@@ -616,7 +657,7 @@ export default function NewslettersPage() {
         </div>
       )}
 
-      {/* â”€â”€ Sent Reports Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Sent Reports Tab */}
       {activeTab === 'sent' && (
         <div>
           {sentReports.length > 0 ? (
@@ -640,8 +681,15 @@ export default function NewslettersPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="rounded-full bg-green-500/20 px-3 py-1 text-xs text-green-400 font-medium">
-                      Sent
+                    <div className="flex items-center gap-2">
+                      {report.reportType && (
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${report.reportType === 'daily' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                          {report.reportType === 'daily' ? 'Daily' : 'Weekly'}
+                        </span>
+                      )}
+                      <div className="rounded-full bg-green-500/20 px-3 py-1 text-xs text-green-400 font-medium">
+                        Sent
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -650,9 +698,9 @@ export default function NewslettersPage() {
           ) : (
             <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
               <FileText className="w-12 h-12 mx-auto mb-4 text-gray-600" />
-              <p className="text-gray-400">No newsletters sent yet.</p>
+              <p className="text-gray-400">No reports sent yet.</p>
               <p className="text-sm text-gray-500 mt-1">
-                Use the Scheduler above or &ldquo;Compose &amp; Send&rdquo; tab.
+                Use the Scheduler above or &quot;Compose &amp; Send&quot; tab.
               </p>
             </div>
           )}

@@ -168,9 +168,7 @@ export default function TradingViewMarketQuotes() {
     return (
       CATEGORIES.find((cat) => {
         const cs = catSymbols(cat);
-        return (
-          cs.length === selected.length && cs.every((s) => selSet.has(s))
-        );
+        return cs.length === selected.length && cs.every((s) => selSet.has(s));
       }) ?? null
     );
   }, [selected]);
@@ -257,7 +255,10 @@ export default function TradingViewMarketQuotes() {
   return (
     <div className="flex flex-col h-full">
       {/* ── Search ─────────────────────────────────────────────────── */}
-      <div ref={searchWrapRef} className="flex-none px-3 pt-2.5 pb-1.5 relative">
+      <div
+        ref={searchWrapRef}
+        className="flex-none px-3 pt-2.5 pb-1.5 relative"
+      >
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
           <input
@@ -289,7 +290,10 @@ export default function TradingViewMarketQuotes() {
           <div className="absolute left-3 right-3 top-full mt-1 z-50 bg-[#0e0e1a] border border-white/15 rounded-xl shadow-2xl overflow-hidden">
             <div
               className="overflow-y-auto max-h-56"
-              style={{ scrollbarWidth: "thin", scrollbarColor: "#444 transparent" }}
+              style={{
+                scrollbarWidth: "thin",
+                scrollbarColor: "#444 transparent",
+              }}
             >
               {results.length === 0 ? (
                 <p className="px-3 py-4 text-center text-xs text-gray-600">
@@ -340,7 +344,9 @@ export default function TradingViewMarketQuotes() {
                         <div className="text-xs text-gray-500 truncate">
                           {inst.c} &middot;{" "}
                           <span className="font-mono">
-                            {inst.s.includes(":") ? inst.s.split(":")[1] : inst.s}
+                            {inst.s.includes(":")
+                              ? inst.s.split(":")[1]
+                              : inst.s}
                           </span>
                         </div>
                       </div>
@@ -391,4 +397,3 @@ export default function TradingViewMarketQuotes() {
     </div>
   );
 }
-

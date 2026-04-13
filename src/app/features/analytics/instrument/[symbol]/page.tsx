@@ -70,24 +70,54 @@ interface NewsArticle {
 /** Map a TradingView symbol to the best search term for news */
 function newsSearchTerm(symbol: string, displayName: string): string {
   const s = symbol.toUpperCase();
-  if (s.includes("XAUUSD") || displayName.toLowerCase().includes("gold")) return "gold";
-  if (s.includes("USOIL") || s.includes("UKOIL") || displayName.toLowerCase().includes("oil")) return "oil";
-  if (s.includes("NATURALGAS") || s.includes("NG1") || displayName.toLowerCase().includes("gas")) return "natural gas";
+  if (s.includes("XAUUSD") || displayName.toLowerCase().includes("gold"))
+    return "gold";
+  if (
+    s.includes("USOIL") ||
+    s.includes("UKOIL") ||
+    displayName.toLowerCase().includes("oil")
+  )
+    return "oil";
+  if (
+    s.includes("NATURALGAS") ||
+    s.includes("NG1") ||
+    displayName.toLowerCase().includes("gas")
+  )
+    return "natural gas";
   if (s.includes("SILVER") || s.includes("SI1")) return "silver";
   if (s.includes("COPPER") || s.includes("HG1")) return "copper";
-  if (s.includes("DXY") || displayName.toLowerCase().includes("dollar")) return "dollar";
-  if (s.includes("US500") || s.includes("SPX") || displayName.toLowerCase().includes("s&p")) return "s&p 500";
-  if (s.includes("US100") || displayName.toLowerCase().includes("nasdaq")) return "nasdaq";
-  if (s.includes("BTC") || displayName.toLowerCase().includes("bitcoin")) return "bitcoin";
-  if (s.includes("ETH") || displayName.toLowerCase().includes("ethereum")) return "ethereum";
-  if (s.includes("US10Y") || s.includes("ZN1") || displayName.toLowerCase().includes("treasury")) return "treasury";
+  if (s.includes("DXY") || displayName.toLowerCase().includes("dollar"))
+    return "dollar";
+  if (
+    s.includes("US500") ||
+    s.includes("SPX") ||
+    displayName.toLowerCase().includes("s&p")
+  )
+    return "s&p 500";
+  if (s.includes("US100") || displayName.toLowerCase().includes("nasdaq"))
+    return "nasdaq";
+  if (s.includes("BTC") || displayName.toLowerCase().includes("bitcoin"))
+    return "bitcoin";
+  if (s.includes("ETH") || displayName.toLowerCase().includes("ethereum"))
+    return "ethereum";
+  if (
+    s.includes("US10Y") ||
+    s.includes("ZN1") ||
+    displayName.toLowerCase().includes("treasury")
+  )
+    return "treasury";
   if (s.includes("EURUSD")) return "euro dollar";
   if (s.includes("USDJPY")) return "japan yen";
-  if (s.includes("RARE") || displayName.toLowerCase().includes("rare")) return "rare earth";
-  if (s.includes("LITHIUM") || displayName.toLowerCase().includes("lithium")) return "lithium";
-  if (s.includes("SENSEX") || displayName.toLowerCase().includes("india")) return "india";
-  if (s.includes("JP225") || displayName.toLowerCase().includes("nikkei")) return "japan";
-  if (s.includes("HK50") || displayName.toLowerCase().includes("hang seng")) return "china";
+  if (s.includes("RARE") || displayName.toLowerCase().includes("rare"))
+    return "rare earth";
+  if (s.includes("LITHIUM") || displayName.toLowerCase().includes("lithium"))
+    return "lithium";
+  if (s.includes("SENSEX") || displayName.toLowerCase().includes("india"))
+    return "india";
+  if (s.includes("JP225") || displayName.toLowerCase().includes("nikkei"))
+    return "japan";
+  if (s.includes("HK50") || displayName.toLowerCase().includes("hang seng"))
+    return "china";
   // fallback: use first word of display name
   return displayName.split(/[\s/]/)[0];
 }

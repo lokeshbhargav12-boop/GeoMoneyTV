@@ -2,88 +2,144 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import {
+  Search,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+} from "lucide-react";
 
 /* ── Instrument database ──────────────────────────────────────────────── */
 export interface MarketInstrument {
-  s: string;   // TradingView symbol
-  d: string;   // display name
-  c: string;   // category
+  s: string; // TradingView symbol
+  d: string; // display name
+  c: string; // category
   color: string;
 }
 
 export const MARKET_INSTRUMENTS: MarketInstrument[] = [
   // Global Indices
-  { s: "CAPITALCOM:US500",  d: "S&P 500",           c: "Global Indices",      color: "#51cf66" },
-  { s: "CAPITALCOM:US100",  d: "NASDAQ 100",         c: "Global Indices",      color: "#51cf66" },
-  { s: "CAPITALCOM:US30",   d: "Dow Jones 30",       c: "Global Indices",      color: "#51cf66" },
-  { s: "TVC:RUT",           d: "Russell 2000",       c: "Global Indices",      color: "#74c0fc" },
-  { s: "TVC:DEU40",         d: "DAX 40",             c: "Global Indices",      color: "#74c0fc" },
-  { s: "TVC:UK100",         d: "FTSE 100",           c: "Global Indices",      color: "#74c0fc" },
-  { s: "TVC:JP225",         d: "Nikkei 225",         c: "Global Indices",      color: "#ffa94d" },
-  { s: "TVC:HK50",          d: "Hang Seng 50",       c: "Global Indices",      color: "#ffa94d" },
-  { s: "TVC:FR40",          d: "CAC 40",             c: "Global Indices",      color: "#74c0fc" },
-  { s: "CAPITALCOM:AUS200", d: "ASX 200",            c: "Global Indices",      color: "#ffa94d" },
-  { s: "TVC:SX5E",          d: "Euro Stoxx 50",      c: "Global Indices",      color: "#74c0fc" },
-  { s: "TVC:NSEI",          d: "Nifty 50",           c: "Global Indices",      color: "#ffa94d" },
+  {
+    s: "CAPITALCOM:US500",
+    d: "S&P 500",
+    c: "Global Indices",
+    color: "#51cf66",
+  },
+  {
+    s: "CAPITALCOM:US100",
+    d: "NASDAQ 100",
+    c: "Global Indices",
+    color: "#51cf66",
+  },
+  {
+    s: "CAPITALCOM:US30",
+    d: "Dow Jones 30",
+    c: "Global Indices",
+    color: "#51cf66",
+  },
+  { s: "TVC:RUT", d: "Russell 2000", c: "Global Indices", color: "#74c0fc" },
+  { s: "TVC:DEU40", d: "DAX 40", c: "Global Indices", color: "#74c0fc" },
+  { s: "TVC:UK100", d: "FTSE 100", c: "Global Indices", color: "#74c0fc" },
+  { s: "TVC:JP225", d: "Nikkei 225", c: "Global Indices", color: "#ffa94d" },
+  { s: "TVC:HK50", d: "Hang Seng 50", c: "Global Indices", color: "#ffa94d" },
+  { s: "TVC:FR40", d: "CAC 40", c: "Global Indices", color: "#74c0fc" },
+  {
+    s: "CAPITALCOM:AUS200",
+    d: "ASX 200",
+    c: "Global Indices",
+    color: "#ffa94d",
+  },
+  { s: "TVC:SX5E", d: "Euro Stoxx 50", c: "Global Indices", color: "#74c0fc" },
+  { s: "TVC:NSEI", d: "Nifty 50", c: "Global Indices", color: "#ffa94d" },
   // Commodities
-  { s: "XAUUSD",            d: "Gold",               c: "Commodities",         color: "#D4AF37" },
-  { s: "CAPITALCOM:SILVER", d: "Silver",             c: "Commodities",         color: "#c8d6e5" },
-  { s: "CAPITALCOM:COPPER", d: "Copper",             c: "Commodities",         color: "#cd7f32" },
-  { s: "TVC:USOIL",         d: "WTI Crude Oil",      c: "Commodities",         color: "#ff6b35" },
-  { s: "TVC:UKOIL",         d: "Brent Crude",        c: "Commodities",         color: "#ff8c42" },
-  { s: "CAPITALCOM:NATURALGAS", d: "Natural Gas",    c: "Commodities",         color: "#ff85c2" },
-  { s: "COMEX:PL1!",        d: "Platinum",           c: "Commodities",         color: "#a8dadc" },
-  { s: "CBOT:ZW1!",         d: "Wheat",              c: "Commodities",         color: "#ffd43b" },
-  { s: "CBOT:ZC1!",         d: "Corn",               c: "Commodities",         color: "#ffd43b" },
+  { s: "XAUUSD", d: "Gold", c: "Commodities", color: "#D4AF37" },
+  { s: "CAPITALCOM:SILVER", d: "Silver", c: "Commodities", color: "#c8d6e5" },
+  { s: "CAPITALCOM:COPPER", d: "Copper", c: "Commodities", color: "#cd7f32" },
+  { s: "TVC:USOIL", d: "WTI Crude Oil", c: "Commodities", color: "#ff6b35" },
+  { s: "TVC:UKOIL", d: "Brent Crude", c: "Commodities", color: "#ff8c42" },
+  {
+    s: "CAPITALCOM:NATURALGAS",
+    d: "Natural Gas",
+    c: "Commodities",
+    color: "#ff85c2",
+  },
+  { s: "COMEX:PL1!", d: "Platinum", c: "Commodities", color: "#a8dadc" },
+  { s: "CBOT:ZW1!", d: "Wheat", c: "Commodities", color: "#ffd43b" },
+  { s: "CBOT:ZC1!", d: "Corn", c: "Commodities", color: "#ffd43b" },
   // Crypto
-  { s: "BINANCE:BTCUSDT",   d: "Bitcoin",            c: "Crypto",              color: "#f7931a" },
-  { s: "BINANCE:ETHUSDT",   d: "Ethereum",           c: "Crypto",              color: "#627eea" },
-  { s: "BINANCE:SOLUSDT",   d: "Solana",             c: "Crypto",              color: "#9945ff" },
-  { s: "BINANCE:BNBUSDT",   d: "BNB",                c: "Crypto",              color: "#f0b90b" },
-  { s: "BINANCE:XRPUSDT",   d: "XRP",                c: "Crypto",              color: "#346aa9" },
-  { s: "BINANCE:ADAUSDT",   d: "Cardano",            c: "Crypto",              color: "#0033ad" },
-  { s: "BINANCE:DOGEUSDT",  d: "Dogecoin",           c: "Crypto",              color: "#c2a633" },
+  { s: "BINANCE:BTCUSDT", d: "Bitcoin", c: "Crypto", color: "#f7931a" },
+  { s: "BINANCE:ETHUSDT", d: "Ethereum", c: "Crypto", color: "#627eea" },
+  { s: "BINANCE:SOLUSDT", d: "Solana", c: "Crypto", color: "#9945ff" },
+  { s: "BINANCE:BNBUSDT", d: "BNB", c: "Crypto", color: "#f0b90b" },
+  { s: "BINANCE:XRPUSDT", d: "XRP", c: "Crypto", color: "#346aa9" },
+  { s: "BINANCE:ADAUSDT", d: "Cardano", c: "Crypto", color: "#0033ad" },
+  { s: "BINANCE:DOGEUSDT", d: "Dogecoin", c: "Crypto", color: "#c2a633" },
   // Bonds & Yields
-  { s: "TVC:US10Y",         d: "US 10Y Yield",       c: "Bonds & Yields",      color: "#a29bfe" },
-  { s: "TVC:US02Y",         d: "US 2Y Yield",        c: "Bonds & Yields",      color: "#a29bfe" },
-  { s: "TVC:US30Y",         d: "US 30Y Yield",       c: "Bonds & Yields",      color: "#a29bfe" },
-  { s: "TVC:DE10Y",         d: "Germany 10Y",        c: "Bonds & Yields",      color: "#74c0fc" },
-  { s: "TVC:GB10Y",         d: "UK 10Y Gilt",        c: "Bonds & Yields",      color: "#74c0fc" },
-  { s: "TVC:JP10Y",         d: "Japan 10Y JGB",      c: "Bonds & Yields",      color: "#ffa94d" },
+  { s: "TVC:US10Y", d: "US 10Y Yield", c: "Bonds & Yields", color: "#a29bfe" },
+  { s: "TVC:US02Y", d: "US 2Y Yield", c: "Bonds & Yields", color: "#a29bfe" },
+  { s: "TVC:US30Y", d: "US 30Y Yield", c: "Bonds & Yields", color: "#a29bfe" },
+  { s: "TVC:DE10Y", d: "Germany 10Y", c: "Bonds & Yields", color: "#74c0fc" },
+  { s: "TVC:GB10Y", d: "UK 10Y Gilt", c: "Bonds & Yields", color: "#74c0fc" },
+  { s: "TVC:JP10Y", d: "Japan 10Y JGB", c: "Bonds & Yields", color: "#ffa94d" },
   // FX & Macro
-  { s: "CAPITALCOM:DXY",    d: "Dollar Index (DXY)", c: "FX & Macro",          color: "#4dabf7" },
-  { s: "FX:EURUSD",         d: "EUR / USD",          c: "FX & Macro",          color: "#74c0fc" },
-  { s: "FX:GBPUSD",         d: "GBP / USD",          c: "FX & Macro",          color: "#74c0fc" },
-  { s: "FX:USDJPY",         d: "USD / JPY",          c: "FX & Macro",          color: "#ffa94d" },
-  { s: "FX:USDCHF",         d: "USD / CHF",          c: "FX & Macro",          color: "#74c0fc" },
-  { s: "FX:AUDUSD",         d: "AUD / USD",          c: "FX & Macro",          color: "#ffa94d" },
-  { s: "FX:USDCAD",         d: "USD / CAD",          c: "FX & Macro",          color: "#74c0fc" },
-  { s: "FX:USDMXN",         d: "USD / MXN",          c: "FX & Macro",          color: "#ff6b6b" },
-  { s: "FX:USDBRL",         d: "USD / BRL",          c: "FX & Macro",          color: "#ff6b6b" },
+  {
+    s: "CAPITALCOM:DXY",
+    d: "Dollar Index (DXY)",
+    c: "FX & Macro",
+    color: "#4dabf7",
+  },
+  { s: "FX:EURUSD", d: "EUR / USD", c: "FX & Macro", color: "#74c0fc" },
+  { s: "FX:GBPUSD", d: "GBP / USD", c: "FX & Macro", color: "#74c0fc" },
+  { s: "FX:USDJPY", d: "USD / JPY", c: "FX & Macro", color: "#ffa94d" },
+  { s: "FX:USDCHF", d: "USD / CHF", c: "FX & Macro", color: "#74c0fc" },
+  { s: "FX:AUDUSD", d: "AUD / USD", c: "FX & Macro", color: "#ffa94d" },
+  { s: "FX:USDCAD", d: "USD / CAD", c: "FX & Macro", color: "#74c0fc" },
+  { s: "FX:USDMXN", d: "USD / MXN", c: "FX & Macro", color: "#ff6b6b" },
+  { s: "FX:USDBRL", d: "USD / BRL", c: "FX & Macro", color: "#ff6b6b" },
   // Top Stocks
-  { s: "NASDAQ:AAPL",       d: "Apple",              c: "Top Stocks",          color: "#51cf66" },
-  { s: "NASDAQ:MSFT",       d: "Microsoft",          c: "Top Stocks",          color: "#51cf66" },
-  { s: "NASDAQ:NVDA",       d: "NVIDIA",             c: "Top Stocks",          color: "#76b900" },
-  { s: "NASDAQ:GOOGL",      d: "Alphabet",           c: "Top Stocks",          color: "#4285f4" },
-  { s: "NASDAQ:AMZN",       d: "Amazon",             c: "Top Stocks",          color: "#ff9900" },
-  { s: "NASDAQ:TSLA",       d: "Tesla",              c: "Top Stocks",          color: "#cc0000" },
-  { s: "NASDAQ:META",       d: "Meta",               c: "Top Stocks",          color: "#1877f2" },
-  { s: "NYSE:JPM",          d: "JPMorgan",           c: "Top Stocks",          color: "#51cf66" },
+  { s: "NASDAQ:AAPL", d: "Apple", c: "Top Stocks", color: "#51cf66" },
+  { s: "NASDAQ:MSFT", d: "Microsoft", c: "Top Stocks", color: "#51cf66" },
+  { s: "NASDAQ:NVDA", d: "NVIDIA", c: "Top Stocks", color: "#76b900" },
+  { s: "NASDAQ:GOOGL", d: "Alphabet", c: "Top Stocks", color: "#4285f4" },
+  { s: "NASDAQ:AMZN", d: "Amazon", c: "Top Stocks", color: "#ff9900" },
+  { s: "NASDAQ:TSLA", d: "Tesla", c: "Top Stocks", color: "#cc0000" },
+  { s: "NASDAQ:META", d: "Meta", c: "Top Stocks", color: "#1877f2" },
+  { s: "NYSE:JPM", d: "JPMorgan", c: "Top Stocks", color: "#51cf66" },
   // Mining & Materials
-  { s: "NYSE:NEM",          d: "Newmont (Gold)",     c: "Mining & Materials",  color: "#D4AF37" },
-  { s: "NYSE:FCX",          d: "Freeport-McMoRan",   c: "Mining & Materials",  color: "#cd7f32" },
-  { s: "NYSE:MP",           d: "MP Materials",       c: "Mining & Materials",  color: "#a8dadc" },
-  { s: "NYSE:ALB",          d: "Albemarle (Li)",     c: "Mining & Materials",  color: "#74c0fc" },
-  { s: "NYSE:RIO",          d: "Rio Tinto",          c: "Mining & Materials",  color: "#ff6b35" },
-  { s: "ASX:BHP",           d: "BHP Group",          c: "Mining & Materials",  color: "#ff6b35" },
+  {
+    s: "NYSE:NEM",
+    d: "Newmont (Gold)",
+    c: "Mining & Materials",
+    color: "#D4AF37",
+  },
+  {
+    s: "NYSE:FCX",
+    d: "Freeport-McMoRan",
+    c: "Mining & Materials",
+    color: "#cd7f32",
+  },
+  {
+    s: "NYSE:MP",
+    d: "MP Materials",
+    c: "Mining & Materials",
+    color: "#a8dadc",
+  },
+  {
+    s: "NYSE:ALB",
+    d: "Albemarle (Li)",
+    c: "Mining & Materials",
+    color: "#74c0fc",
+  },
+  { s: "NYSE:RIO", d: "Rio Tinto", c: "Mining & Materials", color: "#ff6b35" },
+  { s: "ASX:BHP", d: "BHP Group", c: "Mining & Materials", color: "#ff6b35" },
   // Energy Stocks
-  { s: "NYSE:XOM",          d: "ExxonMobil",         c: "Energy Stocks",       color: "#ff6b35" },
-  { s: "NYSE:CVX",          d: "Chevron",            c: "Energy Stocks",       color: "#ff8c42" },
-  { s: "NYSE:BP",           d: "BP",                 c: "Energy Stocks",       color: "#009900" },
-  { s: "NYSE:SHEL",         d: "Shell",              c: "Energy Stocks",       color: "#ffd43b" },
-  { s: "NYSE:COP",          d: "ConocoPhillips",     c: "Energy Stocks",       color: "#ff8c42" },
-  { s: "NYSE:SLB",          d: "Schlumberger",       c: "Energy Stocks",       color: "#74c0fc" },
+  { s: "NYSE:XOM", d: "ExxonMobil", c: "Energy Stocks", color: "#ff6b35" },
+  { s: "NYSE:CVX", d: "Chevron", c: "Energy Stocks", color: "#ff8c42" },
+  { s: "NYSE:BP", d: "BP", c: "Energy Stocks", color: "#009900" },
+  { s: "NYSE:SHEL", d: "Shell", c: "Energy Stocks", color: "#ffd43b" },
+  { s: "NYSE:COP", d: "ConocoPhillips", c: "Energy Stocks", color: "#ff8c42" },
+  { s: "NYSE:SLB", d: "Schlumberger", c: "Energy Stocks", color: "#74c0fc" },
 ];
 
 const CATEGORIES = [
@@ -106,7 +162,8 @@ export function encodeSymbolParam(s: string) {
 
 export default function MacroMarketsPanel() {
   const router = useRouter();
-  const [activeCategory, setActiveCategory] = useState<Category>("Global Indices");
+  const [activeCategory, setActiveCategory] =
+    useState<Category>("Global Indices");
   const [query, setQuery] = useState("");
 
   const displayed = useMemo(() => {
@@ -174,8 +231,12 @@ export default function MacroMarketsPanel() {
 
       {/* ── Table header ──────────────────────────────────────────── */}
       <div className="flex-none grid grid-cols-[1fr_auto] px-3 pb-1 border-b border-white/8">
-        <span className="text-[10px] text-gray-600 uppercase tracking-wider font-medium">Instrument</span>
-        <span className="text-[10px] text-gray-600 uppercase tracking-wider font-medium text-right">Detail</span>
+        <span className="text-[10px] text-gray-600 uppercase tracking-wider font-medium">
+          Instrument
+        </span>
+        <span className="text-[10px] text-gray-600 uppercase tracking-wider font-medium text-right">
+          Detail
+        </span>
       </div>
 
       {/* ── Scrollable instrument list ─────────────────────────────── */}

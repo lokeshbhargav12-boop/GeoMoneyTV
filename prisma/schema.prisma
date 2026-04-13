@@ -22,6 +22,7 @@ model User {
   updatedAt     DateTime  @updatedAt
   articles      Article[]
   sessions      Session[]
+  trackedMaterials TrackedMaterial[]
 }
 
 model Session {
@@ -114,6 +115,7 @@ model Newsletter {
 model NewsletterReport {
   id          String   @id @default(cuid())
   subject     String
+  reportType  String   @default("weekly") // daily, weekly
   htmlContent String   @db.LongText
   sentTo      String   @db.LongText // JSON array of emails
   sentCount   Int      @default(0)
@@ -121,6 +123,19 @@ model NewsletterReport {
   createdAt   DateTime @default(now())
 
   @@index([sentAt])
+  @@index([reportType])
+}
+
+model TrackedMaterial {
+  id         String   @id @default(cuid())
+  userId     String
+  materialId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, materialId])
+  @@index([userId])
+  @@index([materialId])
 }
 
 model CommodityPrice {
