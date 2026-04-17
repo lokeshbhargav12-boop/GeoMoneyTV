@@ -418,18 +418,14 @@ export default function GodsEyeMap({
     [onSelectWebcam],
   );
 
-  const streetViewUrl = streetViewLocation
-    ? `https://www.google.com/maps/embed?pb=!4v${Date.now()}!6m8!1m7!1s!2m2!1d${streetViewLocation.lat}!2d${streetViewLocation.lng}!3f${streetViewHeading}!4f${streetViewPitch}!5f${streetViewFov * 0.01}`
+  // Google Maps Street View — use @lat,lng,3a format which works without API key
+  const streetViewIframeUrl = streetViewLocation
+    ? `https://www.google.com/maps/embed?pb=!4v${Date.now()}!6m8!1m7!1s!2m2!1d${streetViewLocation.lat}!2d${streetViewLocation.lng}!3f${streetViewHeading}!4f${streetViewPitch}!5f0.75`
     : null;
 
-  // Google Maps Street View iframe via standard embed
-  const streetViewEmbedUrl = streetViewLocation
-    ? `https://www.google.com/maps/embed/v1/streetview?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&location=${streetViewLocation.lat},${streetViewLocation.lng}&heading=${streetViewHeading}&pitch=${streetViewPitch}&fov=${streetViewFov}`
-    : null;
-
-  // Fallback: Google Maps no-API Street View embed
-  const streetViewFallbackUrl = streetViewLocation
-    ? `https://maps.google.com/maps?q=&layer=c&cbll=${streetViewLocation.lat},${streetViewLocation.lng}&cbp=11,${streetViewHeading},0,0,${streetViewPitch}&output=svembed`
+  // Direct link for "Full Google Maps" button
+  const streetViewDirectUrl = streetViewLocation
+    ? `https://www.google.com/maps/@${streetViewLocation.lat},${streetViewLocation.lng},3a,${streetViewFov}y,${streetViewHeading}h,${90 + streetViewPitch}t/data=!3m1!1e1`
     : null;
 
   if (!visible) return null;
@@ -815,10 +811,12 @@ export default function GodsEyeMap({
               {/* Street View iframe */}
               <div className="relative aspect-[16/10] bg-gray-950">
                 <iframe
-                  src={streetViewFallbackUrl || ""}
+                  key={`sv-${streetViewLocation.lat}-${streetViewLocation.lng}-${streetViewHeading}-${streetViewPitch}`}
+                  src={streetViewIframeUrl || ""}
                   className="w-full h-full"
                   allow="autoplay; encrypted-media; accelerometer; gyroscope"
                   allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
                   title="Street View"
                   style={{ border: "none" }}
                 />
@@ -852,7 +850,7 @@ export default function GodsEyeMap({
                   </div>
                   {/* Full screen link */}
                   <a
-                    href={`https://www.google.com/maps/@${streetViewLocation.lat},${streetViewLocation.lng},3a,${streetViewFov}y,${streetViewHeading}h,${90 + streetViewPitch}t/data=!3m1!1e1`}
+                    href={streetViewDirectUrl || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[9px] font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1"

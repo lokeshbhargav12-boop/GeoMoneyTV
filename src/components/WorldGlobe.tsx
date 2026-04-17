@@ -565,14 +565,9 @@ function EarthSphere() {
   return (
     <Sphere args={[GLOBE_RADIUS, 96, 96]}>
       {dayMap ? (
-        <meshStandardMaterial
-          map={dayMap}
-          roughness={1}
-          metalness={0}
-          envMapIntensity={0}
-        />
+        <meshBasicMaterial map={dayMap} />
       ) : (
-        <meshStandardMaterial color="#1a3a6a" roughness={1} metalness={0} />
+        <meshBasicMaterial color="#1a3a6a" />
       )}
     </Sphere>
   );
@@ -1512,9 +1507,9 @@ function GlobeScene({
 
   return (
     <>
-      {/* Lighting — for meshStandardMaterial with flat (NoToneMapping) */}
-      <ambientLight intensity={1.8} />
-      <directionalLight position={[5, 3, 5]} intensity={0.8} color="#FFFFFF" />
+      {/* Lighting — subtle, Earth uses meshBasicMaterial so unaffected */}
+      <ambientLight intensity={1.0} />
+      <directionalLight position={[5, 3, 5]} intensity={0.4} color="#FFFFFF" />
 
       {/* Starfield */}
       <Stars
