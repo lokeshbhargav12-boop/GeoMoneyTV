@@ -550,9 +550,9 @@ function EarthSphere() {
         setDayMap(texture);
         console.log(
           "[WorldGlobe] Day texture loaded successfully, dimensions:",
-          texture.image?.width,
+          (texture.image as HTMLImageElement)?.width,
           "x",
-          texture.image?.height,
+          (texture.image as HTMLImageElement)?.height,
         );
       }
     });
