@@ -80,8 +80,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Times Square, NYC",
     lat: 40.758,
     lng: -73.9855,
-    embedUrl: "https://www.youtube.com/embed/AdUw5RdyZxI?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/AdUw5RdyZxI?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=300&h=200&fit=crop",
     country: "US",
     type: "live",
   },
@@ -90,8 +92,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Shibuya Crossing, Tokyo",
     lat: 35.6595,
     lng: 139.7004,
-    embedUrl: "https://www.youtube.com/embed/DjdUEyjx8GM?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/DjdUEyjx8GM?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=300&h=200&fit=crop",
     country: "JP",
     type: "live",
   },
@@ -100,8 +104,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Miami Beach, Florida",
     lat: 25.7907,
     lng: -80.13,
-    embedUrl: "https://www.youtube.com/embed/aRBC3xjQHE4?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/aRBC3xjQHE4?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=300&h=200&fit=crop",
     country: "US",
     type: "live",
   },
@@ -110,8 +116,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Jackson Hole Town Square",
     lat: 43.4799,
     lng: -110.7624,
-    embedUrl: "https://www.youtube.com/embed/DoMqMGHm1gY?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/DoMqMGHm1gY?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=300&h=200&fit=crop",
     country: "US",
     type: "live",
   },
@@ -120,8 +128,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "ISS — Earth from Space",
     lat: 0,
     lng: 0,
-    embedUrl: "https://www.youtube.com/embed/P9C25Un7xaM?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/P9C25Un7xaM?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&h=200&fit=crop",
     country: "ISS",
     type: "live",
   },
@@ -130,8 +140,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "London Eye, UK",
     lat: 51.5033,
     lng: -0.1196,
-    embedUrl: "https://www.youtube.com/embed/FrZ3ZkpjKXE?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/FrZ3ZkpjKXE?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=300&h=200&fit=crop",
     country: "UK",
     type: "live",
   },
@@ -140,8 +152,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Dubai Skyline Live",
     lat: 25.1972,
     lng: 55.2744,
-    embedUrl: "https://www.youtube.com/embed/JY8u-cf8Rnk?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/JY8u-cf8Rnk?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=300&h=200&fit=crop",
     country: "AE",
     type: "live",
   },
@@ -150,8 +164,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Trevi Fountain, Rome",
     lat: 41.9009,
     lng: 12.4833,
-    embedUrl: "https://www.youtube.com/embed/Sknp56aERFI?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1529260830199-42c24126f198?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/Sknp56aERFI?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1529260830199-42c24126f198?w=300&h=200&fit=crop",
     country: "IT",
     type: "live",
   },
@@ -160,8 +176,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Marina Bay, Singapore",
     lat: 1.2816,
     lng: 103.8636,
-    embedUrl: "https://www.youtube.com/embed/Gti3fMsEPKI?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/Gti3fMsEPKI?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=300&h=200&fit=crop",
     country: "SG",
     type: "live",
   },
@@ -170,8 +188,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Bosphorus, Istanbul",
     lat: 41.0422,
     lng: 29.0083,
-    embedUrl: "https://www.youtube.com/embed/m3DXqPxdPC8?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/m3DXqPxdPC8?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=300&h=200&fit=crop",
     country: "TR",
     type: "live",
   },
@@ -180,8 +200,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Sydney Harbour",
     lat: -33.8568,
     lng: 151.2153,
-    embedUrl: "https://www.youtube.com/embed/nXiOy0i6TsQ?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/nXiOy0i6TsQ?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=300&h=200&fit=crop",
     country: "AU",
     type: "live",
   },
@@ -190,8 +212,10 @@ const LIVE_WEBCAMS: Webcam[] = [
     title: "Nairobi City, Kenya",
     lat: -1.2921,
     lng: 36.8219,
-    embedUrl: "https://www.youtube.com/embed/N1Efx1t0JBo?autoplay=1&mute=1&controls=0&loop=1",
-    thumbnail: "https://images.unsplash.com/photo-1611348586804-61bf6c080437?w=300&h=200&fit=crop",
+    embedUrl:
+      "https://www.youtube.com/embed/N1Efx1t0JBo?autoplay=1&mute=1&controls=0&loop=1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1611348586804-61bf6c080437?w=300&h=200&fit=crop",
     country: "KE",
     type: "live",
   },
@@ -253,7 +277,8 @@ function ScanOverlay() {
       <div
         className="absolute left-0 right-0 h-[2px] opacity-30"
         style={{
-          background: "linear-gradient(90deg, transparent 0%, #06b6d4 50%, transparent 100%)",
+          background:
+            "linear-gradient(90deg, transparent 0%, #06b6d4 50%, transparent 100%)",
           animation: "scanDown 4s ease-in-out infinite",
         }}
       />
@@ -267,8 +292,13 @@ function ScanOverlay() {
       </div>
       <style jsx>{`
         @keyframes scanDown {
-          0%, 100% { top: 0%; }
-          50% { top: 100%; }
+          0%,
+          100% {
+            top: 0%;
+          }
+          50% {
+            top: 100%;
+          }
         }
       `}</style>
     </div>
@@ -282,7 +312,10 @@ function PegmanCursor({ active }: { active: boolean }) {
     <div className="absolute inset-0 z-[999] pointer-events-none">
       <style jsx global>{`
         .leaflet-container.streetview-cursor {
-          cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ctext x='4' y='20' font-size='20'%3E🚶%3C/text%3E%3C/svg%3E") 12 24, crosshair !important;
+          cursor:
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ctext x='4' y='20' font-size='20'%3E🚶%3C/text%3E%3C/svg%3E")
+              12 24,
+            crosshair !important;
         }
       `}</style>
     </div>
@@ -327,7 +360,9 @@ export default function GodsEyeMap({
   const [streetViewFov, setStreetViewFov] = useState(90);
 
   // Sidebar tab
-  const [sidebarTab, setSidebarTab] = useState<"cameras" | "streetview">("cameras");
+  const [sidebarTab, setSidebarTab] = useState<"cameras" | "streetview">(
+    "cameras",
+  );
 
   // Ref for map container class toggling
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -335,7 +370,8 @@ export default function GodsEyeMap({
   // Toggle pegman cursor on map
   useEffect(() => {
     if (!mapContainerRef.current) return;
-    const container = mapContainerRef.current.querySelector(".leaflet-container");
+    const container =
+      mapContainerRef.current.querySelector(".leaflet-container");
     if (container) {
       if (streetViewActive && !streetViewLocation) {
         container.classList.add("streetview-cursor");
@@ -369,7 +405,11 @@ export default function GodsEyeMap({
     (loc: (typeof STREETVIEW_LOCATIONS)[0]) => {
       setMapCenter([loc.lat, loc.lng]);
       setMapZoom(16);
-      setStreetViewLocation({ lat: loc.lat, lng: loc.lng, heading: loc.heading });
+      setStreetViewLocation({
+        lat: loc.lat,
+        lng: loc.lng,
+        heading: loc.heading,
+      });
       setStreetViewHeading(loc.heading);
       setStreetViewPitch(0);
       setStreetViewActive(true);
@@ -553,15 +593,29 @@ export default function GodsEyeMap({
             {/* Layer toggles */}
             <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-1 py-1 flex items-center gap-1">
               {[
-                { label: "✈", active: showAircraft, toggle: () => setShowAircraft(!showAircraft) },
-                { label: "🚢", active: showShips, toggle: () => setShowShips(!showShips) },
-                { label: "📷", active: showWebcams, toggle: () => setShowWebcams(!showWebcams) },
+                {
+                  label: "✈",
+                  active: showAircraft,
+                  toggle: () => setShowAircraft(!showAircraft),
+                },
+                {
+                  label: "🚢",
+                  active: showShips,
+                  toggle: () => setShowShips(!showShips),
+                },
+                {
+                  label: "📷",
+                  active: showWebcams,
+                  toggle: () => setShowWebcams(!showWebcams),
+                },
               ].map((t) => (
                 <button
                   key={t.label}
                   onClick={t.toggle}
                   className={`px-2.5 py-1.5 rounded-xl text-sm transition-all ${
-                    t.active ? "bg-white/10 border border-white/20" : "opacity-40 hover:opacity-70"
+                    t.active
+                      ? "bg-white/10 border border-white/20"
+                      : "opacity-40 hover:opacity-70"
                   }`}
                 >
                   {t.label}
@@ -587,7 +641,9 @@ export default function GodsEyeMap({
               }`}
             >
               <span className="text-base">🚶</span>
-              <span className={`text-[10px] font-mono ${streetViewActive ? "text-yellow-400" : "text-gray-400"}`}>
+              <span
+                className={`text-[10px] font-mono ${streetViewActive ? "text-yellow-400" : "text-gray-400"}`}
+              >
                 STREET VIEW
               </span>
             </button>
@@ -597,7 +653,9 @@ export default function GodsEyeMap({
               <button
                 onClick={() => setMapMode("dark")}
                 className={`px-3 py-1.5 rounded-xl text-[10px] font-mono transition-all ${
-                  mapMode === "dark" ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                  mapMode === "dark"
+                    ? "bg-white/10 text-white"
+                    : "text-gray-500 hover:text-gray-300"
                 }`}
               >
                 DARK
@@ -605,7 +663,9 @@ export default function GodsEyeMap({
               <button
                 onClick={() => setMapMode("satellite")}
                 className={`px-3 py-1.5 rounded-xl text-[10px] font-mono transition-all ${
-                  mapMode === "satellite" ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                  mapMode === "satellite"
+                    ? "bg-white/10 text-white"
+                    : "text-gray-500 hover:text-gray-300"
                 }`}
               >
                 SAT
@@ -702,11 +762,15 @@ export default function GodsEyeMap({
               {/* Open in Street View button */}
               <div className="px-3 py-2 flex items-center justify-between bg-black/40">
                 <span className="text-[9px] text-gray-600 font-mono">
-                  {selectedWebcam.lat.toFixed(4)}°, {selectedWebcam.lng.toFixed(4)}°
+                  {selectedWebcam.lat.toFixed(4)}°,{" "}
+                  {selectedWebcam.lng.toFixed(4)}°
                 </span>
                 <button
                   onClick={() => {
-                    handleStreetViewDrop(selectedWebcam.lat, selectedWebcam.lng);
+                    handleStreetViewDrop(
+                      selectedWebcam.lat,
+                      selectedWebcam.lng,
+                    );
                     setStreetViewActive(true);
                     onSelectWebcam(null);
                   }}
@@ -733,7 +797,8 @@ export default function GodsEyeMap({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-gray-400 font-mono">
-                    {streetViewLocation.lat.toFixed(4)}°, {streetViewLocation.lng.toFixed(4)}°
+                    {streetViewLocation.lat.toFixed(4)}°,{" "}
+                    {streetViewLocation.lng.toFixed(4)}°
                   </span>
                   <button
                     onClick={() => {
@@ -768,7 +833,9 @@ export default function GodsEyeMap({
                 <div className="flex items-center justify-between">
                   {/* Heading controls */}
                   <div className="flex items-center gap-1">
-                    <span className="text-[9px] text-gray-600 font-mono mr-1">HEADING:</span>
+                    <span className="text-[9px] text-gray-600 font-mono mr-1">
+                      HEADING:
+                    </span>
                     {[0, 90, 180, 270].map((h) => (
                       <button
                         key={h}
@@ -866,7 +933,8 @@ export default function GodsEyeMap({
                         {cam.title}
                       </div>
                       <div className="text-[9px] text-gray-500 font-mono">
-                        {cam.country} · {cam.lat.toFixed(2)}°, {cam.lng.toFixed(2)}°
+                        {cam.country} · {cam.lat.toFixed(2)}°,{" "}
+                        {cam.lng.toFixed(2)}°
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
@@ -911,7 +979,9 @@ export default function GodsEyeMap({
                 }`}
               >
                 <span className="text-lg">🚶</span>
-                {streetViewActive ? "PEGMAN ACTIVE — Click Map" : "DROP PEGMAN ON MAP"}
+                {streetViewActive
+                  ? "PEGMAN ACTIVE — Click Map"
+                  : "DROP PEGMAN ON MAP"}
               </button>
             </div>
 
@@ -948,15 +1018,21 @@ export default function GodsEyeMap({
                 <div className="bg-white/5 rounded-lg p-2 space-y-1">
                   <div className="flex justify-between text-[9px] font-mono">
                     <span className="text-gray-500">LAT</span>
-                    <span className="text-yellow-400">{streetViewLocation.lat.toFixed(6)}°</span>
+                    <span className="text-yellow-400">
+                      {streetViewLocation.lat.toFixed(6)}°
+                    </span>
                   </div>
                   <div className="flex justify-between text-[9px] font-mono">
                     <span className="text-gray-500">LNG</span>
-                    <span className="text-yellow-400">{streetViewLocation.lng.toFixed(6)}°</span>
+                    <span className="text-yellow-400">
+                      {streetViewLocation.lng.toFixed(6)}°
+                    </span>
                   </div>
                   <div className="flex justify-between text-[9px] font-mono">
                     <span className="text-gray-500">HDG</span>
-                    <span className="text-yellow-400">{streetViewHeading}°</span>
+                    <span className="text-yellow-400">
+                      {streetViewHeading}°
+                    </span>
                   </div>
                 </div>
               </div>
@@ -967,7 +1043,9 @@ export default function GodsEyeMap({
               <div className="text-[9px] text-gray-700 font-mono space-y-2">
                 <div className="flex items-start gap-2">
                   <span className="text-yellow-600">1.</span>
-                  <span>Click &quot;Drop Pegman&quot; or select a strategic location</span>
+                  <span>
+                    Click &quot;Drop Pegman&quot; or select a strategic location
+                  </span>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="text-yellow-600">2.</span>
@@ -979,7 +1057,10 @@ export default function GodsEyeMap({
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="text-yellow-600">4.</span>
-                  <span>Navigate inside the Street View panel or open full Google Maps</span>
+                  <span>
+                    Navigate inside the Street View panel or open full Google
+                    Maps
+                  </span>
                 </div>
               </div>
             </div>
