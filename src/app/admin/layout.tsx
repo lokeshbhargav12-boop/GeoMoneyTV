@@ -17,6 +17,7 @@ import {
   Zap,
   Users,
   Settings,
+  Share2,
 } from "lucide-react";
 
 const NAV_LINKS = [
@@ -25,6 +26,7 @@ const NAV_LINKS = [
   { href: "/admin/videos", label: "Videos", icon: Video },
   { href: "/admin/rare-earth", label: "Rare Earth", icon: Gem },
   { href: "/admin/newsletters", label: "Newsletters", icon: Mail },
+  { href: "/admin/social-posts", label: "Social Posts", icon: Share2 },
   { href: "/admin/homepage", label: "Homepage", icon: Home },
   { href: "/admin/energy", label: "Energy", icon: Zap },
   { href: "/admin/users", label: "Users", icon: Users },

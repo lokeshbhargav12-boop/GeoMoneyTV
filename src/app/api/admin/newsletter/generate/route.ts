@@ -20,9 +20,9 @@ export async function POST(req: Request) {
     let htmlContent: string
 
     if (type === 'daily') {
-      ;({ subject, htmlContent } = await generateDailyReport())
+      ; ({ subject, htmlContent } = await generateDailyReport())
     } else {
-      ;({ subject, htmlContent } = await generateWeeklyReport())
+      ; ({ subject, htmlContent } = await generateWeeklyReport())
     }
 
     return NextResponse.json({

@@ -497,7 +497,7 @@ export async function generateDailyReport(): Promise<{ subject: string; htmlCont
   const materialsCtx = materials
     .map(m => {
       let countries = ''
-      try { countries = JSON.parse(m.countries || '[]').join(', ') } catch {}
+      try { countries = JSON.parse(m.countries || '[]').join(', ') } catch { }
       return `• ${m.name} (${m.symbol}) [${m.category}]: ${m.price != null ? `$${m.price} per ${m.unit || 'unit'}` : 'Price N/A'} | Supply: ${m.supply || 'N/A'} | Demand: ${m.demand || 'N/A'} | Countries: ${countries || 'N/A'}`
     })
     .join('\n') || 'No critical materials data available.'

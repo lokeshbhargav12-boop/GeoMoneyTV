@@ -24,10 +24,10 @@ export async function POST(req: Request) {
     let reportType: 'daily' | 'weekly'
 
     if (type === 'daily-report') {
-      ;({ subject, htmlContent } = await generateDailyReport())
+      ; ({ subject, htmlContent } = await generateDailyReport())
       reportType = 'daily'
     } else if (type === 'weekly-report') {
-      ;({ subject, htmlContent } = await generateWeeklyReport())
+      ; ({ subject, htmlContent } = await generateWeeklyReport())
       reportType = 'weekly'
     } else {
       return NextResponse.json({ error: 'Invalid type. Use "daily-report" or "weekly-report".' }, { status: 400 })

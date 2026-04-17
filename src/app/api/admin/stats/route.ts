@@ -12,12 +12,13 @@ export async function GET() {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const [articles, newsletters, rareEarth, users, videos] = await Promise.all([
+        const [articles, newsletters, rareEarth, users, videos, socialPosts] = await Promise.all([
             prisma.article.count(),
             prisma.newsletter.count(),
             prisma.rareEarthMaterial.count(),
             prisma.user.count(),
             prisma.video.count(),
+            prisma.socialPost.count(),
         ]);
 
         return NextResponse.json({
@@ -26,6 +27,7 @@ export async function GET() {
             rareEarth,
             users,
             videos,
+            socialPosts,
         });
     } catch (error) {
         console.error("Failed to fetch stats:", error);

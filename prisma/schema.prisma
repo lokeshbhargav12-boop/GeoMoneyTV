@@ -148,3 +148,22 @@ model CommodityPrice {
   type      String
   updatedAt DateTime @updatedAt
 }
+
+model SocialPost {
+  id          String   @id @default(cuid())
+  text        String   @db.Text
+  imageUrl    String?  @db.Text
+  imagePrompt String?  @db.Text
+  status      String   @default("pending") // pending, approved, published, rejected
+  platforms   String?  @db.Text // JSON array: ["linkedin","x","instagram"]
+  publishedAt DateTime?
+  scheduledAt DateTime?
+  emailSent   Boolean  @default(false)
+  retryCount  Int      @default(0)
+  publishLog  String?  @db.Text // JSON log of publish results per platform
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([scheduledAt])
+}

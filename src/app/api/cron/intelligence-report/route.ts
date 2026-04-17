@@ -25,10 +25,10 @@ export async function GET(req: Request) {
 
         if (reportType === 'daily') {
             console.log('[intelligence-report] Generating daily report…')
-            ;({ subject, htmlContent } = await generateDailyReport())
+                ; ({ subject, htmlContent } = await generateDailyReport())
         } else {
             console.log('[intelligence-report] Generating weekly report…')
-            ;({ subject, htmlContent } = await generateWeeklyReport())
+                ; ({ subject, htmlContent } = await generateWeeklyReport())
         }
         console.log('[intelligence-report] Report generated:', subject)
 
