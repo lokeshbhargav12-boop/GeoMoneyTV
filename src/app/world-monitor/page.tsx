@@ -75,7 +75,7 @@ const WorldGlobe = dynamic(() => import("@/components/WorldGlobe"), {
   ),
 });
 
-// Dynamic import for God's Eye 2D Map
+// Dynamic import for GeoMoney Aperture 2D Map
 const GodsEyeMap = dynamic(() => import("@/components/GodsEyeMap"), {
   ssr: false,
   loading: () => (
@@ -83,7 +83,7 @@ const GodsEyeMap = dynamic(() => import("@/components/GodsEyeMap"), {
       <div className="text-center">
         <div className="w-10 h-10 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-3" />
         <div className="text-xs text-cyan-400 font-mono">
-          LOADING GOD&apos;S EYE...
+          LOADING GEOMONEY APERTURE...
         </div>
       </div>
     </div>
@@ -613,7 +613,7 @@ export default function WorldMonitorPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiQuery, setAiQuery] = useState("");
   const [zoomLevel, setZoomLevel] = useState(4.5);
-  const [godsEyeActive, setGodsEyeActive] = useState(false);
+  const [apertureActive, setApertureActive] = useState(false);
   const [selectedWebcam, setSelectedWebcam] = useState<any>(null);
 
   // Real-time clock
@@ -777,7 +777,7 @@ export default function WorldMonitorPage() {
               </div>
               <div>
                 <h1 className="text-sm font-bold tracking-tight">
-                  <span className="text-geo-gold">GOD&apos;S EYE</span>
+                  <span className="text-geo-gold">GEOMONEY APERTURE</span>
                   <span className="text-white/40 mx-2">|</span>
                   <span className="text-white/80">World Monitor</span>
                 </h1>
@@ -849,12 +849,12 @@ export default function WorldMonitorPage() {
       <div className="relative z-10 flex-1 flex overflow-hidden">
         {/* ICON SIDEBAR — Vision Pro glass */}
         <div className="w-12 bg-black/40 backdrop-blur-2xl border-r border-white/[0.06] flex flex-col items-center py-3 gap-1.5 shrink-0">
-          {/* God's Eye 2D Map Toggle */}
+          {/* GeoMoney Aperture 2D Map Toggle */}
           <button
-            onClick={() => setGodsEyeActive(!godsEyeActive)}
-            title="God's Eye Street Map (2D)"
+            onClick={() => setApertureActive(!apertureActive)}
+            title="GeoMoney Aperture Street Map (2D)"
             className={`w-9 h-9 rounded-xl flex flex-col items-center justify-center transition-all mb-1 gap-0.5 ${
-              godsEyeActive
+              apertureActive
                 ? "bg-cyan-400 text-black border border-cyan-300 shadow-lg shadow-cyan-500/30"
                 : "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 hover:bg-cyan-500/30"
             }`}
@@ -1783,7 +1783,7 @@ export default function WorldMonitorPage() {
                     </h2>
                   </div>
                   <p className="text-[10px] text-gray-500 mt-1">
-                    Neural analysis engine • GOD&apos;S EYE AI
+                    Neural analysis engine • GEOMONEY APERTURE AI
                   </p>
                 </div>
 
@@ -1982,20 +1982,20 @@ export default function WorldMonitorPage() {
             />
           </div>
 
-          {/* GOD'S EYE 2D MAP OVERLAY */}
-          {godsEyeActive && (
+          {/* GEOMONEY APERTURE 2D MAP OVERLAY */}
+          {apertureActive && (
             <GodsEyeMap
               aircraft={aircraftData}
               ships={shipData}
-              visible={godsEyeActive}
-              onClose={() => setGodsEyeActive(false)}
+              visible={apertureActive}
+              onClose={() => setApertureActive(false)}
               selectedWebcam={selectedWebcam}
               onSelectWebcam={setSelectedWebcam}
             />
           )}
 
           {/* Theater status overlay (top-left) — Vision Pro glass */}
-          {!godsEyeActive && (
+          {!apertureActive && (
             <>
               <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-3 hidden md:block shadow-xl shadow-black/20">
                 <div className="text-[9px] text-gray-500 font-mono tracking-wider mb-2">
@@ -2049,7 +2049,7 @@ export default function WorldMonitorPage() {
           )}
 
           {/* Globe stats overlay (bottom-center) — Vision Pro glass */}
-          {!godsEyeActive && (
+          {!apertureActive && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
               <div className="bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl px-5 py-2.5 flex items-center gap-3 shadow-xl shadow-black/20">
                 <div className="flex items-center gap-1.5 text-[10px] text-gray-400">

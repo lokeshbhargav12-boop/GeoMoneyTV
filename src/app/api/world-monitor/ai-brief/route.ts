@@ -24,7 +24,7 @@ export async function POST(request: Request) {
             ? `\n\nANALYST QUERY: ${query}`
             : "";
 
-        const prompt = `You are GOD'S EYE, an elite AI intelligence analyst for a geopolitical monitoring command center. Generate a concise intelligence briefing.${eventsContext}${userQuery}
+        const prompt = `You are GEOMONEY APERTURE, an elite AI intelligence analyst for a geopolitical monitoring command center. Generate a concise intelligence briefing.${eventsContext}${userQuery}
 
 Respond in this EXACT JSON format:
 {

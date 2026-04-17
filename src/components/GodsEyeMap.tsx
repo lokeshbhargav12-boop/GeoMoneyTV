@@ -567,7 +567,7 @@ export default function GodsEyeMap({
             <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-4 py-2 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
               <span className="text-[11px] font-mono text-cyan-400 tracking-wider">
-                GOD&apos;S EYE ACTIVE
+                GEOMONEY APERTURE ACTIVE
               </span>
             </div>
             <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-3 py-2 flex items-center gap-2">
