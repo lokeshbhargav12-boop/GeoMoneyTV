@@ -16,7 +16,7 @@ const LANGUAGES = [
 
 const NAV_LINKS = [
   { href: "/news", label: "Intelligence" },
-  { href: "/world-monitor", label: "World Monitor" },
+  { href: "/world-monitor", label: "Geomoney Aperture" },
   { href: "/videos", label: "Videos" },
   {
     href: "/energy",

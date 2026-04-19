@@ -66,11 +66,13 @@ const POINT_ALTITUDE = 0.02;
 
 // Multiple CDN sources for texture reliability
 const EARTH_DAY_URLS = [
+  "/earth-blue-marble.jpg",
   "https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg",
   "https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg",
   "https://raw.githubusercontent.com/vasturiano/three-globe/master/example/img/earth-blue-marble.jpg",
 ];
 const EARTH_NIGHT_URLS = [
+  "/earth-night.jpg",
   "https://unpkg.com/three-globe/example/img/earth-night.jpg",
   "https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg",
   "https://raw.githubusercontent.com/vasturiano/three-globe/master/example/img/earth-night.jpg",
@@ -92,6 +94,7 @@ function loadTextureWithFallback(
     urls[index],
     (texture) => {
       texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = 8;
       console.log(`[WorldGlobe] Texture loaded from: ${urls[index]}`);
       onSuccess(texture);
     },
@@ -565,7 +568,7 @@ function EarthSphere() {
   return (
     <Sphere args={[GLOBE_RADIUS, 96, 96]}>
       {dayMap ? (
-        <meshBasicMaterial map={dayMap} />
+        <meshBasicMaterial map={dayMap} toneMapped={false} />
       ) : (
         <meshBasicMaterial color="#1a3a6a" />
       )}
@@ -599,9 +602,10 @@ function NightLightsLayer() {
       <meshBasicMaterial
         map={nightMap}
         transparent
-        opacity={0.15}
+        opacity={0.06}
         blending={THREE.AdditiveBlending}
         depthWrite={false}
+        toneMapped={false}
       />
     </Sphere>
   );
@@ -627,7 +631,7 @@ function CityLightsLayer() {
   useFrame(({ clock }) => {
     if (pointsRef.current) {
       const mat = pointsRef.current.material as THREE.PointsMaterial;
-      mat.opacity = 0.35 + Math.sin(clock.getElapsedTime() * 0.5) * 0.05;
+      mat.opacity = 0.14 + Math.sin(clock.getElapsedTime() * 0.5) * 0.03;
     }
   });
 
@@ -635,10 +639,10 @@ function CityLightsLayer() {
     <points ref={pointsRef} geometry={geometry}>
       <pointsMaterial
         color="#FDB813"
-        size={0.03}
+        size={0.022}
         sizeAttenuation
         transparent
-        opacity={0.35}
+        opacity={0.16}
         blending={THREE.AdditiveBlending}
         depthWrite={false}
       />
@@ -653,7 +657,7 @@ function BrightAtmosphere() {
   useFrame(({ clock }) => {
     if (innerRef.current) {
       const mat = innerRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = 0.08 + Math.sin(clock.getElapsedTime() * 0.3) * 0.02;
+      mat.opacity = 0.02 + Math.sin(clock.getElapsedTime() * 0.3) * 0.006;
     }
   });
 
@@ -663,24 +667,30 @@ function BrightAtmosphere() {
         <meshBasicMaterial
           color="#4488CC"
           transparent
-          opacity={0.04}
+          opacity={0.02}
           side={THREE.BackSide}
+          depthWrite={false}
+          toneMapped={false}
         />
       </Sphere>
       <Sphere args={[GLOBE_RADIUS + 0.12, 64, 64]}>
         <meshBasicMaterial
           color="#2266AA"
           transparent
-          opacity={0.025}
+          opacity={0.012}
           side={THREE.BackSide}
+          depthWrite={false}
+          toneMapped={false}
         />
       </Sphere>
       <Sphere args={[GLOBE_RADIUS + 0.25, 64, 64]}>
         <meshBasicMaterial
           color="#1144AA"
           transparent
-          opacity={0.012}
+          opacity={0.006}
           side={THREE.BackSide}
+          depthWrite={false}
+          toneMapped={false}
         />
       </Sphere>
     </>
@@ -1706,7 +1716,6 @@ export default function WorldGlobe({
       <Canvas
         key={key}
         camera={{ position: [0, 0, 4.5], fov: 45 }}
-        flat
         gl={{
           antialias: true,
           alpha: true,
