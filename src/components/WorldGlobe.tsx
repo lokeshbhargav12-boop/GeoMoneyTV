@@ -54,6 +54,8 @@ export interface ShipData {
 interface GlobeProps {
   events: GlobeEvent[];
   onEventClick?: (event: GlobeEvent) => void;
+  onAircraftClick?: (aircraft: AircraftData) => void;
+  onShipClick?: (ship: ShipData) => void;
   selectedEvent?: GlobeEvent | null;
   aircraft?: AircraftData[];
   ships?: ShipData[];
@@ -1272,7 +1274,13 @@ function DataFlowParticles() {
 }
 
 // ─── REAL AIRCRAFT LAYER (OpenSky) ──────────────────────────
-function RealAircraftLayer({ aircraft }: { aircraft: AircraftData[] }) {
+function RealAircraftLayer({
+  aircraft,
+  onAircraftClick,
+}: {
+  aircraft: AircraftData[];
+  onAircraftClick?: (aircraft: AircraftData) => void;
+}) {
   const pointsRef = useRef<THREE.Points>(null);
   const [hovered, setHovered] = useState<AircraftData | null>(null);
 
@@ -1318,7 +1326,24 @@ function RealAircraftLayer({ aircraft }: { aircraft: AircraftData[] }) {
 
   return (
     <>
-      <points ref={pointsRef} geometry={geometry}>
+      <points
+        ref={pointsRef}
+        geometry={geometry}
+        onPointerMove={(event) => {
+          if (event.index === undefined) return;
+          event.stopPropagation();
+          setHovered(aircraft[event.index] || null);
+        }}
+        onPointerOut={() => setHovered(null)}
+        onClick={(event) => {
+          if (event.index === undefined) return;
+          event.stopPropagation();
+          const selectedAircraft = aircraft[event.index];
+          if (selectedAircraft) {
+            onAircraftClick?.(selectedAircraft);
+          }
+        }}
+      >
         <pointsMaterial
           size={0.012}
           sizeAttenuation
@@ -1356,7 +1381,13 @@ function RealAircraftLayer({ aircraft }: { aircraft: AircraftData[] }) {
 }
 
 // ─── REAL SHIP LAYER ────────────────────────────────────────
-function RealShipLayer({ ships }: { ships: ShipData[] }) {
+function RealShipLayer({
+  ships,
+  onShipClick,
+}: {
+  ships: ShipData[];
+  onShipClick?: (ship: ShipData) => void;
+}) {
   const [hovered, setHovered] = useState<ShipData | null>(null);
 
   const shipMeshes = useMemo(() => {
@@ -1393,6 +1424,10 @@ function RealShipLayer({ ships }: { ships: ShipData[] }) {
           <mesh
             onPointerOver={() => setHovered(ship)}
             onPointerOut={() => setHovered(null)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onShipClick?.(ship);
+            }}
           >
             <coneGeometry args={[0.012, 0.025, 3]} />
             <meshBasicMaterial color={color} transparent opacity={0.9} />
@@ -1464,6 +1499,8 @@ function ZoomDetector({
 function GlobeScene({
   events,
   onEventClick,
+  onAircraftClick,
+  onShipClick,
   selectedEvent,
   aircraft,
   ships,
@@ -1635,11 +1672,16 @@ function GlobeScene({
 
         {/* REAL AIRCRAFT from OpenSky Network */}
         {aircraft && aircraft.length > 0 && (
-          <RealAircraftLayer aircraft={aircraft} />
+          <RealAircraftLayer
+            aircraft={aircraft}
+            onAircraftClick={onAircraftClick}
+          />
         )}
 
         {/* REAL-TIME SHIP TRACKING */}
-        {ships && ships.length > 0 && <RealShipLayer ships={ships} />}
+        {ships && ships.length > 0 && (
+          <RealShipLayer ships={ships} onShipClick={onShipClick} />
+        )}
 
         {/* Enhanced satellites with solar panels & trails */}
         {SATELLITE_ORBITS.map((orbit, i) => (
@@ -1668,6 +1710,8 @@ function GlobeScene({
 export default function WorldGlobe({
   events,
   onEventClick,
+  onAircraftClick,
+  onShipClick,
   selectedEvent,
   aircraft,
   ships,
@@ -1729,6 +1773,8 @@ export default function WorldGlobe({
         <GlobeScene
           events={events}
           onEventClick={onEventClick}
+          onAircraftClick={onAircraftClick}
+          onShipClick={onShipClick}
           selectedEvent={selectedEvent}
           aircraft={aircraft}
           ships={ships}

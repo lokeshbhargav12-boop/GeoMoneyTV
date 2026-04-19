@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Eye,
@@ -51,6 +52,12 @@ import {
   Video,
 } from "lucide-react";
 import OsintFeed from "@/components/OsintFeed";
+import type { Webcam } from "@/lib/world-monitor-geo";
+import {
+  buildAircraftReportHref,
+  buildEventReportHref,
+  buildShipReportHref,
+} from "@/lib/world-monitor-report-links";
 import type {
   GlobeEvent,
   AircraftData,
@@ -580,6 +587,7 @@ function riskBarColor(r: number) {
 // MAIN PAGE COMPONENT
 // ═══════════════════════════════════════════════════════════════
 export default function WorldMonitorPage() {
+  const router = useRouter();
   const [allEvents, setAllEvents] = useState<GlobeEvent[]>([]);
   const [osintEvents, setOsintEvents] = useState<GlobeEvent[]>([]);
   const [articleEvents, setArticleEvents] = useState<GlobeEvent[]>([]);
@@ -614,7 +622,7 @@ export default function WorldMonitorPage() {
   const [aiQuery, setAiQuery] = useState("");
   const [zoomLevel, setZoomLevel] = useState(4.5);
   const [apertureActive, setApertureActive] = useState(false);
-  const [selectedWebcam, setSelectedWebcam] = useState<any>(null);
+  const [selectedWebcam, setSelectedWebcam] = useState<Webcam | null>(null);
 
   // Real-time clock
   useEffect(() => {
@@ -748,10 +756,27 @@ export default function WorldMonitorPage() {
     ).length,
   }));
 
-  const handleEventClick = (event: GlobeEvent) => {
-    setSelectedEvent(event);
-    setShowDetail(true);
-  };
+  const handleEventClick = useCallback(
+    (event: GlobeEvent) => {
+      setSelectedEvent(event);
+      router.push(buildEventReportHref(event));
+    },
+    [router],
+  );
+
+  const handleAircraftClick = useCallback(
+    (aircraft: AircraftData) => {
+      router.push(buildAircraftReportHref(aircraft));
+    },
+    [router],
+  );
+
+  const handleShipClick = useCallback(
+    (ship: ShipData) => {
+      router.push(buildShipReportHref(ship));
+    },
+    [router],
+  );
 
   // ──────────────────────────────────────────────────────────
   return (
@@ -1975,6 +2000,8 @@ export default function WorldMonitorPage() {
             <WorldGlobe
               events={allEvents}
               onEventClick={handleEventClick}
+              onAircraftClick={handleAircraftClick}
+              onShipClick={handleShipClick}
               selectedEvent={selectedEvent}
               aircraft={aircraftData}
               ships={shipData}
