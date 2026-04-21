@@ -2,6 +2,17 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateSocialPost, sendPostReadyEmail } from '@/lib/social-post-service'
 
+export async function GET() {
+    return NextResponse.json({
+        ok: true,
+        endpoint: '/api/cron/social-post',
+        method: 'POST',
+        auth: 'Bearer N8N_WEBHOOK_SECRET',
+        status: process.env.N8N_WEBHOOK_SECRET ? 'ready' : 'missing_n8n_webhook_secret',
+        message: 'n8n social-post generation endpoint is deployed',
+    })
+}
+
 /**
  * n8n Cron Trigger Endpoint
  * Called by n8n workflow daily at 12:00 AM IST to generate a social media post.

@@ -2,6 +2,17 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { publishToSocialMedia } from '@/lib/social-post-service'
 
+export async function GET() {
+    return NextResponse.json({
+        ok: true,
+        endpoint: '/api/cron/social-post/approve',
+        method: 'POST',
+        auth: 'Bearer N8N_WEBHOOK_SECRET',
+        status: process.env.N8N_WEBHOOK_SECRET ? 'ready' : 'missing_n8n_webhook_secret',
+        message: 'n8n social-post approval endpoint is deployed',
+    })
+}
+
 /**
  * Email Reply Webhook
  * Called by n8n when admin replies "YES" to the post-ready email.
@@ -9,7 +20,7 @@ import { publishToSocialMedia } from '@/lib/social-post-service'
  */
 export async function POST(req: Request) {
     try {
-        const body = await req.json()
+        const body = await req.json().catch(() => ({}))
         const authHeader = req.headers.get('authorization')
         const secret = process.env.N8N_WEBHOOK_SECRET
 

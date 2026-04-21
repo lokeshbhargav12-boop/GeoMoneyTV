@@ -1,21 +1,23 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  RefreshCw,
-  Send,
-  ThumbsUp,
-  ThumbsDown,
-  RotateCcw,
-  Trash2,
-  Image as ImageIcon,
-  Loader2,
   CheckCircle,
-  XCircle,
   Clock,
-  Sparkles,
-  Linkedin,
+  Image as ImageIcon,
   Instagram,
+  Linkedin,
+  Loader2,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Send,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  Trash2,
+  XCircle,
 } from "lucide-react";
 
 interface SocialPost {
@@ -37,6 +39,34 @@ interface SocialPost {
 interface ParsedText {
   shortText: string;
   longText: string;
+  provider?: string;
+  textModel?: string;
+  imageProvider?: string;
+  imageModel?: string;
+  templateId?: string;
+  templateName?: string;
+}
+
+interface SocialPostTemplate {
+  id: string;
+  name: string;
+  body: string;
+  imageStyle: string;
+}
+
+interface SocialPostGeneratorSettings {
+  provider: "openrouter" | "huggingface";
+  textModel: string;
+  imageProvider: "huggingface" | "webhook" | "none";
+  imageModel: string;
+  activeTemplateId: string;
+  templates: SocialPostTemplate[];
+}
+
+interface ModelOptions {
+  openrouter: string[];
+  huggingfaceText: string[];
+  huggingfaceImage: string[];
 }
 
 function parsePostText(text: string): ParsedText {
@@ -45,6 +75,12 @@ function parsePostText(text: string): ParsedText {
     return {
       shortText: parsed.shortText || "",
       longText: parsed.longText || "",
+      provider: parsed.provider,
+      textModel: parsed.textModel,
+      imageProvider: parsed.imageProvider,
+      imageModel: parsed.imageModel,
+      templateId: parsed.templateId,
+      templateName: parsed.templateName,
     };
   } catch {
     return { shortText: text.slice(0, 280), longText: text };
@@ -98,6 +134,13 @@ export default function SocialPostsAdmin() {
   const [editingPost, setEditingPost] = useState<string | null>(null);
   const [editShort, setEditShort] = useState("");
   const [editLong, setEditLong] = useState("");
+  const [settings, setSettings] = useState<SocialPostGeneratorSettings | null>(
+    null,
+  );
+  const [modelOptions, setModelOptions] = useState<ModelOptions | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -117,14 +160,59 @@ export default function SocialPostsAdmin() {
     }
   }, [page, filterStatus]);
 
+  const fetchSettings = useCallback(async () => {
+    setSettingsLoading(true);
+    try {
+      const res = await fetch("/api/admin/social-posts/settings");
+      if (!res.ok) throw new Error("Failed to load generator settings");
+      const data = await res.json();
+      setSettings(data.settings);
+      setModelOptions(data.modelOptions);
+      setSelectedTemplateId(data.settings.activeTemplateId);
+    } catch (err) {
+      console.error("Failed to fetch social post settings:", err);
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
 
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  const saveSettings = async (nextSettings?: SocialPostGeneratorSettings) => {
+    const payload = nextSettings || settings;
+    if (!payload) return;
+
+    setSettingsSaving(true);
+    try {
+      const res = await fetch("/api/admin/social-posts/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: payload }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to save generator settings");
+        return;
+      }
+      setSettings(data.settings);
+      setSelectedTemplateId(data.settings.activeTemplateId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save settings");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
   const doAction = async (
     action: string,
     postId?: string,
-    extra?: Record<string, any>,
+    extra?: Record<string, unknown>,
   ) => {
     setActionLoading(postId || action);
     try {
@@ -138,7 +226,7 @@ export default function SocialPostsAdmin() {
         alert(data.error || "Action failed");
         return;
       }
-      fetchPosts();
+      await fetchPosts();
     } catch (err) {
       alert(
         "Action failed: " + (err instanceof Error ? err.message : String(err)),
@@ -148,6 +236,29 @@ export default function SocialPostsAdmin() {
     }
   };
 
+  const generateWithCurrentSettings = async () => {
+    if (!settings) return;
+    const nextSettings = {
+      ...settings,
+      activeTemplateId: selectedTemplateId || settings.activeTemplateId,
+    };
+    setSettings(nextSettings);
+    await saveSettings(nextSettings);
+    await doAction("generate", undefined, {
+      generatorSettings: nextSettings,
+      templateId: selectedTemplateId || nextSettings.activeTemplateId,
+      platforms: ["x", "linkedin", "instagram"],
+    });
+  };
+
+  const regenerateWithCurrentSettings = async (postId: string) => {
+    if (!settings) return;
+    await doAction("retry", postId, {
+      generatorSettings: settings,
+      templateId: selectedTemplateId || settings.activeTemplateId,
+    });
+  };
+
   const doDelete = async (postId: string) => {
     if (!confirm("Delete this post?")) return;
     setActionLoading(postId);
@@ -155,8 +266,8 @@ export default function SocialPostsAdmin() {
       const res = await fetch(`/api/admin/social-posts?id=${postId}`, {
         method: "DELETE",
       });
-      if (res.ok) fetchPosts();
-    } catch (err) {
+      if (res.ok) await fetchPosts();
+    } catch {
       alert("Delete failed");
     } finally {
       setActionLoading(null);
@@ -177,31 +288,112 @@ export default function SocialPostsAdmin() {
     setEditingPost(null);
   };
 
+  const updateSettings = <K extends keyof SocialPostGeneratorSettings>(
+    key: K,
+    value: SocialPostGeneratorSettings[K],
+  ) => {
+    setSettings((current) =>
+      current ? { ...current, [key]: value } : current,
+    );
+  };
+
+  const updateTemplate = (
+    templateId: string,
+    patch: Partial<SocialPostTemplate>,
+  ) => {
+    setSettings((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        templates: current.templates.map((template) =>
+          template.id === templateId ? { ...template, ...patch } : template,
+        ),
+      };
+    });
+  };
+
+  const addTemplate = () => {
+    const templateId = `template-${Date.now()}`;
+    const nextTemplate: SocialPostTemplate = {
+      id: templateId,
+      name: "New Template",
+      body: "Write a concise, market-aware post that fits GeoMoney tone.",
+      imageStyle:
+        "Professional editorial visual, realistic, polished, data-aware.",
+    };
+    setSettings((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        templates: [...current.templates, nextTemplate],
+        activeTemplateId: templateId,
+      };
+    });
+    setSelectedTemplateId(templateId);
+  };
+
+  const removeTemplate = (templateId: string) => {
+    setSettings((current) => {
+      if (!current || current.templates.length <= 1) return current;
+      const templates = current.templates.filter(
+        (template) => template.id !== templateId,
+      );
+      const activeTemplateId =
+        current.activeTemplateId === templateId
+          ? templates[0].id
+          : current.activeTemplateId;
+      if (selectedTemplateId === templateId) {
+        setSelectedTemplateId(templates[0].id);
+      }
+      return {
+        ...current,
+        templates,
+        activeTemplateId,
+      };
+    });
+  };
+
+  const selectedTemplate = settings?.templates.find(
+    (template) => template.id === selectedTemplateId,
+  );
+  const currentTextModels =
+    settings?.provider === "huggingface"
+      ? modelOptions?.huggingfaceText || []
+      : modelOptions?.openrouter || [];
+  const currentImageModels = modelOptions?.huggingfaceImage || [];
+
   return (
-    <div className="mx-auto max-w-7xl p-8">
-      {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="mx-auto max-w-7xl p-8 space-y-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white flex items-center gap-3">
             <Sparkles className="w-8 h-8 text-geo-gold" />
-            Social Media Posts
+            Social Media Generator
           </h1>
           <p className="mt-1 text-gray-400">
-            AI-generated social posts for LinkedIn, X, and Instagram
+            Build image-first social posts, switch free AI providers, edit
+            templates, and regenerate until the admin approves.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={fetchPosts}
-            disabled={loading}
+            onClick={() => {
+              fetchPosts();
+              fetchSettings();
+            }}
+            disabled={loading || settingsLoading}
             className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-gray-300 hover:text-white hover:bg-white/10 transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`w-4 h-4 ${loading || settingsLoading ? "animate-spin" : ""}`}
+            />
             Refresh
           </button>
           <button
-            onClick={() => doAction("generate")}
-            disabled={actionLoading === "generate"}
+            onClick={generateWithCurrentSettings}
+            disabled={
+              !settings || actionLoading === "generate" || settingsSaving
+            }
             className="flex items-center gap-2 rounded-lg bg-geo-gold/90 hover:bg-geo-gold text-black font-semibold px-5 py-2 transition-all disabled:opacity-50"
           >
             {actionLoading === "generate" ? (
@@ -209,33 +401,295 @@ export default function SocialPostsAdmin() {
             ) : (
               <Sparkles className="w-4 h-4" />
             )}
-            Generate Post
+            Generate Media Post
           </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex items-center gap-2">
-        {["", "pending", "approved", "published", "rejected"].map((s) => (
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="rounded-2xl border border-white/10 bg-black/40 p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">
+                Generator Controls
+              </h2>
+              <p className="text-sm text-gray-400">
+                Pick a free text model, a free image path, and the template this
+                admin panel should use.
+              </p>
+            </div>
+            <button
+              onClick={() => saveSettings(settings || undefined)}
+              disabled={!settings || settingsSaving}
+              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-200 hover:bg-white/10 disabled:opacity-50"
+            >
+              {settingsSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              Save Setup
+            </button>
+          </div>
+
+          {settingsLoading || !settings ? (
+            <div className="flex items-center justify-center py-16 text-gray-400">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm">
+                  <span className="text-gray-400">Text Provider</span>
+                  <select
+                    value={settings.provider}
+                    onChange={(e) =>
+                      updateSettings(
+                        "provider",
+                        e.target
+                          .value as SocialPostGeneratorSettings["provider"],
+                      )
+                    }
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
+                  >
+                    <option value="openrouter">OpenRouter free models</option>
+                    <option value="huggingface">
+                      Hugging Face free models
+                    </option>
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-sm">
+                  <span className="text-gray-400">Text Model</span>
+                  <select
+                    value={settings.textModel}
+                    onChange={(e) =>
+                      updateSettings("textModel", e.target.value)
+                    }
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
+                  >
+                    {currentTextModels.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-sm">
+                  <span className="text-gray-400">Image Provider</span>
+                  <select
+                    value={settings.imageProvider}
+                    onChange={(e) =>
+                      updateSettings(
+                        "imageProvider",
+                        e.target
+                          .value as SocialPostGeneratorSettings["imageProvider"],
+                      )
+                    }
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
+                  >
+                    <option value="huggingface">
+                      Hugging Face image generation
+                    </option>
+                    <option value="webhook">
+                      External webhook image generation
+                    </option>
+                    <option value="none">No image</option>
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-sm">
+                  <span className="text-gray-400">Image Model</span>
+                  <select
+                    value={settings.imageModel}
+                    onChange={(e) =>
+                      updateSettings("imageModel", e.target.value)
+                    }
+                    disabled={settings.imageProvider !== "huggingface"}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none disabled:opacity-50"
+                  >
+                    {currentImageModels.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-medium text-white">Template Library</h3>
+                    <p className="text-sm text-gray-400">
+                      Each template changes both the text angle and the media
+                      direction.
+                    </p>
+                  </div>
+                  <button
+                    onClick={addTemplate}
+                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Template
+                  </button>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {settings.templates.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => setSelectedTemplateId(template.id)}
+                      className={`rounded-full border px-3 py-1.5 text-sm transition-all ${selectedTemplateId === template.id ? "border-geo-gold/50 bg-geo-gold/15 text-geo-gold" : "border-white/10 bg-black/20 text-gray-300 hover:bg-white/10"}`}
+                    >
+                      {template.name}
+                    </button>
+                  ))}
+                </div>
+
+                {selectedTemplate && (
+                  <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto]">
+                    <div className="space-y-4">
+                      <label className="block space-y-2 text-sm">
+                        <span className="text-gray-400">Template Name</span>
+                        <input
+                          value={selectedTemplate.name}
+                          onChange={(e) =>
+                            updateTemplate(selectedTemplate.id, {
+                              name: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white outline-none"
+                        />
+                      </label>
+                      <label className="block space-y-2 text-sm">
+                        <span className="text-gray-400">Text Template</span>
+                        <textarea
+                          value={selectedTemplate.body}
+                          onChange={(e) =>
+                            updateTemplate(selectedTemplate.id, {
+                              body: e.target.value,
+                            })
+                          }
+                          rows={6}
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white outline-none resize-none"
+                        />
+                      </label>
+                      <label className="block space-y-2 text-sm">
+                        <span className="text-gray-400">Media Image Style</span>
+                        <textarea
+                          value={selectedTemplate.imageStyle}
+                          onChange={(e) =>
+                            updateTemplate(selectedTemplate.id, {
+                              imageStyle: e.target.value,
+                            })
+                          }
+                          rows={4}
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white outline-none resize-none"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="flex lg:flex-col gap-2">
+                      <button
+                        onClick={() => {
+                          updateSettings(
+                            "activeTemplateId",
+                            selectedTemplate.id,
+                          );
+                          setSelectedTemplateId(selectedTemplate.id);
+                        }}
+                        className="rounded-lg border border-geo-gold/30 bg-geo-gold/10 px-3 py-2 text-sm text-geo-gold hover:bg-geo-gold/20"
+                      >
+                        Use This Template
+                      </button>
+                      <button
+                        onClick={() => removeTemplate(selectedTemplate.id)}
+                        disabled={settings.templates.length <= 1}
+                        className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 disabled:opacity-40"
+                      >
+                        Delete Template
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-100">
+                <div className="font-medium">Free setup notes</div>
+                <div className="mt-2 text-emerald-200/90">
+                  OpenRouter free models need an OpenRouter API key. Hugging
+                  Face free models need a Hugging Face token. Both stay on the
+                  free tier if your usage is modest. Hugging Face image
+                  generation removes the need for a paid image service.
+                </div>
+              </div>
+            </>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-black/40 p-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">
+              What the generator builds
+            </h2>
+            <p className="text-sm text-gray-400">
+              Each run produces a media image prompt first, then the short and
+              long text variants for review.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <ImageIcon className="w-4 h-4 text-geo-gold" />
+              Media image
+            </div>
+            <p className="mt-2 text-sm text-gray-400">
+              The selected template’s image style is combined with the day’s
+              data to generate a realistic editorial visual.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <Sparkles className="w-4 h-4 text-geo-gold" />
+              Text package
+            </div>
+            <p className="mt-2 text-sm text-gray-400">
+              The admin panel stores a short X-ready version and a longer
+              LinkedIn/Instagram version. If you dislike the output, press
+              regenerate as many times as needed.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300 space-y-2">
+            <div className="font-medium text-white">Recommended first test</div>
+            <div>1. Save your provider, model, and template.</div>
+            <div>2. Click Generate Media Post.</div>
+            <div>3. Review the image and text below.</div>
+            <div>4. Click Regenerate until the admin likes it.</div>
+            <div>5. Approve and publish.</div>
+          </div>
+        </section>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {["", "pending", "approved", "published", "rejected"].map((status) => (
           <button
-            key={s}
+            key={status}
             onClick={() => {
-              setFilterStatus(s);
+              setFilterStatus(status);
               setPage(1);
             }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all border ${
-              filterStatus === s
-                ? "bg-geo-gold/20 text-geo-gold border-geo-gold/40"
-                : "bg-white/5 text-gray-400 border-white/10 hover:text-white hover:bg-white/10"
-            }`}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all border ${filterStatus === status ? "bg-geo-gold/20 text-geo-gold border-geo-gold/40" : "bg-white/5 text-gray-400 border-white/10 hover:text-white hover:bg-white/10"}`}
           >
-            {s ? s.charAt(0).toUpperCase() + s.slice(1) : "All"}
+            {status ? status.charAt(0).toUpperCase() + status.slice(1) : "All"}
           </button>
         ))}
         <span className="ml-auto text-sm text-gray-500">{total} total</span>
       </div>
 
-      {/* Posts List */}
       {loading && posts.length === 0 ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-geo-gold" />
@@ -245,14 +699,14 @@ export default function SocialPostsAdmin() {
           <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p className="text-lg">No social posts yet</p>
           <p className="text-sm mt-1">
-            Click &quot;Generate Post&quot; to create your first AI-powered
-            social media post.
+            Generate a media post from the studio above to create your first
+            image-plus-text campaign.
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           {posts.map((post) => {
-            const { shortText, longText } = parsePostText(post.text);
+            const parsed = parsePostText(post.text);
             const platforms: string[] = post.platforms
               ? JSON.parse(post.platforms)
               : [];
@@ -264,19 +718,23 @@ export default function SocialPostsAdmin() {
                 key={post.id}
                 className="rounded-xl bg-black/40 border border-white/10 overflow-hidden"
               >
-                <div className="p-6">
-                  {/* Post Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
+                <div className="p-6 space-y-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <StatusBadge status={post.status} />
                       <div className="flex items-center gap-1.5">
-                        {platforms.map((p) => (
-                          <PlatformIcon key={p} platform={p} />
+                        {platforms.map((platform) => (
+                          <PlatformIcon key={platform} platform={platform} />
                         ))}
                       </div>
                       {post.retryCount > 0 && (
                         <span className="text-xs text-gray-500">
                           Retry #{post.retryCount}
+                        </span>
+                      )}
+                      {parsed.templateName && (
+                        <span className="text-xs rounded-full border border-white/10 bg-white/5 px-2 py-1 text-gray-300">
+                          {parsed.templateName}
                         </span>
                       )}
                     </div>
@@ -285,14 +743,57 @@ export default function SocialPostsAdmin() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Text Content */}
-                    <div className="lg:col-span-2 space-y-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-6">
+                    <div className="space-y-3">
+                      {post.imageUrl ? (
+                        <div className="rounded-lg overflow-hidden border border-white/10 bg-black/30">
+                          <img
+                            src={post.imageUrl}
+                            alt="Post image"
+                            className="w-full h-72 object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-white/10 bg-white/5 h-72 flex items-center justify-center">
+                          <div className="text-center text-gray-500">
+                            <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-xs">No image generated</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {post.imagePrompt && (
+                        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                          <div className="text-xs font-medium text-gray-400">
+                            Media prompt
+                          </div>
+                          <p className="mt-2 text-xs text-gray-300 whitespace-pre-wrap">
+                            {post.imagePrompt}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap gap-2 text-xs text-gray-400">
+                        {parsed.provider && (
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                            Text: {parsed.provider} / {parsed.textModel}
+                          </span>
+                        )}
+                        {parsed.imageProvider && (
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                            Image: {parsed.imageProvider}
+                            {parsed.imageModel ? ` / ${parsed.imageModel}` : ""}
+                          </span>
+                        )}
+                      </div>
+
                       {isEditing ? (
                         <>
                           <div>
                             <label className="block text-xs font-medium text-gray-400 mb-1">
-                              X/Twitter (max 280 chars)
+                              X/Twitter text
                             </label>
                             <textarea
                               value={editShort}
@@ -307,12 +808,12 @@ export default function SocialPostsAdmin() {
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-400 mb-1">
-                              LinkedIn/Instagram
+                              LinkedIn/Instagram text
                             </label>
                             <textarea
                               value={editLong}
                               onChange={(e) => setEditLong(e.target.value)}
-                              rows={5}
+                              rows={6}
                               className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-white resize-none focus:border-geo-gold/50 focus:outline-none"
                             />
                           </div>
@@ -338,8 +839,8 @@ export default function SocialPostsAdmin() {
                               <span className="font-bold text-white">𝕏</span>{" "}
                               X/Twitter
                             </h4>
-                            <p className="text-sm text-gray-200 bg-white/5 rounded-lg p-3 border border-white/5">
-                              {shortText || (
+                            <p className="text-sm text-gray-200 bg-white/5 rounded-lg p-3 border border-white/5 whitespace-pre-wrap">
+                              {parsed.shortText || (
                                 <em className="text-gray-500">No short text</em>
                               )}
                             </p>
@@ -350,7 +851,7 @@ export default function SocialPostsAdmin() {
                               <Instagram className="w-3 h-3" /> Instagram
                             </h4>
                             <p className="text-sm text-gray-200 bg-white/5 rounded-lg p-3 border border-white/5 whitespace-pre-wrap">
-                              {longText || (
+                              {parsed.longText || (
                                 <em className="text-gray-500">No long text</em>
                               )}
                             </p>
@@ -358,57 +859,24 @@ export default function SocialPostsAdmin() {
                         </>
                       )}
                     </div>
-
-                    {/* Image */}
-                    <div>
-                      {post.imageUrl ? (
-                        <div className="rounded-lg overflow-hidden border border-white/10">
-                          <img
-                            src={post.imageUrl}
-                            alt="Post image"
-                            className="w-full h-48 object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="rounded-lg border border-white/10 bg-white/5 h-48 flex items-center justify-center">
-                          <div className="text-center text-gray-500">
-                            <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                            <p className="text-xs">No image generated</p>
-                          </div>
-                        </div>
-                      )}
-                      {post.imagePrompt && (
-                        <p
-                          className="mt-2 text-xs text-gray-500 line-clamp-2"
-                          title={post.imagePrompt}
-                        >
-                          Prompt: {post.imagePrompt}
-                        </p>
-                      )}
-                    </div>
                   </div>
 
-                  {/* Publish Log */}
                   {post.publishLog && (
-                    <div className="mt-4 p-3 bg-white/5 rounded-lg border border-white/5">
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/5">
                       <h4 className="text-xs font-medium text-gray-400 mb-2">
                         Publish Results
                       </h4>
                       <div className="flex flex-wrap gap-2">
                         {JSON.parse(post.publishLog).map(
-                          (r: any, i: number) => (
+                          (result: any, index: number) => (
                             <span
-                              key={i}
-                              className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${
-                                r.success
-                                  ? "bg-green-500/10 text-green-400 border-green-500/30"
-                                  : "bg-red-500/10 text-red-400 border-red-500/30"
-                              }`}
+                              key={index}
+                              className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${result.success ? "bg-green-500/10 text-green-400 border-green-500/30" : "bg-red-500/10 text-red-400 border-red-500/30"}`}
                             >
-                              <PlatformIcon platform={r.platform} />
-                              {r.success
+                              <PlatformIcon platform={result.platform} />
+                              {result.success
                                 ? "Sent"
-                                : r.error?.slice(0, 40) || "Failed"}
+                                : result.error?.slice(0, 40) || "Failed"}
                             </span>
                           ),
                         )}
@@ -416,8 +884,7 @@ export default function SocialPostsAdmin() {
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-2">
+                  <div className="pt-4 border-t border-white/5 flex flex-wrap gap-2">
                     {post.status === "pending" && (
                       <>
                         <button
@@ -451,8 +918,8 @@ export default function SocialPostsAdmin() {
                           Reject
                         </button>
                         <button
-                          onClick={() => doAction("retry", post.id)}
-                          disabled={isLoading}
+                          onClick={() => regenerateWithCurrentSettings(post.id)}
+                          disabled={isLoading || !settings}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-sm hover:bg-yellow-500/30 disabled:opacity-50"
                         >
                           <RotateCcw className="w-3 h-3" />
@@ -483,7 +950,7 @@ export default function SocialPostsAdmin() {
                     <button
                       onClick={() => doDelete(post.id)}
                       disabled={isLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-500 border border-white/10 rounded-lg text-sm hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 ml-auto disabled:opacity-50"
+                      className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-500 border border-white/10 rounded-lg text-sm hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 disabled:opacity-50"
                     >
                       <Trash2 className="w-3 h-3" />
                       Delete
@@ -496,11 +963,10 @@ export default function SocialPostsAdmin() {
         </div>
       )}
 
-      {/* Pagination */}
       {total > 20 && (
         <div className="mt-6 flex items-center justify-center gap-2">
           <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
             disabled={page <= 1}
             className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-400 hover:text-white disabled:opacity-30"
           >
@@ -510,7 +976,7 @@ export default function SocialPostsAdmin() {
             Page {page} of {Math.ceil(total / 20)}
           </span>
           <button
-            onClick={() => setPage((p) => p + 1)}
+            onClick={() => setPage((current) => current + 1)}
             disabled={page >= Math.ceil(total / 20)}
             className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-400 hover:text-white disabled:opacity-30"
           >
@@ -518,46 +984,6 @@ export default function SocialPostsAdmin() {
           </button>
         </div>
       )}
-
-      {/* n8n Integration Info */}
-      <div className="mt-10 rounded-xl bg-black/40 border border-white/10 p-6">
-        <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-geo-gold" />
-          n8n Workflow Integration
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div className="bg-white/5 rounded-lg p-4 border border-white/5">
-            <h4 className="font-medium text-geo-gold mb-2">
-              Daily Generation (Cron)
-            </h4>
-            <p className="text-gray-400 mb-2">
-              n8n calls this endpoint daily at 12:00 AM IST:
-            </p>
-            <code className="text-xs bg-black/60 text-green-400 px-2 py-1 rounded block break-all">
-              POST /api/cron/social-post
-            </code>
-            <p className="text-xs text-gray-500 mt-2">
-              Auth: Bearer token via{" "}
-              <code className="text-gray-400">N8N_WEBHOOK_SECRET</code>
-            </p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-4 border border-white/5">
-            <h4 className="font-medium text-geo-gold mb-2">
-              Email Approval (Reply YES)
-            </h4>
-            <p className="text-gray-400 mb-2">
-              n8n monitors inbox and calls this on &quot;YES&quot; reply:
-            </p>
-            <code className="text-xs bg-black/60 text-green-400 px-2 py-1 rounded block break-all">
-              POST /api/cron/social-post/approve
-            </code>
-            <p className="text-xs text-gray-500 mt-2">
-              Publishing via:{" "}
-              <code className="text-gray-400">N8N_SOCIAL_PUBLISH_WEBHOOK</code>
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

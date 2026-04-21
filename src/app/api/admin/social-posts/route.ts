@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { generateSocialPost, sendPostReadyEmail, publishToSocialMedia } from '@/lib/social-post-service'
+import {
+    generateSocialPost,
+    sendPostReadyEmail,
+    publishToSocialMedia,
+    type SocialPostGeneratorSettings,
+} from '@/lib/social-post-service'
 
 // GET — List all social posts
 export async function GET(req: Request) {
@@ -45,11 +50,20 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json()
-        const { action, postId, platforms } = body
+        const { action, postId, platforms, generatorSettings, templateId } = body as {
+            action: string
+            postId?: string
+            platforms?: string[]
+            generatorSettings?: Partial<SocialPostGeneratorSettings>
+            templateId?: string
+        }
 
         switch (action) {
             case 'generate': {
-                const { text, imagePrompt, imageUrl } = await generateSocialPost()
+                const { text, imagePrompt, imageUrl } = await generateSocialPost({
+                    settings: generatorSettings,
+                    templateId,
+                })
                 const post = await prisma.socialPost.create({
                     data: {
                         text,
@@ -117,7 +131,11 @@ export async function POST(req: Request) {
                 })
 
                 // Generate new post
-                const { text, imagePrompt, imageUrl } = await generateSocialPost()
+                const { text, imagePrompt, imageUrl } = await generateSocialPost({
+                    settings: generatorSettings,
+                    templateId,
+                    retryCount: original.retryCount + 1,
+                })
                 const post = await prisma.socialPost.create({
                     data: {
                         text,
