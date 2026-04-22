@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -43,6 +43,8 @@ import {
   Ban,
   Atom,
   Radar,
+  Maximize2,
+  Minimize2,
   FileText,
   Users,
   Siren,
@@ -61,6 +63,7 @@ import {
 import type {
   GlobeEvent,
   AircraftData,
+  GlobeFocusTarget,
   ShipData,
 } from "@/components/WorldGlobe";
 
@@ -149,6 +152,9 @@ const CHOKEPOINTS = [
     percentGlobal: "21%",
     status: "Elevated",
     risk: 72,
+    lat: 26.5,
+    lng: 56.2,
+    radiusKm: 220,
   },
   {
     name: "Strait of Malacca",
@@ -156,6 +162,9 @@ const CHOKEPOINTS = [
     percentGlobal: "25% trade",
     status: "Moderate",
     risk: 45,
+    lat: 2.5,
+    lng: 101.5,
+    radiusKm: 240,
   },
   {
     name: "Suez Canal",
@@ -163,6 +172,9 @@ const CHOKEPOINTS = [
     percentGlobal: "12%",
     status: "Disrupted",
     risk: 68,
+    lat: 30.4,
+    lng: 32.3,
+    radiusKm: 180,
   },
   {
     name: "Bab el-Mandeb",
@@ -170,6 +182,9 @@ const CHOKEPOINTS = [
     percentGlobal: "9%",
     status: "Critical",
     risk: 85,
+    lat: 12.5,
+    lng: 43.3,
+    radiusKm: 160,
   },
   {
     name: "Panama Canal",
@@ -177,6 +192,9 @@ const CHOKEPOINTS = [
     percentGlobal: "5% trade",
     status: "Constrained",
     risk: 55,
+    lat: 9,
+    lng: -79.6,
+    radiusKm: 180,
   },
   {
     name: "Taiwan Strait",
@@ -184,6 +202,9 @@ const CHOKEPOINTS = [
     percentGlobal: "88% adv chips",
     status: "Watched",
     risk: 62,
+    lat: 24,
+    lng: 119.5,
+    radiusKm: 260,
   },
   {
     name: "GIUK Gap",
@@ -191,6 +212,9 @@ const CHOKEPOINTS = [
     percentGlobal: "NATO Atlantic",
     status: "Active",
     risk: 38,
+    lat: 63,
+    lng: -15,
+    radiusKm: 420,
   },
   {
     name: "Bosporus Strait",
@@ -198,8 +222,42 @@ const CHOKEPOINTS = [
     percentGlobal: "3%",
     status: "Stable",
     risk: 30,
+    lat: 41.1,
+    lng: 29,
+    radiusKm: 110,
   },
 ];
+
+const AI_QUICK_QUERIES = [
+  "How many ships are stranded in the Strait of Hormuz right now?",
+  "Which chokepoint has the heaviest vessel density currently?",
+  "Show the current military aircraft posture around the Middle East.",
+];
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function isNearChokepoint(
+  lat: number,
+  lng: number,
+  chokepoint: (typeof CHOKEPOINTS)[number],
+) {
+  return (
+    haversineKm(lat, lng, chokepoint.lat, chokepoint.lng) <= chokepoint.radiusKm
+  );
+}
 
 // ─── ASSET TRACKING ─────────────────────────────────────────
 const TRACKED_ASSETS = [
@@ -615,14 +673,29 @@ export default function WorldMonitorPage() {
   // ─── NEW: Aircraft, Ships, AI Brief state ──────────────
   const [aircraftData, setAircraftData] = useState<AircraftData[]>([]);
   const [aircraftTotal, setAircraftTotal] = useState(0);
+  const [aircraftUpdatedAt, setAircraftUpdatedAt] = useState<number | null>(
+    null,
+  );
   const [shipData, setShipData] = useState<ShipData[]>([]);
   const [shipTotal, setShipTotal] = useState(0);
+  const [shipSource, setShipSource] = useState("Demo traffic model");
+  const [shipDataLive, setShipDataLive] = useState(false);
+  const [shipUpdatedAt, setShipUpdatedAt] = useState<number | null>(null);
+  const [shipNotice, setShipNotice] = useState("");
   const [aiBrief, setAiBrief] = useState<any>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiQuery, setAiQuery] = useState("");
   const [zoomLevel, setZoomLevel] = useState(4.5);
   const [apertureActive, setApertureActive] = useState(false);
+  const [aiNavigatorMinimized, setAiNavigatorMinimized] = useState(false);
+  const [assetCoverageMinimized, setAssetCoverageMinimized] = useState(false);
   const [selectedWebcam, setSelectedWebcam] = useState<Webcam | null>(null);
+  const [selectedAircraft, setSelectedAircraft] = useState<AircraftData | null>(
+    null,
+  );
+  const [selectedShip, setSelectedShip] = useState<ShipData | null>(null);
+  const [globeFocusTarget, setGlobeFocusTarget] =
+    useState<GlobeFocusTarget | null>(null);
 
   // Real-time clock
   useEffect(() => {
@@ -687,6 +760,7 @@ export default function WorldMonitorPage() {
       const data = await res.json();
       setAircraftData(data.aircraft || []);
       setAircraftTotal(data.total || 0);
+      setAircraftUpdatedAt(data.timestamp || Date.now());
     } catch (e) {
       console.warn("[Aircraft]", e);
     }
@@ -706,6 +780,10 @@ export default function WorldMonitorPage() {
       const data = await res.json();
       setShipData(data.ships || []);
       setShipTotal(data.total || 0);
+      setShipSource(data.source || "Demo traffic model");
+      setShipDataLive(Boolean(data.live));
+      setShipUpdatedAt(data.timestamp || Date.now());
+      setShipNotice(data.notice || "");
     } catch (e) {
       console.warn("[Ships]", e);
     }
@@ -718,6 +796,95 @@ export default function WorldMonitorPage() {
   }, [fetchShips]);
 
   // ─── AI INTELLIGENCE BRIEF ──────────────────────────────
+  const chokepointMetrics = useMemo(
+    () =>
+      CHOKEPOINTS.map((chokepoint) => {
+        const vessels = shipData.filter((ship) =>
+          isNearChokepoint(ship.latitude, ship.longitude, chokepoint),
+        );
+        const aircraft = aircraftData.filter((asset) =>
+          isNearChokepoint(asset.latitude, asset.longitude, chokepoint),
+        );
+        const strandedShips = vessels.filter(
+          (ship) =>
+            ship.speed <= 1 ||
+            ship.status === "anchored" ||
+            ship.status === "moored",
+        );
+
+        return {
+          ...chokepoint,
+          vessels: vessels.length,
+          strandedShips: strandedShips.length,
+          aircraft: aircraft.length,
+        };
+      }).sort((left, right) => right.vessels - left.vessels),
+    [aircraftData, shipData],
+  );
+
+  const trackedAssets = useMemo(
+    () => [
+      {
+        type: "Naval",
+        icon: Ship,
+        active: shipData.length,
+        total: Math.max(shipTotal, shipData.length),
+      },
+      {
+        type: "Aerial",
+        icon: Plane,
+        active: aircraftData.length,
+        total: Math.max(aircraftTotal, aircraftData.length),
+      },
+      ...TRACKED_ASSETS.slice(2),
+    ],
+    [aircraftData.length, aircraftTotal, shipData.length, shipTotal],
+  );
+
+  const assetContext = useMemo(
+    () => ({
+      aircraft: {
+        visibleNow: aircraftData.length,
+        totalTracked: aircraftTotal,
+        source: "OpenSky Network",
+      },
+      vessels: {
+        visibleNow: shipData.length,
+        totalTracked: shipTotal,
+        source: shipSource,
+        live: shipDataLive,
+      },
+      chokepoints: chokepointMetrics.slice(0, 6).map((chokepoint) => ({
+        name: chokepoint.name,
+        vessels: chokepoint.vessels,
+        strandedShips: chokepoint.strandedShips,
+        aircraft: chokepoint.aircraft,
+      })),
+    }),
+    [
+      aircraftData.length,
+      aircraftTotal,
+      chokepointMetrics,
+      shipData.length,
+      shipDataLive,
+      shipSource,
+      shipTotal,
+    ],
+  );
+
+  const featuredChokepoints = useMemo(() => {
+    const hormuz = chokepointMetrics.find(
+      (chokepoint) => chokepoint.name === "Strait of Hormuz",
+    );
+    const remaining = chokepointMetrics.filter(
+      (chokepoint) => chokepoint.name !== "Strait of Hormuz",
+    );
+
+    return hormuz
+      ? [hormuz, ...remaining.slice(0, 2)]
+      : chokepointMetrics.slice(0, 3);
+  }, [chokepointMetrics]);
+
   const fetchAiBrief = useCallback(
     async (query?: string) => {
       setAiLoading(true);
@@ -726,7 +893,11 @@ export default function WorldMonitorPage() {
         const res = await fetch("/api/world-monitor/ai-brief", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ events: eventTitles, query: query || "" }),
+          body: JSON.stringify({
+            events: eventTitles,
+            query: query || "",
+            assetContext,
+          }),
         });
         if (!res.ok) throw new Error("AI brief failed");
         const data = await res.json();
@@ -737,7 +908,7 @@ export default function WorldMonitorPage() {
         setAiLoading(false);
       }
     },
-    [allEvents],
+    [allEvents, assetContext],
   );
 
   // Auto-fetch AI brief when events load
@@ -756,27 +927,109 @@ export default function WorldMonitorPage() {
     ).length,
   }));
 
+  const focusGlobeLocation = useCallback((target: GlobeFocusTarget) => {
+    setApertureActive(false);
+    setGlobeFocusTarget(target);
+  }, []);
+
   const handleEventClick = useCallback(
     (event: GlobeEvent) => {
+      setSelectedAircraft(null);
+      setSelectedShip(null);
       setSelectedEvent(event);
-      router.push(buildEventReportHref(event));
+      setShowDetail(true);
+      setActivePanel("feed");
+
+      const primaryLocation = event.locations[0];
+      if (primaryLocation) {
+        focusGlobeLocation({
+          key: `event-${event.id}-${primaryLocation.name}`,
+          lat: primaryLocation.lat,
+          lng: primaryLocation.lng,
+          distance: 3.05,
+          targetDepth: 0.78,
+        });
+      }
     },
-    [router],
+    [focusGlobeLocation],
   );
 
   const handleAircraftClick = useCallback(
     (aircraft: AircraftData) => {
-      router.push(buildAircraftReportHref(aircraft));
+      setShowDetail(false);
+      setSelectedEvent(null);
+      setSelectedShip(null);
+      setSelectedAircraft(aircraft);
+      setActivePanel("aircraft");
+      focusGlobeLocation({
+        key: `aircraft-${aircraft.icao24}`,
+        lat: aircraft.latitude,
+        lng: aircraft.longitude,
+        distance: 2.62,
+        targetDepth: 0.86,
+      });
     },
-    [router],
+    [focusGlobeLocation],
   );
 
   const handleShipClick = useCallback(
     (ship: ShipData) => {
-      router.push(buildShipReportHref(ship));
+      setShowDetail(false);
+      setSelectedEvent(null);
+      setSelectedAircraft(null);
+      setSelectedShip(ship);
+      setActivePanel("ships");
+      focusGlobeLocation({
+        key: `ship-${ship.mmsi}`,
+        lat: ship.latitude,
+        lng: ship.longitude,
+        distance: 2.68,
+        targetDepth: 0.85,
+      });
     },
-    [router],
+    [focusGlobeLocation],
   );
+
+  const handleChokepointClick = useCallback(
+    (chokepoint: (typeof CHOKEPOINTS)[number]) => {
+      setShowDetail(false);
+      setSelectedEvent(null);
+      setSelectedAircraft(null);
+      setSelectedShip(null);
+      setActivePanel("chokepoints");
+      focusGlobeLocation({
+        key: `chokepoint-${chokepoint.name}`,
+        lat: chokepoint.lat,
+        lng: chokepoint.lng,
+        distance: 2.9,
+        targetDepth: 0.8,
+      });
+    },
+    [focusGlobeLocation],
+  );
+
+  const clearSelectedAsset = useCallback(() => {
+    setSelectedAircraft(null);
+    setSelectedShip(null);
+  }, []);
+
+  const selectedAsset = selectedAircraft
+    ? {
+        kind: "aircraft" as const,
+        title: selectedAircraft.callsign || selectedAircraft.icao24,
+        subtitle: selectedAircraft.origin_country || "Origin unknown",
+        summary: `${selectedAircraft.category.toUpperCase()} • ALT ${Math.round(selectedAircraft.altitude).toLocaleString()}m • SPD ${Math.round(selectedAircraft.velocity)}m/s`,
+        href: buildAircraftReportHref(selectedAircraft),
+      }
+    : selectedShip
+      ? {
+          kind: "ship" as const,
+          title: selectedShip.name,
+          subtitle: `${selectedShip.flagEmoji} ${selectedShip.flag}`,
+          summary: `${selectedShip.type.toUpperCase()} • ${selectedShip.speed.toFixed(1)}kn • ${selectedShip.destination}`,
+          href: buildShipReportHref(selectedShip),
+        }
+      : null;
 
   // ──────────────────────────────────────────────────────────
   return (
@@ -873,38 +1126,48 @@ export default function WorldMonitorPage() {
       {/* ═══ MAIN LAYOUT ════════════════════════════════════ */}
       <div className="relative z-10 flex-1 flex overflow-hidden">
         {/* ICON SIDEBAR — Vision Pro glass */}
-        <div className="w-12 bg-black/40 backdrop-blur-2xl border-r border-white/[0.06] flex flex-col items-center py-3 gap-1.5 shrink-0">
+        <div className="w-[148px] bg-black/40 backdrop-blur-2xl border-r border-white/[0.06] flex flex-col py-3 px-2 gap-1.5 shrink-0">
           {/* GeoMoney Aperture 2D Map Toggle */}
           <button
             onClick={() => setApertureActive(!apertureActive)}
             title="GeoMoney Aperture Street Map (2D)"
-            className={`w-9 h-9 rounded-xl flex flex-col items-center justify-center transition-all mb-1 gap-0.5 ${
+            className={`w-full rounded-xl flex items-center gap-3 px-3 py-2 transition-all mb-1 ${
               apertureActive
                 ? "bg-cyan-400 text-black border border-cyan-300 shadow-lg shadow-cyan-500/30"
                 : "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 hover:bg-cyan-500/30"
             }`}
           >
-            <Map className="w-4 h-4" />
-            <span className="text-[6px] font-bold tracking-wider leading-none">
-              MAP
-            </span>
+            <Map className="w-4 h-4 shrink-0" />
+            <div className="flex flex-col items-start leading-none">
+              <span className="text-[10px] font-bold tracking-[0.18em]">
+                APERTURE
+              </span>
+              <span className="text-[9px] opacity-80">2D street map</span>
+            </div>
           </button>
-          <div className="w-6 h-px bg-white/10 mb-1" />
+          <div className="w-full h-px bg-white/10 mb-1" />
           {/* Panel tabs */}
           {[
             { key: "feed" as const, icon: Radio, label: "Feed" },
-            { key: "chokepoints" as const, icon: Target, label: "Chokepoints" },
+            {
+              key: "chokepoints" as const,
+              icon: Target,
+              label: "Chokepoints",
+            },
             {
               key: "aircraft" as const,
               icon: Plane,
               label: "Aircraft Tracker",
             },
             { key: "ships" as const, icon: Ship, label: "Ship Tracker" },
-            { key: "ai-brief" as const, icon: Cpu, label: "AI Brief" },
             { key: "assets" as const, icon: Crosshair, label: "Assets" },
             { key: "risks" as const, icon: BarChart3, label: "Risks" },
             { key: "sigint" as const, icon: Wifi, label: "SIGINT" },
-            { key: "countries" as const, icon: Flag, label: "Country Brief" },
+            {
+              key: "countries" as const,
+              icon: Flag,
+              label: "Country Briefs",
+            },
             { key: "sanctions" as const, icon: Ban, label: "Sanctions" },
             { key: "nuclear" as const, icon: Atom, label: "Nuclear" },
           ].map((tab) => (
@@ -912,19 +1175,22 @@ export default function WorldMonitorPage() {
               key={tab.key}
               onClick={() => setActivePanel(tab.key)}
               title={tab.label}
-              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
+              className={`w-full rounded-xl flex items-center gap-3 px-3 py-2 text-left transition-all ${
                 activePanel === tab.key
                   ? "bg-geo-gold/15 text-geo-gold shadow-lg shadow-geo-gold/5"
                   : "text-gray-600 hover:text-white hover:bg-white/5"
               }`}
             >
-              <tab.icon className="w-4 h-4" />
+              <tab.icon className="w-4 h-4 shrink-0" />
+              <span className="text-[11px] font-medium leading-tight">
+                {tab.label}
+              </span>
             </button>
           ))}
         </div>
 
         {/* LEFT PANEL — Vision Pro glass */}
-        <div className="w-[340px] shrink-0 hidden lg:flex flex-col overflow-hidden bg-black/30 backdrop-blur-2xl border-r border-white/[0.06]">
+        <div className="w-[360px] shrink-0 hidden lg:flex flex-col overflow-hidden bg-black/30 backdrop-blur-2xl border-r border-white/[0.06]">
           <AnimatePresence mode="wait">
             {activePanel === "feed" && (
               <motion.div
@@ -964,9 +1230,11 @@ export default function WorldMonitorPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto divide-y divide-white/5">
                   {CHOKEPOINTS.map((cp) => (
-                    <div
+                    <button
+                      type="button"
                       key={cp.name}
-                      className="px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                      onClick={() => handleChokepointClick(cp)}
+                      className="w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-semibold text-white">
@@ -996,7 +1264,7 @@ export default function WorldMonitorPage() {
                           style={{ width: `${cp.risk}%` }}
                         />
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </motion.div>
@@ -1022,7 +1290,7 @@ export default function WorldMonitorPage() {
                   </p>
                 </div>
                 <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-                  {TRACKED_ASSETS.map((asset) => (
+                  {trackedAssets.map((asset) => (
                     <div key={asset.type} className="px-4 py-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -1043,7 +1311,7 @@ export default function WorldMonitorPage() {
                         <div
                           className="h-full bg-geo-gold/60 rounded-full"
                           style={{
-                            width: `${(asset.active / asset.total) * 100}%`,
+                            width: `${asset.total > 0 ? (asset.active / asset.total) * 100 : 0}%`,
                           }}
                         />
                       </div>
@@ -1054,10 +1322,9 @@ export default function WorldMonitorPage() {
                       Total Active Monitoring
                     </div>
                     <div className="text-xl font-bold text-geo-gold font-mono">
-                      {TRACKED_ASSETS.reduce(
-                        (s, a) => s + a.active,
-                        0,
-                      ).toLocaleString()}
+                      {trackedAssets
+                        .reduce((sum, asset) => sum + asset.active, 0)
+                        .toLocaleString()}
                     </div>
                   </div>
                 </div>
@@ -1648,7 +1915,10 @@ export default function WorldMonitorPage() {
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                       <span className="text-[10px] text-cyan-400 font-mono">
-                        LIVE • Updated every 25s
+                        OPENSKY •{" "}
+                        {aircraftUpdatedAt
+                          ? new Date(aircraftUpdatedAt).toLocaleTimeString()
+                          : "Awaiting sync"}
                       </span>
                     </div>
                   </div>
@@ -1673,7 +1943,7 @@ export default function WorldMonitorPage() {
                     </h2>
                   </div>
                   <p className="text-[10px] text-gray-500 mt-1">
-                    AIS-based vessel monitoring • {shipTotal} vessels
+                    {shipSource} • {shipTotal} vessels
                   </p>
                 </div>
                 <div className="px-4 py-3 border-b border-white/5">
@@ -1725,9 +1995,11 @@ export default function WorldMonitorPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto divide-y divide-white/5">
                   {shipData.map((ship) => (
-                    <div
+                    <button
+                      type="button"
                       key={ship.mmsi}
-                      className="px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                      onClick={() => handleShipClick(ship)}
+                      className={`w-full px-4 py-3 text-left transition-colors ${selectedShip?.mmsi === ship.mmsi ? "bg-orange-500/10" : "hover:bg-white/[0.02]"}`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2">
@@ -1775,221 +2047,22 @@ export default function WorldMonitorPage() {
                       <div className="text-[10px] text-gray-600 mt-1">
                         → {ship.destination}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
                 <div className="px-4 py-3 bg-orange-500/5 border-t border-orange-500/10">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
-                    <span className="text-[10px] text-orange-400 font-mono">
-                      LIVE AIS •{" "}
+                    <div
+                      className={`w-2 h-2 rounded-full ${shipDataLive ? "bg-orange-400 animate-pulse" : "bg-yellow-400"}`}
+                    />
+                    <span
+                      className={`text-[10px] font-mono ${shipDataLive ? "text-orange-400" : "text-yellow-300"}`}
+                    >
+                      {shipDataLive ? "LIVE AIS" : "DEMO COVERAGE"} •{" "}
                       {shipData.filter((s) => s.type === "military").length}{" "}
                       military tracked
                     </span>
                   </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ═══ AI INTELLIGENCE BRIEF ═════════════════════ */}
-            {activePanel === "ai-brief" && (
-              <motion.div
-                key="ai-brief"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Cpu className="w-4 h-4 text-purple-400" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      AI INTELLIGENCE BRIEF
-                    </h2>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Neural analysis engine • GEOMONEY APERTURE AI
-                  </p>
-                </div>
-
-                {/* AI Query Input */}
-                <div className="px-4 py-3 border-b border-white/5">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={aiQuery}
-                      onChange={(e) => setAiQuery(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && fetchAiBrief(aiQuery)
-                      }
-                      placeholder="Ask the AI analyst..."
-                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-purple-500/50"
-                    />
-                    <button
-                      onClick={() => fetchAiBrief(aiQuery)}
-                      disabled={aiLoading}
-                      className="px-3 py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-400 text-xs font-medium hover:bg-purple-500/30 transition-all disabled:opacity-50"
-                    >
-                      {aiLoading ? "..." : "Analyze"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-                  {aiLoading && (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="text-center">
-                        <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-3" />
-                        <div className="text-xs text-purple-400 font-mono animate-pulse">
-                          NEURAL ANALYSIS IN PROGRESS...
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {aiBrief && !aiLoading && (
-                    <>
-                      {/* Threat Assessment */}
-                      <div
-                        className={`p-3 rounded-xl border ${
-                          aiBrief.threatLevel === "CRITICAL"
-                            ? "bg-red-500/10 border-red-500/30"
-                            : aiBrief.threatLevel === "HIGH"
-                              ? "bg-orange-500/10 border-orange-500/30"
-                              : aiBrief.threatLevel === "ELEVATED"
-                                ? "bg-yellow-500/10 border-yellow-500/30"
-                                : "bg-emerald-500/10 border-emerald-500/30"
-                        }`}
-                      >
-                        <div className="text-[9px] font-mono text-gray-500 uppercase mb-1">
-                          Threat Assessment
-                        </div>
-                        <div
-                          className={`text-sm font-bold ${
-                            aiBrief.threatLevel === "CRITICAL"
-                              ? "text-red-400"
-                              : aiBrief.threatLevel === "HIGH"
-                                ? "text-orange-400"
-                                : aiBrief.threatLevel === "ELEVATED"
-                                  ? "text-yellow-400"
-                                  : "text-emerald-400"
-                          }`}
-                        >
-                          {aiBrief.threatLevel}
-                        </div>
-                      </div>
-
-                      {/* Headline */}
-                      <div>
-                        <div className="text-[9px] font-mono text-gray-600 uppercase mb-1">
-                          Headline
-                        </div>
-                        <p className="text-sm text-white font-semibold leading-snug">
-                          {aiBrief.headline}
-                        </p>
-                      </div>
-
-                      {/* Summary */}
-                      <div>
-                        <div className="text-[9px] font-mono text-gray-600 uppercase mb-1">
-                          Executive Summary
-                        </div>
-                        <p className="text-xs text-gray-300 leading-relaxed">
-                          {aiBrief.summary}
-                        </p>
-                      </div>
-
-                      {/* Hotspots */}
-                      {aiBrief.hotspots?.length > 0 && (
-                        <div>
-                          <div className="text-[9px] font-mono text-gray-600 uppercase mb-2">
-                            Active Hotspots
-                          </div>
-                          <div className="space-y-2">
-                            {aiBrief.hotspots.map((hs: any, i: number) => (
-                              <div
-                                key={i}
-                                className="flex items-center gap-2 bg-white/5 rounded-lg p-2.5"
-                              >
-                                <div
-                                  className={`w-2 h-2 rounded-full ${
-                                    hs.severity === "critical"
-                                      ? "bg-red-500 animate-pulse"
-                                      : hs.severity === "high"
-                                        ? "bg-orange-500"
-                                        : hs.severity === "medium"
-                                          ? "bg-yellow-500"
-                                          : "bg-emerald-500"
-                                  }`}
-                                />
-                                <div className="flex-1">
-                                  <div className="text-xs font-semibold text-white">
-                                    {hs.region}
-                                  </div>
-                                  <div className="text-[10px] text-gray-400">
-                                    {hs.status}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Key Insight */}
-                      <div>
-                        <div className="text-[9px] font-mono text-gray-600 uppercase mb-1">
-                          Deep Analysis
-                        </div>
-                        <p className="text-xs text-gray-300 leading-relaxed bg-purple-500/5 border border-purple-500/10 rounded-lg p-3">
-                          {aiBrief.keyInsight}
-                        </p>
-                      </div>
-
-                      {/* Recommendations */}
-                      {aiBrief.recommendations?.length > 0 && (
-                        <div>
-                          <div className="text-[9px] font-mono text-gray-600 uppercase mb-2">
-                            Recommendations
-                          </div>
-                          <div className="space-y-1.5">
-                            {aiBrief.recommendations.map(
-                              (rec: string, i: number) => (
-                                <div
-                                  key={i}
-                                  className="flex items-start gap-2 text-[11px] text-gray-400"
-                                >
-                                  <span className="text-purple-400 font-mono mt-0.5">
-                                    {i + 1}.
-                                  </span>
-                                  <span>{rec}</span>
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Model info */}
-                      <div className="text-[8px] text-gray-600 font-mono pt-2 border-t border-white/5">
-                        Model: {aiBrief.model || "unknown"} •{" "}
-                        {aiBrief.cached ? "Cached" : "Fresh"} •{" "}
-                        {new Date(
-                          aiBrief.timestamp || Date.now(),
-                        ).toLocaleTimeString()}
-                      </div>
-                    </>
-                  )}
-
-                  {!aiBrief && !aiLoading && (
-                    <div className="text-center py-8">
-                      <Cpu className="w-8 h-8 text-purple-400/30 mx-auto mb-3" />
-                      <p className="text-xs text-gray-500">
-                        Click &quot;Analyze&quot; to generate an AI intelligence
-                        briefing from current events
-                      </p>
-                    </div>
-                  )}
                 </div>
               </motion.div>
             )}
@@ -2005,6 +2078,7 @@ export default function WorldMonitorPage() {
               selectedEvent={selectedEvent}
               aircraft={aircraftData}
               ships={shipData}
+              focusTarget={globeFocusTarget}
               onZoomChange={setZoomLevel}
             />
           </div>
@@ -2021,58 +2095,311 @@ export default function WorldMonitorPage() {
             />
           )}
 
-          {/* Theater status overlay (top-left) — Vision Pro glass */}
           {!apertureActive && (
-            <>
-              <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-3 hidden md:block shadow-xl shadow-black/20">
-                <div className="text-[9px] text-gray-500 font-mono tracking-wider mb-2">
-                  THEATER STATUS
-                </div>
-                {regionCounts.map((r) => {
-                  const t = THREAT_LEVELS[r.threat - 1];
-                  return (
-                    <div
-                      key={r.name}
-                      className="flex items-center gap-2 text-[10px] mb-0.5"
-                    >
-                      <div className={`w-1.5 h-1.5 rounded-full ${t.pulse}`} />
-                      <span className="text-gray-400 w-20 font-mono">
-                        {r.name}
-                      </span>
-                      <span className={`font-mono ${t.color}`}>{r.events}</span>
+            <div className="absolute left-4 right-4 top-4 z-10 pointer-events-none">
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_400px] pointer-events-auto xl:items-start">
+                <div className="rounded-2xl border border-white/[0.08] bg-black/50 p-4 shadow-xl shadow-black/20 backdrop-blur-2xl">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-mono tracking-[0.22em] text-geo-gold">
+                        TOPSIDE AI NAVIGATOR
+                      </div>
+                      <h2 className="mt-1 text-sm font-semibold text-white">
+                        Ask live questions about aircraft, vessels, and
+                        chokepoints directly from the monitor.
+                      </h2>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-mono ${shipDataLive ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"}`}
+                      >
+                        <Radar className="h-3.5 w-3.5" />
+                        {shipDataLive
+                          ? "Live AIS coverage"
+                          : "Demo vessel coverage"}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAiNavigatorMinimized((current) => !current)
+                        }
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-300 transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+                        aria-label={
+                          aiNavigatorMinimized
+                            ? "Expand AI navigator"
+                            : "Minimize AI navigator"
+                        }
+                        title={
+                          aiNavigatorMinimized
+                            ? "Expand AI navigator"
+                            : "Minimize AI navigator"
+                        }
+                      >
+                        {aiNavigatorMinimized ? (
+                          <Maximize2 className="h-4 w-4" />
+                        ) : (
+                          <Minimize2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
 
-              {/* Product funnel overlay (top-right) — Vision Pro glass */}
-              <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-3 hidden md:block shadow-xl shadow-black/20">
-                <div className="text-[9px] text-gray-500 font-mono tracking-wider mb-2">
-                  EXPLORE
+                  {aiNavigatorMinimized ? (
+                    <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] text-gray-400">
+                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 font-mono text-gray-300">
+                        {featuredChokepoints[0]?.name || "No chokepoints"}
+                      </span>
+                      <span>
+                        {shipData.length.toLocaleString()} vessels visible
+                      </span>
+                      <span>
+                        {aircraftData.length.toLocaleString()} aircraft visible
+                      </span>
+                      <span className="text-geo-gold">
+                        Expand to query AI or inspect chokepoints.
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 flex flex-col gap-2 lg:flex-row">
+                        <input
+                          type="text"
+                          value={aiQuery}
+                          onChange={(e) => setAiQuery(e.target.value)}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" && fetchAiBrief(aiQuery)
+                          }
+                          placeholder="Ask about Hormuz, military flights, vessel congestion, or active chokepoints..."
+                          className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-geo-gold/40"
+                        />
+                        <button
+                          onClick={() => fetchAiBrief(aiQuery)}
+                          disabled={aiLoading}
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-geo-gold/30 bg-geo-gold/10 px-4 text-sm font-semibold text-geo-gold transition-colors hover:bg-geo-gold/20 disabled:opacity-50"
+                        >
+                          <Cpu className="h-4 w-4" />
+                          {aiLoading ? "Analyzing..." : "Run AI query"}
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {AI_QUICK_QUERIES.map((question) => (
+                          <button
+                            key={question}
+                            onClick={() => {
+                              setAiQuery(question);
+                              fetchAiBrief(question);
+                            }}
+                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-gray-300 transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+                          >
+                            {question}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="mt-4 grid gap-2 md:grid-cols-3">
+                        {featuredChokepoints.map((chokepoint) => (
+                          <button
+                            type="button"
+                            key={chokepoint.name}
+                            onClick={() =>
+                              handleChokepointClick(
+                                CHOKEPOINTS.find(
+                                  (candidate) =>
+                                    candidate.name === chokepoint.name,
+                                ) || CHOKEPOINTS[0],
+                              )
+                            }
+                            className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-left transition-colors hover:border-geo-gold/30"
+                          >
+                            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">
+                              {chokepoint.name}
+                            </div>
+                            <div className="mt-2 flex items-end gap-3">
+                              <div>
+                                <div className="text-lg font-bold text-orange-400 font-mono">
+                                  {chokepoint.vessels}
+                                </div>
+                                <div className="text-[10px] text-gray-500">
+                                  vessels
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-lg font-bold text-yellow-300 font-mono">
+                                  {chokepoint.strandedShips}
+                                </div>
+                                <div className="text-[10px] text-gray-500">
+                                  stranded
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-lg font-bold text-cyan-400 font-mono">
+                                  {chokepoint.aircraft}
+                                </div>
+                                <div className="text-[10px] text-gray-500">
+                                  aircraft
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+
+                      {aiBrief && (
+                        <div className="mt-4 rounded-xl border border-purple-500/20 bg-purple-500/8 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-purple-300">
+                              {aiBrief.threatLevel || "MONITOR"}
+                            </div>
+                            <div className="text-[10px] text-gray-500">
+                              {new Date(
+                                aiBrief.timestamp || Date.now(),
+                              ).toLocaleTimeString()}
+                            </div>
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-white">
+                            {aiBrief.headline}
+                          </div>
+                          <p className="mt-2 text-xs leading-relaxed text-gray-300">
+                            {aiBrief.summary}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-                {[
-                  { label: "Intelligence Hub", href: "/news", icon: Newspaper },
-                  { label: "Energy Tracker", href: "/energy", icon: Flame },
-                  {
-                    label: "Critical Materials",
-                    href: "/materials",
-                    icon: Layers,
-                  },
-                  { label: "Video Briefings", href: "/videos", icon: Eye },
-                  { label: "Analytics Tools", href: "/tools", icon: BarChart3 },
-                ].map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="flex items-center gap-2 text-[10px] text-gray-400 hover:text-geo-gold transition-colors group mb-1"
-                  >
-                    <item.icon className="w-3 h-3" />
-                    <span>{item.label}</span>
-                    <ChevronRight className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </Link>
-                ))}
+
+                <div className="rounded-2xl border border-white/[0.08] bg-black/50 p-4 shadow-xl shadow-black/20 backdrop-blur-2xl">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-mono tracking-[0.22em] text-gray-500">
+                        LIVE ASSET COVERAGE
+                      </div>
+                      <p className="mt-1 text-xs text-gray-400">
+                        Collapse this panel when you want a cleaner globe view.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAssetCoverageMinimized((current) => !current)
+                      }
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-300 transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+                      aria-label={
+                        assetCoverageMinimized
+                          ? "Expand asset coverage panel"
+                          : "Minimize asset coverage panel"
+                      }
+                      title={
+                        assetCoverageMinimized
+                          ? "Expand asset coverage panel"
+                          : "Minimize asset coverage panel"
+                      }
+                    >
+                      {assetCoverageMinimized ? (
+                        <Maximize2 className="h-4 w-4" />
+                      ) : (
+                        <Minimize2 className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  {assetCoverageMinimized ? (
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+                        <div className="text-[10px] uppercase text-gray-500">
+                          Aircraft
+                        </div>
+                        <div className="mt-1 text-xl font-bold font-mono text-cyan-400">
+                          {aircraftData.length.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3">
+                        <div className="text-[10px] uppercase text-gray-500">
+                          Vessels
+                        </div>
+                        <div className="mt-1 text-xl font-bold font-mono text-orange-400">
+                          {shipData.length.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+                          <div className="text-[10px] uppercase text-gray-500">
+                            Aircraft visible
+                          </div>
+                          <div className="mt-1 text-2xl font-bold font-mono text-cyan-400">
+                            {aircraftData.length.toLocaleString()}
+                          </div>
+                          <div className="text-[10px] text-gray-500">
+                            OpenSky total {aircraftTotal.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3">
+                          <div className="text-[10px] uppercase text-gray-500">
+                            Vessels visible
+                          </div>
+                          <div className="mt-1 text-2xl font-bold font-mono text-orange-400">
+                            {shipData.length.toLocaleString()}
+                          </div>
+                          <div className="text-[10px] text-gray-500">
+                            {shipSource}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {regionCounts.slice(0, 4).map((region) => {
+                          const threat = THREAT_LEVELS[region.threat - 1];
+                          return (
+                            <div
+                              key={region.name}
+                              className="flex items-center justify-between rounded-xl border border-white/6 bg-white/[0.03] px-3 py-2"
+                            >
+                              <div>
+                                <div className="text-xs text-white">
+                                  {region.name}
+                                </div>
+                                <div className="text-[10px] text-gray-500">
+                                  {region.events} reported events
+                                </div>
+                              </div>
+                              <div
+                                className={`text-[11px] font-mono ${threat.color}`}
+                              >
+                                {threat.label}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-3 rounded-xl border border-white/6 bg-white/[0.03] p-3 text-[10px] text-gray-500">
+                        <div>
+                          Aircraft sync:{" "}
+                          {aircraftUpdatedAt
+                            ? new Date(aircraftUpdatedAt).toLocaleTimeString()
+                            : "Awaiting sync"}
+                        </div>
+                        <div className="mt-1">
+                          Vessel sync:{" "}
+                          {shipUpdatedAt
+                            ? new Date(shipUpdatedAt).toLocaleTimeString()
+                            : "Awaiting sync"}
+                        </div>
+                        {!shipDataLive && shipNotice && (
+                          <div className="mt-2 text-yellow-300/80">
+                            {shipNotice}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* Globe stats overlay (bottom-center) — Vision Pro glass */}
@@ -2108,6 +2435,50 @@ export default function WorldMonitorPage() {
                   <Newspaper className="w-3.5 h-3.5 text-blue-400" />
                   <span className="font-mono">
                     {articleEvents.length} intel
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!apertureActive && selectedAsset && (
+            <div className="absolute right-4 bottom-20 w-[320px] max-w-[calc(100vw-2rem)]">
+              <div className="rounded-2xl border border-white/10 bg-black/70 backdrop-blur-2xl p-4 shadow-2xl shadow-black/40">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-geo-gold">
+                      {selectedAsset.kind === "aircraft"
+                        ? "Aircraft Selected"
+                        : "Vessel Selected"}
+                    </div>
+                    <div className="mt-1 text-base font-semibold text-white">
+                      {selectedAsset.title}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {selectedAsset.subtitle}
+                    </div>
+                  </div>
+                  <button
+                    onClick={clearSelectedAsset}
+                    className="rounded-lg border border-white/10 p-1.5 text-gray-500 transition-colors hover:text-white"
+                    aria-label="Clear selected asset"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-gray-300">
+                  {selectedAsset.summary}
+                </p>
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    onClick={() => router.push(selectedAsset.href)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-geo-gold/30 bg-geo-gold/10 px-3 py-2 text-xs font-semibold text-geo-gold transition-colors hover:bg-geo-gold/20"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Open report
+                  </button>
+                  <span className="text-[11px] text-gray-500">
+                    Tap once to inspect, then open details explicitly.
                   </span>
                 </div>
               </div>
@@ -2273,6 +2644,17 @@ export default function WorldMonitorPage() {
                   )}
 
                   {/* CTA Link */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      router.push(buildEventReportHref(selectedEvent))
+                    }
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white text-sm font-medium transition-all"
+                  >
+                    <FileText className="w-4 h-4 text-geo-gold" />
+                    Open Event Report
+                  </button>
+
                   {(selectedEvent.link || selectedEvent.url) && (
                     <Link
                       href={selectedEvent.link || selectedEvent.url || "#"}

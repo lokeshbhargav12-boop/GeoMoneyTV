@@ -1,4 +1,13 @@
 import { NextResponse } from "next/server";
+import { createRequire } from "node:module";
+
+process.env.WS_NO_BUFFER_UTIL ??= "1";
+process.env.WS_NO_UTF_8_VALIDATE ??= "1";
+
+const require = createRequire(import.meta.url);
+const WebSocket = require("ws") as typeof import("ws")["default"];
+
+export const runtime = "nodejs";
 
 // ─── TYPES ──────────────────────────────────────────────────
 export interface ShipState {
@@ -6,21 +15,123 @@ export interface ShipState {
     name: string;
     imo: string;
     callsign: string;
-    type: "tanker" | "container" | "bulk" | "lng" | "military" | "cargo" | "cruise" | "fishing";
+    type:
+    | "tanker"
+    | "container"
+    | "bulk"
+    | "lng"
+    | "military"
+    | "cargo"
+    | "cruise"
+    | "fishing";
     flag: string;
     flagEmoji: string;
     latitude: number;
     longitude: number;
     heading: number;
-    speed: number; // knots
+    speed: number;
     destination: string;
     status: "underway" | "anchored" | "moored";
-    length: number; // meters
-    draught: number; // meters
+    length: number;
+    draught: number;
+    live?: boolean;
+    source?: string;
+    lastUpdate?: number;
 }
 
+interface CachedResponse {
+    ships: ShipState[];
+    total: number;
+    routes?: number;
+    timestamp: number;
+    live: boolean;
+    demo: boolean;
+    source: string;
+    notice?: string;
+}
+
+interface LiveShipSnapshot {
+    ships: ShipState[];
+    source: string;
+    timestamp: number;
+}
+
+type AisEnvelope = {
+    MessageType?: string;
+    Message?: Record<string, any>;
+    MetaData?: Record<string, any>;
+    Metadata?: Record<string, any>;
+    error?: string;
+};
+
+let cache: { response: CachedResponse; timestamp: number } | null = null;
+let inflightSnapshot: Promise<LiveShipSnapshot | null> | null = null;
+
+const CACHE_TTL = 15_000;
+const LEGACY_AIS_URL = process.env.AIS_API_URL;
+const LEGACY_AIS_KEY = process.env.AIS_API_KEY;
+const LEGACY_AIS_AUTH_HEADER =
+    process.env.AIS_API_AUTH_HEADER || "Authorization";
+const LEGACY_AIS_SOURCE =
+    process.env.AIS_API_SOURCE || "Configured AIS provider";
+
+const AISTREAM_URL =
+    process.env.AISTREAM_STREAM_URL || "wss://stream.aisstream.io/v0/stream";
+const AISTREAM_API_KEY = process.env.AISTREAM_API_KEY || "";
+const AISTREAM_SOURCE = "AISStream.io websocket feed";
+const AISTREAM_SAMPLE_MS = Math.max(
+    3000,
+    Number(process.env.AISTREAM_SAMPLE_MS || "7000"),
+);
+const AISTREAM_MAX_VESSELS = Math.max(
+    250,
+    Number(process.env.AISTREAM_MAX_VESSELS || "2500"),
+);
+const DEFAULT_AISTREAM_TYPES = [
+    "PositionReport",
+    "StandardClassBPositionReport",
+    "ExtendedClassBPositionReport",
+    "LongRangeAisBroadcastMessage",
+    "ShipStaticData",
+    "StaticDataReport",
+];
+
+function parseBoundingBoxes(): number[][][] {
+    const raw = process.env.AISTREAM_BOUNDING_BOXES;
+    if (!raw) {
+        return [[[-90, -180], [90, 180]]];
+    }
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+        }
+    } catch (error) {
+        console.warn("[Ships API] Invalid AISTREAM_BOUNDING_BOXES:", error);
+    }
+
+    return [[[-90, -180], [90, 180]]];
+}
+
+function parseMessageTypes(): string[] {
+    const raw = process.env.AISTREAM_MESSAGE_TYPES;
+    if (!raw) {
+        return DEFAULT_AISTREAM_TYPES;
+    }
+
+    const values = raw
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+    return values.length ? values : DEFAULT_AISTREAM_TYPES;
+}
+
+const AISTREAM_BOUNDING_BOXES = parseBoundingBoxes();
+const AISTREAM_MESSAGE_TYPES = parseMessageTypes();
+
 // ─── REALISTIC VESSEL DATABASE ──────────────────────────────
-// Real vessel names operating on major shipping lanes
 const VESSEL_DB: Omit<ShipState, "latitude" | "longitude" | "heading">[] = [
     { mmsi: "477325700", name: "EVER GIVEN", imo: "9811000", callsign: "VRJB8", type: "container", flag: "Panama", flagEmoji: "🇵🇦", speed: 13.2, destination: "ROTTERDAM", status: "underway", length: 400, draught: 16 },
     { mmsi: "636092297", name: "FRONT ALTA", imo: "9806379", callsign: "D5QA9", type: "tanker", flag: "Liberia", flagEmoji: "🇱🇷", speed: 12.8, destination: "FUJAIRAH", status: "underway", length: 336, draught: 21.5 },
@@ -54,7 +165,6 @@ const VESSEL_DB: Omit<ShipState, "latitude" | "longitude" | "heading">[] = [
     { mmsi: "636095555", name: "STAR POLARIS", imo: "9855555", callsign: "A8UV6", type: "bulk", flag: "Liberia", flagEmoji: "🇱🇷", speed: 10.5, destination: "TUBARAO", status: "underway", length: 340, draught: 21 },
 ];
 
-// ─── SHIPPING ROUTES (lat/lng waypoints) ────────────────────
 const ROUTES: { name: string; waypoints: [number, number][] }[] = [
     { name: "Suez-Mediterranean", waypoints: [[30.0, 32.5], [33.0, 28.0], [35.0, 24.0], [37.0, 15.0], [36.0, 5.0], [36.0, -5.5]] },
     { name: "Persian Gulf-India", waypoints: [[26.0, 56.5], [22.0, 60.0], [18.0, 65.0], [15.0, 72.0], [19.0, 72.8]] },
@@ -73,8 +183,6 @@ const ROUTES: { name: string; waypoints: [number, number][] }[] = [
     { name: "Cape of Good Hope", waypoints: [[1.3, 103.8], [-5.0, 80.0], [-15.0, 55.0], [-28.0, 35.0], [-34.5, 18.5]] },
 ];
 
-// ─── POSITION SIMULATION ────────────────────────────────────
-// Time-based: vessels drift along routes based on current minute
 function getSimulatedPosition(
     vesselIndex: number,
     routeIndex: number,
@@ -82,59 +190,543 @@ function getSimulatedPosition(
     const route = ROUTES[routeIndex % ROUTES.length];
     const wp = route.waypoints;
     const now = Date.now();
-
-    // Each vessel moves along route at different speed/phase
-    const period = 3600_000 * (2 + (vesselIndex % 5)); // 2-6 hour cycle
-    const phase = (vesselIndex * 7919) % period; // prime-based offset
-    const t = ((now + phase) % period) / period; // 0→1 progress
-
-    // Interpolate along waypoints
+    const period = 3600_000 * (2 + (vesselIndex % 5));
+    const phase = (vesselIndex * 7919) % period;
+    const t = ((now + phase) % period) / period;
     const totalSegments = wp.length - 1;
     const segFloat = t * totalSegments;
     const seg = Math.min(Math.floor(segFloat), totalSegments - 1);
     const segT = segFloat - seg;
-
     const lat = wp[seg][0] + (wp[seg + 1][0] - wp[seg][0]) * segT;
     const lng = wp[seg][1] + (wp[seg + 1][1] - wp[seg][1]) * segT;
-
-    // Heading from current to next waypoint
     const dLng = wp[Math.min(seg + 1, totalSegments)][1] - wp[seg][1];
     const dLat = wp[Math.min(seg + 1, totalSegments)][0] - wp[seg][0];
     const heading = ((Math.atan2(dLng, dLat) * 180) / Math.PI + 360) % 360;
-
-    // Add slight noise for realism
     const noise = Math.sin(now / 60000 + vesselIndex * 3.7) * 0.15;
 
     return { lat: lat + noise, lng: lng + noise * 1.3, heading };
 }
 
-// ─── HANDLER ────────────────────────────────────────────────
-export async function GET() {
-    try {
-        const ships: ShipState[] = VESSEL_DB.map((vessel, i) => {
-            const routeIdx = i % ROUTES.length;
-            const pos = getSimulatedPosition(i, routeIdx);
+function firstString(...values: unknown[]): string {
+    for (const value of values) {
+        if (typeof value === "string" && value.trim()) {
+            return value.trim();
+        }
+    }
+    return "";
+}
 
-            return {
-                ...vessel,
-                latitude: pos.lat,
-                longitude: pos.lng,
-                heading: pos.heading,
-                speed: vessel.speed + Math.sin(Date.now() / 120000 + i) * 1.5, // slight speed variation
-            };
+function toNumber(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === "string" && value.trim()) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+}
+
+function sanitizeAisText(value: string): string {
+    return value.replace(/@+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function resolveFlagEmoji(flag: string): string {
+    const countryCodeMap: Record<string, string> = {
+        bahamas: "BS",
+        china: "CN",
+        cyprus: "CY",
+        greece: "GR",
+        "hong kong": "HK",
+        liberia: "LR",
+        malta: "MT",
+        netherlands: "NL",
+        panama: "PA",
+        spain: "ES",
+        uk: "GB",
+        usa: "US",
+        "united kingdom": "GB",
+        "united states": "US",
+    };
+
+    const code = countryCodeMap[flag.toLowerCase()];
+    if (!code) {
+        return "";
+    }
+
+    return code
+        .toUpperCase()
+        .split("")
+        .map((char) => String.fromCodePoint(127397 + char.charCodeAt(0)))
+        .join("");
+}
+
+function normalizeShipType(value: unknown): ShipState["type"] {
+    if (typeof value === "number") {
+        if (value === 35) return "military";
+        if (value >= 80 && value < 90) return "tanker";
+        if (value >= 70 && value < 80) return "cargo";
+        if (value >= 60 && value < 70) return "cruise";
+        if (value === 30) return "fishing";
+    }
+
+    const input = String(value || "").toLowerCase();
+    if (input.includes("military") || input.includes("navy") || input.includes("war")) return "military";
+    if (input.includes("tanker") || input.includes("oil")) return "tanker";
+    if (input.includes("container")) return "container";
+    if (input.includes("bulk")) return "bulk";
+    if (input.includes("lng") || input.includes("gas")) return "lng";
+    if (input.includes("cruise") || input.includes("passenger")) return "cruise";
+    if (input.includes("fish")) return "fishing";
+    return "cargo";
+}
+
+function normalizeShipStatus(value: unknown): ShipState["status"] {
+    if (typeof value === "number") {
+        if (value === 1 || value === 5 || value === 6) return "anchored";
+        if (value === 7 || value === 8) return "moored";
+        return "underway";
+    }
+
+    const input = String(value || "").toLowerCase();
+    if (input.includes("anchor") || input.includes("stopped")) return "anchored";
+    if (input.includes("moor")) return "moored";
+    return "underway";
+}
+
+function extractShipEntries(payload: any): any[] {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.ships)) return payload.ships;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.results)) return payload.results;
+    if (Array.isArray(payload?.vessels)) return payload.vessels;
+    return [];
+}
+
+function normalizeProviderShip(entry: any, timestamp: number): ShipState | null {
+    const latitude = toNumber(entry.latitude ?? entry.lat ?? entry.position?.lat);
+    const longitude = toNumber(
+        entry.longitude ??
+        entry.lng ??
+        entry.lon ??
+        entry.position?.lng ??
+        entry.position?.lon,
+    );
+
+    if (latitude == null || longitude == null) {
+        return null;
+    }
+
+    const mmsi = firstString(entry.mmsi, entry.MMSI, entry.vesselMmsi, entry.id);
+    const name =
+        firstString(entry.name, entry.vesselName, entry.shipname, entry.shipName) ||
+        "Unknown vessel";
+    const flag =
+        firstString(entry.flag, entry.flagCountry, entry.country, entry.flag_name) ||
+        "Unknown";
+
+    return {
+        mmsi: mmsi || `live-${name}-${latitude}-${longitude}`,
+        name,
+        imo: firstString(entry.imo, entry.IMO),
+        callsign: firstString(entry.callsign, entry.callSign),
+        type: normalizeShipType(
+            entry.type ?? entry.shipType ?? entry.vesselType ?? entry.cargo_type,
+        ),
+        flag,
+        flagEmoji: firstString(entry.flagEmoji) || resolveFlagEmoji(flag),
+        latitude,
+        longitude,
+        heading: toNumber(entry.heading ?? entry.cog ?? entry.course) ?? 0,
+        speed: toNumber(entry.speed ?? entry.sog ?? entry.speedKnots) ?? 0,
+        destination:
+            firstString(entry.destination, entry.destinationPort, entry.nextPort) ||
+            "Unknown",
+        status: normalizeShipStatus(entry.status ?? entry.navStatus),
+        length: toNumber(entry.length ?? entry.vesselLength) ?? 0,
+        draught: toNumber(entry.draught ?? entry.draft) ?? 0,
+        live: true,
+        source: LEGACY_AIS_SOURCE,
+        lastUpdate: timestamp,
+    };
+}
+
+function getEnvelopeMetadata(envelope: AisEnvelope): Record<string, any> {
+    return envelope.MetaData ?? envelope.Metadata ?? {};
+}
+
+function getEnvelopeBody(envelope: AisEnvelope): Record<string, any> {
+    if (!envelope.MessageType || !envelope.Message) {
+        return {};
+    }
+
+    return envelope.Message[envelope.MessageType] ?? {};
+}
+
+function getLengthMeters(body: Record<string, any>): number {
+    const dimension = body.Dimension ?? body.dimension;
+    if (dimension && typeof dimension === "object") {
+        const a = toNumber(dimension.A ?? dimension.a) ?? 0;
+        const b = toNumber(dimension.B ?? dimension.b) ?? 0;
+        return a + b;
+    }
+    return 0;
+}
+
+function getDraftMeters(body: Record<string, any>): number {
+    return (
+        toNumber(body.MaximumStaticDraught ?? body.maximumStaticDraught) ??
+        toNumber(body.Draught ?? body.draught) ??
+        0
+    );
+}
+
+function upsertAisShip(
+    vessels: Map<string, ShipState>,
+    envelope: AisEnvelope,
+    timestamp: number,
+): void {
+    const metadata = getEnvelopeMetadata(envelope);
+    const body = getEnvelopeBody(envelope);
+    const messageType = envelope.MessageType || "Unknown";
+
+    const mmsi = String(
+        toNumber(metadata.MMSI ?? metadata.mmsi ?? body.UserID ?? body.userId) ?? "",
+    );
+    if (!mmsi) {
+        return;
+    }
+
+    const existing = vessels.get(mmsi);
+    const latitude =
+        toNumber(
+            metadata.latitude ??
+            metadata.Latitude ??
+            metadata.lat ??
+            body.Latitude ??
+            body.latitude,
+        ) ?? existing?.latitude;
+    const longitude =
+        toNumber(
+            metadata.longitude ??
+            metadata.Longitude ??
+            metadata.lng ??
+            metadata.lon ??
+            body.Longitude ??
+            body.longitude,
+        ) ?? existing?.longitude;
+
+    const name = sanitizeAisText(
+        firstString(
+            metadata.ShipName,
+            metadata.shipName,
+            body.Name,
+            body.name,
+            body.ReportA?.Name,
+            existing?.name,
+        ) || "Unknown vessel",
+    );
+    const flag = firstString(
+        metadata.Flag,
+        metadata.flag,
+        metadata.Country,
+        metadata.country,
+        existing?.flag,
+        "Unknown",
+    );
+    const destination = sanitizeAisText(
+        firstString(body.Destination, body.destination, existing?.destination, "Unknown"),
+    );
+    const shipType = normalizeShipType(
+        body.Type ?? body.type ?? body.ShipType ?? body.ReportB?.ShipType ?? existing?.type,
+    );
+    const status = normalizeShipStatus(
+        body.NavigationalStatus ?? body.navigationalStatus ?? existing?.status,
+    );
+    const parsedTimestamp = new Date(
+        firstString(metadata.time_utc, metadata.TimeUTC, metadata.timestamp),
+    ).getTime();
+    const messageTimestamp = Number.isFinite(parsedTimestamp)
+        ? parsedTimestamp
+        : timestamp;
+
+    if (latitude == null || longitude == null) {
+        return;
+    }
+
+    const ship: ShipState = {
+        mmsi,
+        name,
+        imo: firstString(body.ImoNumber, body.IMO, existing?.imo),
+        callsign: sanitizeAisText(
+            firstString(
+                body.CallSign,
+                body.callSign,
+                body.ReportB?.CallSign,
+                existing?.callsign,
+            ),
+        ),
+        type: shipType,
+        flag,
+        flagEmoji: resolveFlagEmoji(flag) || existing?.flagEmoji || "",
+        latitude,
+        longitude,
+        heading:
+            toNumber(body.TrueHeading ?? body.trueHeading ?? body.Cog ?? body.cog) ??
+            existing?.heading ??
+            0,
+        speed:
+            toNumber(body.Sog ?? body.sog ?? body.Speed ?? body.speed) ??
+            existing?.speed ??
+            0,
+        destination,
+        status,
+        length: getLengthMeters(body) || existing?.length || 0,
+        draught: getDraftMeters(body) || existing?.draught || 0,
+        live: true,
+        source: `${AISTREAM_SOURCE} • ${messageType}`,
+        lastUpdate: messageTimestamp,
+    };
+
+    vessels.set(mmsi, ship);
+}
+
+async function fetchConfiguredProviderShips(): Promise<LiveShipSnapshot | null> {
+    if (!LEGACY_AIS_URL) {
+        return null;
+    }
+
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (LEGACY_AIS_KEY) {
+        headers[LEGACY_AIS_AUTH_HEADER] =
+            LEGACY_AIS_AUTH_HEADER.toLowerCase() === "authorization" &&
+                !LEGACY_AIS_KEY.includes(" ")
+                ? `Bearer ${LEGACY_AIS_KEY}`
+                : LEGACY_AIS_KEY;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+
+    try {
+        const res = await fetch(LEGACY_AIS_URL, {
+            headers,
+            signal: controller.signal,
+            cache: "no-store",
+        });
+        if (!res.ok) {
+            throw new Error(`AIS provider HTTP ${res.status}`);
+        }
+
+        const payload = await res.json();
+        const timestamp = Date.now();
+        const ships = extractShipEntries(payload)
+            .map((entry) => normalizeProviderShip(entry, timestamp))
+            .filter((ship): ship is ShipState => ship !== null);
+
+        if (!ships.length) {
+            throw new Error("AIS provider returned no usable vessel positions");
+        }
+
+        return { ships, source: LEGACY_AIS_SOURCE, timestamp };
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function collectAisStreamSnapshot(): Promise<LiveShipSnapshot | null> {
+    if (!AISTREAM_API_KEY) {
+        return null;
+    }
+
+    if (inflightSnapshot) {
+        return inflightSnapshot;
+    }
+
+    inflightSnapshot = new Promise<LiveShipSnapshot | null>((resolve, reject) => {
+        const vessels = new Map<string, ShipState>();
+        const ws = new WebSocket(AISTREAM_URL);
+        const startedAt = Date.now();
+        let settled = false;
+
+        const finish = (error?: Error) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(sampleTimer);
+            clearTimeout(hardTimeout);
+
+            if (
+                ws.readyState === WebSocket.OPEN ||
+                ws.readyState === WebSocket.CONNECTING
+            ) {
+                try {
+                    ws.close();
+                } catch {
+                    // ignore cleanup close errors
+                }
+            }
+
+            const ships = Array.from(vessels.values())
+                .sort((left, right) => (right.lastUpdate ?? 0) - (left.lastUpdate ?? 0))
+                .slice(0, AISTREAM_MAX_VESSELS);
+
+            if (ships.length > 0) {
+                resolve({
+                    ships,
+                    source: `${AISTREAM_SOURCE} • ${AISTREAM_BOUNDING_BOXES.length} bounding box${AISTREAM_BOUNDING_BOXES.length === 1 ? "" : "es"}`,
+                    timestamp: Date.now(),
+                });
+            } else {
+                reject(error ?? new Error("AISStream returned no usable vessel positions"));
+            }
+        };
+
+        const sampleTimer = setTimeout(() => finish(), AISTREAM_SAMPLE_MS);
+        const hardTimeout = setTimeout(
+            () => finish(new Error("AISStream sample window timed out")),
+            AISTREAM_SAMPLE_MS + 4000,
+        );
+
+        ws.on("open", () => {
+            ws.send(
+                JSON.stringify({
+                    APIKey: AISTREAM_API_KEY,
+                    BoundingBoxes: AISTREAM_BOUNDING_BOXES,
+                    FilterMessageTypes: AISTREAM_MESSAGE_TYPES,
+                }),
+            );
         });
 
-        return NextResponse.json(
-            {
-                ships,
-                total: ships.length,
-                routes: ROUTES.length,
-                timestamp: Date.now(),
+        ws.on("message", (raw) => {
+            try {
+                const envelope = JSON.parse(raw.toString()) as AisEnvelope;
+                if (envelope.error) {
+                    finish(new Error(envelope.error));
+                    return;
+                }
+
+                upsertAisShip(vessels, envelope, Date.now());
+                if (vessels.size >= AISTREAM_MAX_VESSELS) {
+                    finish();
+                }
+            } catch (error) {
+                console.warn("[Ships API] Failed to parse AISStream message:", error);
+            }
+        });
+
+        ws.on("error", (error) => {
+            finish(error instanceof Error ? error : new Error(String(error)));
+        });
+
+        ws.on("close", () => {
+            if (!settled && Date.now() - startedAt > 1000) {
+                finish();
+            }
+        });
+    }).finally(() => {
+        inflightSnapshot = null;
+    });
+
+    return inflightSnapshot;
+}
+
+function buildDemoShips(timestamp: number): ShipState[] {
+    return VESSEL_DB.map((vessel, index) => {
+        const position = getSimulatedPosition(index, index % ROUTES.length);
+        return {
+            ...vessel,
+            latitude: position.lat,
+            longitude: position.lng,
+            heading: position.heading,
+            speed: vessel.speed + Math.sin(Date.now() / 120000 + index) * 1.5,
+            live: false,
+            source: "Demo traffic model",
+            lastUpdate: timestamp,
+        };
+    });
+}
+
+function buildResponseFromSnapshot(snapshot: LiveShipSnapshot): CachedResponse {
+    return {
+        ships: snapshot.ships,
+        total: snapshot.ships.length,
+        timestamp: snapshot.timestamp,
+        live: true,
+        demo: false,
+        source: snapshot.source,
+    };
+}
+
+export async function GET() {
+    try {
+        if (cache && Date.now() - cache.timestamp < CACHE_TTL) {
+            return NextResponse.json(cache.response, {
+                headers: {
+                    "Cache-Control": "public, s-maxage=10, stale-while-revalidate=20",
+                },
+            });
+        }
+
+        const liveSnapshot = await collectAisStreamSnapshot().catch((error: Error) => {
+            console.warn("[Ships API] AISStream unavailable:", error.message);
+            return null;
+        });
+
+        if (liveSnapshot) {
+            const response = buildResponseFromSnapshot(liveSnapshot);
+            cache = { response, timestamp: Date.now() };
+
+            return NextResponse.json(response, {
+                headers: {
+                    "Cache-Control": "public, s-maxage=10, stale-while-revalidate=20",
+                },
+            });
+        }
+
+        const legacySnapshot = await fetchConfiguredProviderShips().catch((error: Error) => {
+            console.warn("[Ships API] Legacy AIS provider unavailable:", error.message);
+            return null;
+        });
+
+        if (legacySnapshot) {
+            const response = buildResponseFromSnapshot(legacySnapshot);
+            cache = { response, timestamp: Date.now() };
+
+            return NextResponse.json(response, {
+                headers: {
+                    "Cache-Control": "public, s-maxage=10, stale-while-revalidate=20",
+                },
+            });
+        }
+
+        const timestamp = Date.now();
+        const ships = buildDemoShips(timestamp);
+        const response: CachedResponse = {
+            ships,
+            total: ships.length,
+            routes: ROUTES.length,
+            timestamp,
+            live: false,
+            demo: true,
+            source: "Demo traffic model",
+            notice:
+                "Configure AISTREAM_API_KEY to switch the world monitor from demo vessel traffic to a live AISStream websocket snapshot. Optionally set AISTREAM_BOUNDING_BOXES and AISTREAM_SAMPLE_MS to tune coverage and snapshot depth.",
+        };
+
+        cache = { response, timestamp: Date.now() };
+
+        return NextResponse.json(response, {
+            headers: {
+                "Cache-Control": "public, s-maxage=10, stale-while-revalidate=20",
             },
-            { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=20" } },
-        );
+        });
     } catch (error: any) {
         console.error("[Ships API]", error.message);
-        return NextResponse.json({ ships: [], total: 0, error: error.message }, { status: 500 });
+        return NextResponse.json(
+            { ships: [], total: 0, error: error.message },
+            { status: 500 },
+        );
     }
 }

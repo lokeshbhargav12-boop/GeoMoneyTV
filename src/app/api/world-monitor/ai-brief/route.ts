@@ -2,19 +2,21 @@ import { NextResponse } from "next/server";
 import { callOpenRouter } from "@/lib/openrouter";
 
 // ─── CACHE ──────────────────────────────────────────────────
-let cache: { brief: any; timestamp: number } | null = null;
+const cache = new Map<string, { brief: any; timestamp: number }>();
 const CACHE_TTL = 300_000; // 5 minutes
 
 export async function POST(request: Request) {
     try {
-        // Check cache first
-        if (cache && Date.now() - cache.timestamp < CACHE_TTL) {
-            return NextResponse.json({ ...cache.brief, cached: true });
-        }
-
         const body = await request.json().catch(() => ({}));
         const events: string[] = (body.events || []).slice(0, 15);
         const query: string = body.query || "";
+        const assetContext = body.assetContext || null;
+        const cacheKey = JSON.stringify({ events, query, assetContext });
+
+        const cachedEntry = cache.get(cacheKey);
+        if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL) {
+            return NextResponse.json({ ...cachedEntry.brief, cached: true });
+        }
 
         const eventsContext = events.length
             ? `\n\nCURRENT INTELLIGENCE FEED:\n${events.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
@@ -24,7 +26,11 @@ export async function POST(request: Request) {
             ? `\n\nANALYST QUERY: ${query}`
             : "";
 
-        const prompt = `You are GEOMONEY APERTURE, an elite AI intelligence analyst for a geopolitical monitoring command center. Generate a concise intelligence briefing.${eventsContext}${userQuery}
+        const assetSnapshot = assetContext
+            ? `\n\nLIVE ASSET SNAPSHOT:\n${JSON.stringify(assetContext, null, 2)}`
+            : "";
+
+        const prompt = `You are GEOMONEY APERTURE, an elite AI intelligence analyst for a geopolitical monitoring command center. Generate a concise intelligence briefing. When asset counts or chokepoint counts are present in the live asset snapshot, use those exact values directly instead of estimating.${eventsContext}${userQuery}${assetSnapshot}
 
 Respond in this EXACT JSON format:
 {
@@ -74,16 +80,11 @@ Return ONLY valid JSON. No markdown, no code blocks.`;
         }
 
         brief.model = result.model;
-        cache = { brief, timestamp: Date.now() };
+        cache.set(cacheKey, { brief, timestamp: Date.now() });
 
         return NextResponse.json(brief);
     } catch (error: any) {
         console.error("[AI Brief]", error.message);
-
-        // Return cached data on error
-        if (cache) {
-            return NextResponse.json({ ...cache.brief, cached: true, stale: true });
-        }
 
         return NextResponse.json(
             {

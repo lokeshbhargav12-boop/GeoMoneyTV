@@ -49,6 +49,18 @@ export interface ShipData {
   speed: number;
   destination: string;
   length: number;
+  status?: "underway" | "anchored" | "moored" | "stopped" | "unknown";
+  live?: boolean;
+  source?: string;
+  lastUpdate?: number;
+}
+
+export interface GlobeFocusTarget {
+  key: string;
+  lat: number;
+  lng: number;
+  distance?: number;
+  targetDepth?: number;
 }
 
 interface GlobeProps {
@@ -59,6 +71,7 @@ interface GlobeProps {
   selectedEvent?: GlobeEvent | null;
   aircraft?: AircraftData[];
   ships?: ShipData[];
+  focusTarget?: GlobeFocusTarget | null;
   onZoomChange?: (zoom: number) => void;
 }
 
@@ -1495,6 +1508,86 @@ function ZoomDetector({
   return null;
 }
 
+function FocusController({
+  focusTarget,
+  controlsRef,
+}: {
+  focusTarget?: GlobeFocusTarget | null;
+  controlsRef: React.MutableRefObject<any>;
+}) {
+  const { camera } = useThree();
+  const desiredPosition = useRef(new THREE.Vector3());
+  const desiredTarget = useRef(new THREE.Vector3());
+  const animationActive = useRef(false);
+
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls?.addEventListener) {
+      return;
+    }
+
+    const stopFocusAnimation = () => {
+      animationActive.current = false;
+    };
+
+    controls.addEventListener("start", stopFocusAnimation);
+    return () => {
+      controls.removeEventListener("start", stopFocusAnimation);
+    };
+  }, [controlsRef]);
+
+  useEffect(() => {
+    if (!focusTarget) {
+      return;
+    }
+
+    const surfacePoint = latLngToVector3(
+      focusTarget.lat,
+      focusTarget.lng,
+      GLOBE_RADIUS + 0.04,
+    );
+    const cameraDistance = focusTarget.distance ?? 2.85;
+    const targetDepth = focusTarget.targetDepth ?? 0.7;
+
+    desiredTarget.current.copy(surfacePoint.clone().multiplyScalar(targetDepth));
+    desiredPosition.current.copy(
+      surfacePoint.clone().normalize().multiplyScalar(cameraDistance),
+    );
+    animationActive.current = true;
+  }, [focusTarget]);
+
+  useFrame(() => {
+    if (!animationActive.current) {
+      return;
+    }
+
+    camera.position.lerp(desiredPosition.current, 0.18);
+
+    if (controlsRef.current?.target) {
+      controlsRef.current.target.lerp(desiredTarget.current, 0.2);
+      controlsRef.current.update?.();
+    } else {
+      camera.lookAt(desiredTarget.current);
+    }
+
+    const targetDistance = camera.position.distanceTo(desiredPosition.current);
+    const controlsTargetDistance = controlsRef.current?.target
+      ? controlsRef.current.target.distanceTo(desiredTarget.current)
+      : 0;
+
+    if (targetDistance < 0.02 && controlsTargetDistance < 0.02) {
+      camera.position.copy(desiredPosition.current);
+      if (controlsRef.current?.target) {
+        controlsRef.current.target.copy(desiredTarget.current);
+        controlsRef.current.update?.();
+      }
+      animationActive.current = false;
+    }
+  });
+
+  return null;
+}
+
 // ─── MAIN GLOBE SCENE ───────────────────────────────────────
 function GlobeScene({
   events,
@@ -1504,12 +1597,38 @@ function GlobeScene({
   selectedEvent,
   aircraft,
   ships,
+  focusTarget,
   onZoomChange,
 }: GlobeProps) {
   const globeRef = useRef<THREE.Group>(null);
+  const controlsRef = useRef<any>(null);
+  const userInteractingRef = useRef(false);
+
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls?.addEventListener) {
+      return;
+    }
+
+    const handleStart = () => {
+      userInteractingRef.current = true;
+    };
+
+    const handleEnd = () => {
+      userInteractingRef.current = false;
+    };
+
+    controls.addEventListener("start", handleStart);
+    controls.addEventListener("end", handleEnd);
+
+    return () => {
+      controls.removeEventListener("start", handleStart);
+      controls.removeEventListener("end", handleEnd);
+    };
+  }, []);
 
   useFrame(({ clock }) => {
-    if (globeRef.current) {
+    if (globeRef.current && !focusTarget && !userInteractingRef.current) {
       globeRef.current.rotation.y = clock.getElapsedTime() * 0.02;
     }
   });
@@ -1532,25 +1651,6 @@ function GlobeScene({
     }
     return lines;
   }, []);
-
-  const shipAnimations = useMemo(
-    () =>
-      SHIPPING_ROUTES.map((route, i) => ({
-        ...route,
-        speed: 0.03 + Math.random() * 0.04,
-        offset: i * 0.7,
-      })),
-    [],
-  );
-
-  const flightAnimations = useMemo(
-    () =>
-      FLIGHT_ROUTES.map((route, i) => ({
-        ...route,
-        offset: i * 0.5 + Math.random() * 2,
-      })),
-    [],
-  );
 
   return (
     <>
@@ -1596,41 +1696,6 @@ function GlobeScene({
 
         {/* Triple atmosphere glow */}
         <BrightAtmosphere />
-
-        {/* Shipping route arcs */}
-        {SHIPPING_ROUTES.map((route, i) => (
-          <ArcLine
-            key={`route-${i}`}
-            from={route.from}
-            to={route.to}
-            color={route.color}
-            opacity={0.55}
-          />
-        ))}
-
-        {/* Animated ship markers moving along routes */}
-        {shipAnimations.map((ship, i) => (
-          <AnimatedShip
-            key={`ship-${i}`}
-            from={ship.from}
-            to={ship.to}
-            speed={ship.speed}
-            offset={ship.offset}
-            color={ship.color}
-          />
-        ))}
-
-        {/* Animated flight markers on air corridors */}
-        {flightAnimations.map((flight, i) => (
-          <AnimatedFlight
-            key={`flight-${i}`}
-            from={flight.from}
-            to={flight.to}
-            speed={flight.speed}
-            offset={flight.offset}
-            color={flight.color}
-          />
-        ))}
 
         {/* Chokepoint markers */}
         {CHOKEPOINTS.map((cp) => (
@@ -1691,8 +1756,10 @@ function GlobeScene({
 
       {/* Zoom level detection */}
       <ZoomDetector onZoomChange={onZoomChange} />
+      <FocusController focusTarget={focusTarget} controlsRef={controlsRef} />
 
       <OrbitControls
+        ref={controlsRef}
         enableZoom
         enablePan={false}
         minDistance={2.5}
@@ -1715,6 +1782,7 @@ export default function WorldGlobe({
   selectedEvent,
   aircraft,
   ships,
+  focusTarget,
   onZoomChange,
 }: GlobeProps) {
   const [contextLost, setContextLost] = useState(false);
@@ -1778,6 +1846,7 @@ export default function WorldGlobe({
           selectedEvent={selectedEvent}
           aircraft={aircraft}
           ships={ships}
+          focusTarget={focusTarget}
           onZoomChange={onZoomChange}
         />
       </Canvas>
@@ -1813,20 +1882,16 @@ export default function WorldGlobe({
         ))}
         <div className="border-t border-white/5 mt-2 pt-2 space-y-1.5">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-geo-gold/60" />
-            <span className="text-gray-400">Shipping Routes</span>
-          </div>
-          <div className="flex items-center gap-2">
             <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-green-400" />
-            <span className="text-gray-400">Active Vessels</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-cyan-400/60" />
-            <span className="text-gray-400">Flight Corridors</span>
+            <span className="text-gray-400">Live Vessels</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-white" />
-            <span className="text-gray-400">Active Flights</span>
+            <span className="text-gray-400">Live Aircraft</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-geo-gold" />
+            <span className="text-gray-400">Focused Selection</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rotate-45 border border-red-500" />
