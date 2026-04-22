@@ -3,6 +3,8 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import prisma from '@/lib/prisma'
 
+const AUTH_BACKEND_UNAVAILABLE_ERROR = 'AUTH_BACKEND_UNAVAILABLE'
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
@@ -22,25 +24,30 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        })
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email.trim().toLowerCase() },
+          })
 
-        if (!user) {
-          return null
-        }
+          if (!user) {
+            return null
+          }
 
-        const isPasswordValid = await compare(credentials.password, user.password)
+          const isPasswordValid = await compare(credentials.password, user.password)
 
-        if (!isPasswordValid) {
-          return null
-        }
+          if (!isPasswordValid) {
+            return null
+          }
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          }
+        } catch (error) {
+          console.error('Credentials authorize failed:', error)
+          throw new Error(AUTH_BACKEND_UNAVAILABLE_ERROR)
         }
       },
     }),

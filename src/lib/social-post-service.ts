@@ -365,7 +365,7 @@ async function callHuggingFaceChat(prompt: string, model: string): Promise<strin
     return content
 }
 
-async function generateImageWithHuggingFace(prompt: string, model: string): Promise<string | null> {
+async function generateImageWithHuggingFace(prompt: string, model: string): Promise<Buffer> {
     const apiKey = process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN
     if (!apiKey) {
         throw new Error('HUGGINGFACE_API_KEY or HF_TOKEN is not configured')
@@ -384,8 +384,8 @@ async function generateImageWithHuggingFace(prompt: string, model: string): Prom
             body: JSON.stringify({
                 inputs: prompt,
                 parameters: {
-                    guidance_scale: 4,
-                    num_inference_steps: 4,
+                    guidance_scale: 5.5,
+                    num_inference_steps: 18,
                 },
             }),
         })
@@ -398,7 +398,7 @@ async function generateImageWithHuggingFace(prompt: string, model: string): Prom
             )
         }
 
-        return downloadImageToUploads(Buffer.from(await res.arrayBuffer()))
+        return Buffer.from(await res.arrayBuffer())
     }
 
     if (selection.provider === 'fal-ai') {
@@ -414,8 +414,8 @@ async function generateImageWithHuggingFace(prompt: string, model: string): Prom
                     width: INFOGRAPHIC_WIDTH,
                     height: INFOGRAPHIC_HEIGHT,
                 },
-                guidance_scale: 4,
-                num_inference_steps: 4,
+                guidance_scale: 5.5,
+                num_inference_steps: 18,
             }),
         })
 
@@ -433,7 +433,7 @@ async function generateImageWithHuggingFace(prompt: string, model: string): Prom
             throw new Error(`fal-ai did not return an image URL for ${selection.modelId}.`)
         }
 
-        return downloadImageToUploads(await downloadRemoteImage(imageUrl))
+        return downloadRemoteImage(imageUrl)
     }
 
     if (selection.provider === 'black-forest-labs') {
@@ -447,8 +447,8 @@ async function generateImageWithHuggingFace(prompt: string, model: string): Prom
                 prompt,
                 width: INFOGRAPHIC_WIDTH,
                 height: INFOGRAPHIC_HEIGHT,
-                steps: 4,
-                guidance: 4,
+                steps: 18,
+                guidance: 5.5,
             }),
         })
 
@@ -465,7 +465,7 @@ async function generateImageWithHuggingFace(prompt: string, model: string): Prom
             throw new Error(`Black Forest Labs did not return a polling URL for ${selection.modelId}.`)
         }
 
-        return downloadImageToUploads(await pollBlackForestLabsImage(data.polling_url))
+        return pollBlackForestLabsImage(data.polling_url)
     }
 
     throw new Error(`Hugging Face image provider ${selection.provider} is not supported by this app yet.`)
@@ -476,11 +476,132 @@ function getSvgMarkup(content: string): string {
     const start = trimmed.indexOf('<svg')
     const end = trimmed.lastIndexOf('</svg>')
 
-    if (start === -1 || end === -1 || end <= start) {
+    if (start === -1) {
         throw new Error(`OpenRouter did not return valid SVG markup. Preview: ${trimmed.slice(0, 200)}`)
     }
 
+    if (end === -1 || end <= start) {
+        return `${trimmed.slice(start)}\n</svg>`
+    }
+
     return trimmed.slice(start, end + '</svg>'.length)
+}
+
+function escapeXml(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;')
+}
+
+function wrapText(text: string, maxCharsPerLine: number, maxLines: number): string[] {
+    const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)
+    const lines: string[] = []
+    let currentLine = ''
+
+    for (const word of words) {
+        const nextLine = currentLine ? `${currentLine} ${word}` : word
+        if (nextLine.length <= maxCharsPerLine) {
+            currentLine = nextLine
+            continue
+        }
+
+        if (currentLine) {
+            lines.push(currentLine)
+        }
+        currentLine = word
+
+        if (lines.length >= maxLines) {
+            break
+        }
+    }
+
+    if (currentLine && lines.length < maxLines) {
+        lines.push(currentLine)
+    }
+
+    if (words.length && lines.length === maxLines) {
+        const joined = lines.join(' ')
+        const original = words.join(' ')
+        if (joined.length < original.length) {
+            lines[maxLines - 1] = `${lines[maxLines - 1].replace(/[.,;:!?-]*$/, '')}...`
+        }
+    }
+
+    return lines.length ? lines : ['GeoMoney market intelligence update']
+}
+
+function detectImageMime(bytes: Buffer): string {
+    if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+        return 'image/png'
+    }
+
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+        return 'image/jpeg'
+    }
+
+    if (bytes.length >= 12 && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP') {
+        return 'image/webp'
+    }
+
+    return 'image/png'
+}
+
+async function composeIllustrativeSocialCard(
+    backgroundBytes: Buffer,
+    template: SocialPostTemplate,
+    text: { shortText: string; longText: string },
+): Promise<string> {
+    const { Resvg } = await import('@resvg/resvg-js')
+    const mimeType = detectImageMime(backgroundBytes)
+    const dataUri = `data:${mimeType};base64,${backgroundBytes.toString('base64')}`
+    const headlineLines = wrapText(text.shortText || 'GeoMoney market intelligence update', 28, 3)
+    const bodyLines = wrapText(text.longText || text.shortText || template.name, 42, 5)
+    const headlineStartY = 250
+    const bodyStartY = headlineStartY + (headlineLines.length * 78) + 85
+
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" viewBox="0 0 ${INFOGRAPHIC_WIDTH} ${INFOGRAPHIC_HEIGHT}">
+  <defs>
+    <linearGradient id="panelGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(15,23,42,0.16)"/>
+      <stop offset="100%" stop-color="rgba(2,6,23,0.88)"/>
+    </linearGradient>
+    <linearGradient id="scrimGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(2,6,23,0.10)"/>
+      <stop offset="55%" stop-color="rgba(2,6,23,0.28)"/>
+      <stop offset="100%" stop-color="rgba(2,6,23,0.82)"/>
+    </linearGradient>
+  </defs>
+
+  <image href="${dataUri}" x="0" y="0" width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" preserveAspectRatio="xMidYMid slice"/>
+  <rect x="0" y="0" width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" fill="url(#scrimGradient)"/>
+  <rect x="64" y="72" width="220" height="44" rx="22" fill="rgba(15,23,42,0.72)" stroke="rgba(245,158,11,0.35)"/>
+  <text x="96" y="101" fill="#f8fafc" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="700">GEOMONEY</text>
+
+  <rect x="56" y="156" width="968" height="1030" rx="40" fill="url(#panelGradient)" stroke="rgba(255,255,255,0.12)"/>
+  <text x="88" y="205" fill="#f59e0b" font-size="22" font-family="Arial, Helvetica, sans-serif" font-weight="700">${escapeXml(template.name.toUpperCase())}</text>
+
+  ${headlineLines.map((line, index) => (
+        `<text x="88" y="${headlineStartY + (index * 78)}" fill="#ffffff" font-size="64" font-family="Arial, Helvetica, sans-serif" font-weight="800">${escapeXml(line)}</text>`
+    )).join('')}
+
+  ${bodyLines.map((line, index) => (
+        `<text x="88" y="${bodyStartY + (index * 42)}" fill="#e2e8f0" font-size="32" font-family="Arial, Helvetica, sans-serif" font-weight="500">${escapeXml(line)}</text>`
+    )).join('')}
+
+  <rect x="88" y="1110" width="904" height="2" fill="rgba(255,255,255,0.16)"/>
+  <text x="88" y="1170" fill="#f8fafc" font-size="26" font-family="Arial, Helvetica, sans-serif" font-weight="700">Global macro, geopolitics, and strategic materials</text>
+  <text x="88" y="1210" fill="#cbd5e1" font-size="22" font-family="Arial, Helvetica, sans-serif">Editorial visual background with campaign copy composed on top</text>
+</svg>`.trim()
+
+    return downloadImageToUploads(
+        new Resvg(svg, {
+            fitTo: { mode: 'width', value: INFOGRAPHIC_WIDTH },
+        }).render().asPng(),
+    )
 }
 
 function normalizeSvgMarkup(svg: string): string {
@@ -506,9 +627,10 @@ async function generateInfographicWithOpenRouter(
 ): Promise<string> {
     const { Resvg } = await import('@resvg/resvg-js')
 
-    const preferredInfographicModels = OPENROUTER_INFOGRAPHIC_MODELS.includes(settings.imageModel)
-        ? [settings.imageModel]
-        : OPENROUTER_INFOGRAPHIC_MODELS
+    const preferredInfographicModels = [
+        settings.imageModel,
+        ...OPENROUTER_INFOGRAPHIC_MODELS,
+    ].filter((model, index, list) => Boolean(model) && list.indexOf(model) === index)
 
     const prompt = `You are an SVG Infographic Generator. Create a ${INFOGRAPHIC_WIDTH}x${INFOGRAPHIC_HEIGHT} vertical social media post.
 
@@ -521,13 +643,14 @@ Context: ${text.longText || topic}
 Visual direction: ${template.imageStyle || 'Professional editorial infographic with premium financial media styling.'}
 
 Layout requirements:
-- 1080x1350 canvas with a dark slate to indigo gradient background
-- One top headline card
-- Three stacked insight cards with short phrases, not long paragraphs
-- One footer bar with GeoMoney branding
-- Rounded rectangles, subtle grid/data accents, clean hierarchy
+- 1080x1350 canvas with a premium illustrative editorial background scene, not a blank chart board
+- One strong headline block over the image
+- Two to four short supporting text lines over a dark glass panel
+- One footer branding line with GeoMoney
+- Clean hierarchy, strong contrast, large readable type
 - White or near-white sans-serif text with strong contrast
 - Keep wording concise enough to fit without overflow
+- Avoid dense dashboards, tiny cards, or walls of text
 - No external images, no CSS, no JavaScript, no foreignObject
 `
 
@@ -536,6 +659,7 @@ Layout requirements:
         maxTokens: 2200,
         caller: 'social-post-infographic',
         preferredModels: preferredInfographicModels,
+        allowFallback: false,
     })
 
     const svg = normalizeSvgMarkup(getSvgMarkup(result.content))
@@ -564,6 +688,8 @@ async function generateTextForProvider(
         temperature: 0.7,
         maxTokens: 1500,
         caller: 'social-post-gen',
+        preferredModels: [settings.textModel],
+        allowFallback: false,
     })
     return result.content
 }
@@ -732,7 +858,8 @@ async function generateImage(
     }
 
     if (settings.imageProvider === 'huggingface') {
-        return generateImageWithHuggingFace(prompt, settings.imageModel)
+        const backgroundBytes = await generateImageWithHuggingFace(prompt, settings.imageModel)
+        return composeIllustrativeSocialCard(backgroundBytes, template, text)
     }
 
     // Use the n8n webhook for image generation.
@@ -759,8 +886,13 @@ async function generateImage(
     }
 
     const data = await res.json()
-    // Expect { imageUrl: "https://..." } or { url: "https://..." }
-    return data.imageUrl || data.url || null
+    const imageUrl = data.imageUrl || data.url || null
+    if (!imageUrl) {
+        return null
+    }
+
+    const backgroundBytes = await downloadRemoteImage(imageUrl)
+    return composeIllustrativeSocialCard(backgroundBytes, template, text)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

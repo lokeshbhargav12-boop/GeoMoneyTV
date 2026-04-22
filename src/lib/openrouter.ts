@@ -36,6 +36,8 @@ export interface OpenRouterOptions {
     caller?: string
     /** Optional preferred models tried before the admin/default model chain. */
     preferredModels?: string[]
+    /** When false, only try the explicitly selected/admin model and do not fall back. */
+    allowFallback?: boolean
 }
 
 /**
@@ -60,14 +62,19 @@ async function callOpenRouterWithTransform<R>(
         maxTokens = 1200,
         caller = 'openrouter',
         preferredModels = [],
+        allowFallback = true,
     } = options
 
     const adminModel = await getAiModel()
-    const models = [
-        ...preferredModels,
-        adminModel,
-        ...FALLBACK_MODELS,
-    ].filter((model, index, list) => Boolean(model) && list.indexOf(model) === index)
+    const models = (
+        allowFallback
+            ? [
+                ...preferredModels,
+                adminModel,
+                ...FALLBACK_MODELS,
+            ]
+            : (preferredModels.length ? preferredModels : [adminModel])
+    ).filter((model, index, list) => Boolean(model) && list.indexOf(model) === index)
 
     let lastError = 'No models available'
 
@@ -101,7 +108,7 @@ async function callOpenRouterWithTransform<R>(
                     )
                 }
                 lastError = `[${caller}] ${model}: HTTP ${res.status} — ${body.slice(0, 200)}`
-                console.warn(`callOpenRouter: model failed, trying next. ${lastError}`)
+                console.warn(`callOpenRouter: model failed${allowFallback ? ', trying next.' : '.'} ${lastError}`)
                 continue
             }
 
@@ -110,7 +117,7 @@ async function callOpenRouterWithTransform<R>(
 
             if (!content.trim()) {
                 lastError = `[${caller}] ${model}: empty response`
-                console.warn(`callOpenRouter: empty content, trying next. Model: ${model}`)
+                console.warn(`callOpenRouter: empty content${allowFallback ? ', trying next.' : '.'} Model: ${model}`)
                 continue
             }
 
@@ -122,7 +129,7 @@ async function callOpenRouterWithTransform<R>(
                 return result
             } catch (transformErr) {
                 lastError = `[${caller}] ${model}: transform failed — ${transformErr instanceof Error ? transformErr.message : String(transformErr)}`
-                console.warn(`callOpenRouter: bad output, trying next. ${lastError}`)
+                console.warn(`callOpenRouter: bad output${allowFallback ? ', trying next.' : '.'} ${lastError}`)
                 continue
             }
         } catch (err) {
@@ -134,7 +141,7 @@ async function callOpenRouterWithTransform<R>(
             }
 
             lastError = `[${caller}] ${model}: ${err instanceof Error ? err.message : String(err)}`
-            console.warn(`callOpenRouter: threw, trying next. ${lastError}`)
+            console.warn(`callOpenRouter: threw${allowFallback ? ', trying next.' : '.'} ${lastError}`)
         }
     }
 
