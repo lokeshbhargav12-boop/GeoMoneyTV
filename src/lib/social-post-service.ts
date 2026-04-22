@@ -487,6 +487,79 @@ function getSvgMarkup(content: string): string {
     return trimmed.slice(start, end + '</svg>'.length)
 }
 
+const SVG_SELF_CLOSING_TAGS = new Set([
+    'animate',
+    'animateMotion',
+    'animateTransform',
+    'circle',
+    'ellipse',
+    'feBlend',
+    'feColorMatrix',
+    'feComponentTransfer',
+    'feComposite',
+    'feFlood',
+    'feGaussianBlur',
+    'feImage',
+    'feMergeNode',
+    'feMorphology',
+    'feOffset',
+    'feTurbulence',
+    'image',
+    'line',
+    'mpath',
+    'path',
+    'polygon',
+    'polyline',
+    'rect',
+    'stop',
+    'use',
+])
+
+function rebalanceSvgMarkup(svg: string): string {
+    const stack: string[] = []
+    const tagPattern = /<\/?([a-zA-Z][\w:-]*)(?:\s[^<>]*?)?>/g
+
+    for (let match = tagPattern.exec(svg); match; match = tagPattern.exec(svg)) {
+        const fullTag = match[0]
+        const tagName = match[1].toLowerCase()
+
+        if (tagName === 'svg') {
+            continue
+        }
+
+        const isClosingTag = fullTag.startsWith('</')
+        const isSelfClosingTag = fullTag.endsWith('/>') || SVG_SELF_CLOSING_TAGS.has(tagName)
+
+        if (!isClosingTag && !isSelfClosingTag) {
+            stack.push(tagName)
+            continue
+        }
+
+        if (!isClosingTag) {
+            continue
+        }
+
+        const openTagIndex = stack.lastIndexOf(tagName)
+        if (openTagIndex === -1) {
+            continue
+        }
+
+        stack.length = openTagIndex
+    }
+
+    if (!stack.length) {
+        return svg
+    }
+
+    const closingTags = stack.slice().reverse().map((tagName) => `</${tagName}>`).join('')
+
+    if (/<\/svg>\s*$/i.test(svg)) {
+        return svg.replace(/<\/svg>\s*$/i, `${closingTags}</svg>`)
+    }
+
+    return `${svg}${closingTags}`
+}
+
 function escapeXml(text: string): string {
     return text
         .replace(/&/g, '&amp;')
@@ -609,7 +682,9 @@ function normalizeSvgMarkup(svg: string): string {
         .replace(/<script[\s\S]*?<\/script>/gi, '')
         .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
 
-    return sanitized.replace(/<svg\b([^>]*)>/i, (_match, attrs: string) => {
+    const rebalanced = rebalanceSvgMarkup(sanitized)
+
+    return rebalanced.replace(/<svg\b([^>]*)>/i, (_match, attrs: string) => {
         const hasXmlns = /\sxmlns=/.test(attrs)
         const hasWidth = /\swidth=/.test(attrs)
         const hasHeight = /\sheight=/.test(attrs)

@@ -142,6 +142,10 @@ export default function SocialPostsAdmin() {
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [viewerImage, setViewerImage] = useState<{
+    src: string;
+    alt: string;
+  } | null>(null);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -804,8 +808,31 @@ export default function SocialPostsAdmin() {
                           <img
                             src={post.imageUrl}
                             alt="Post image"
-                            className="w-full h-72 object-cover"
+                            className="w-full h-72 object-cover cursor-zoom-in"
+                            onClick={() =>
+                              setViewerImage({
+                                src: post.imageUrl!,
+                                alt: parsed.templateName || "Generated social post image",
+                              })
+                            }
                           />
+                          <div className="flex items-center justify-between border-t border-white/10 bg-black/40 px-3 py-2">
+                            <span className="text-xs text-gray-400">
+                              Generated image preview
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setViewerImage({
+                                  src: post.imageUrl!,
+                                  alt: parsed.templateName || "Generated social post image",
+                                })
+                              }
+                              className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-gray-200 transition-all hover:bg-white/10 hover:text-white"
+                            >
+                              Open viewer
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="rounded-lg border border-white/10 bg-white/5 h-72 flex items-center justify-center">
@@ -1036,6 +1063,50 @@ export default function SocialPostsAdmin() {
           >
             Next
           </button>
+        </div>
+      )}
+
+      {viewerImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          onClick={() => setViewerImage(null)}
+        >
+          <div
+            className="relative w-full max-w-6xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setViewerImage(null)}
+              className="absolute right-3 top-3 z-10 rounded-full border border-white/10 bg-black/70 p-2 text-gray-200 transition-all hover:bg-black hover:text-white"
+              aria-label="Close image viewer"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/80 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <div>
+                  <div className="text-sm font-medium text-white">Generated image viewer</div>
+                  <div className="text-xs text-gray-400">{viewerImage.alt}</div>
+                </div>
+                <a
+                  href={viewerImage.src}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-200 transition-all hover:bg-white/10 hover:text-white"
+                >
+                  Open original
+                </a>
+              </div>
+              <div className="max-h-[85vh] overflow-auto bg-black p-3">
+                <img
+                  src={viewerImage.src}
+                  alt={viewerImage.alt}
+                  className="mx-auto h-auto max-h-[calc(85vh-2rem)] w-auto max-w-full rounded-xl object-contain"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
