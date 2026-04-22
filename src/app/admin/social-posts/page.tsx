@@ -57,7 +57,7 @@ interface SocialPostTemplate {
 interface SocialPostGeneratorSettings {
   provider: "openrouter" | "huggingface";
   textModel: string;
-  imageProvider: "huggingface" | "webhook" | "none";
+  imageProvider: "openrouter-svg" | "huggingface" | "webhook" | "none";
   imageModel: string;
   activeTemplateId: string;
   templates: SocialPostTemplate[];
@@ -65,6 +65,7 @@ interface SocialPostGeneratorSettings {
 
 interface ModelOptions {
   openrouter: string[];
+  openrouterImage: string[];
   huggingfaceText: string[];
   huggingfaceImage: string[];
 }
@@ -360,7 +361,12 @@ export default function SocialPostsAdmin() {
     settings?.provider === "huggingface"
       ? modelOptions?.huggingfaceText || []
       : modelOptions?.openrouter || [];
-  const currentImageModels = modelOptions?.huggingfaceImage || [];
+  const currentImageModels =
+    settings?.imageProvider === "openrouter-svg"
+      ? modelOptions?.openrouterImage || []
+      : settings?.imageProvider === "huggingface"
+        ? modelOptions?.huggingfaceImage || []
+        : [];
 
   return (
     <div className="mx-auto max-w-7xl p-8 space-y-8">
@@ -371,7 +377,7 @@ export default function SocialPostsAdmin() {
             Social Media Generator
           </h1>
           <p className="mt-1 text-gray-400">
-            Build image-first social posts, switch free AI providers, edit
+            Build infographic-first social posts, switch free AI providers, edit
             templates, and regenerate until the admin approves.
           </p>
         </div>
@@ -401,7 +407,7 @@ export default function SocialPostsAdmin() {
             ) : (
               <Sparkles className="w-4 h-4" />
             )}
-            Generate Media Post
+            Generate Infographic Post
           </button>
         </div>
       </div>
@@ -414,8 +420,8 @@ export default function SocialPostsAdmin() {
                 Generator Controls
               </h2>
               <p className="text-sm text-gray-400">
-                Pick a free text model, a free image path, and the template this
-                admin panel should use.
+                Pick a free text model, choose the infographic render path, and
+                set the template this admin panel should use.
               </p>
             </div>
             <button
@@ -461,34 +467,62 @@ export default function SocialPostsAdmin() {
 
                 <label className="space-y-2 text-sm">
                   <span className="text-gray-400">Text Model</span>
-                  <select
+                  <input
+                    list="social-text-models"
                     value={settings.textModel}
                     onChange={(e) =>
                       updateSettings("textModel", e.target.value)
                     }
+                    placeholder={
+                      settings.provider === "huggingface"
+                        ? "Paste a Hugging Face model ID"
+                        : "Choose or paste a model ID"
+                    }
                     className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
-                  >
+                  />
+                  <datalist id="social-text-models">
                     {currentTextModels.map((model) => (
-                      <option key={model} value={model}>
-                        {model}
-                      </option>
+                      <option key={model} value={model} />
                     ))}
-                  </select>
+                  </datalist>
+                  <p className="text-xs text-gray-500">
+                    {settings.provider === "huggingface"
+                      ? "Paste any Hugging Face text model ID directly from hf.co/models, or pick one of the suggested defaults."
+                      : "Pick a suggested model or paste a custom provider model ID."}
+                  </p>
                 </label>
 
                 <label className="space-y-2 text-sm">
                   <span className="text-gray-400">Image Provider</span>
                   <select
                     value={settings.imageProvider}
-                    onChange={(e) =>
-                      updateSettings(
-                        "imageProvider",
-                        e.target
-                          .value as SocialPostGeneratorSettings["imageProvider"],
-                      )
-                    }
+                    onChange={(e) => {
+                      const nextProvider = e.target
+                        .value as SocialPostGeneratorSettings["imageProvider"];
+                      const nextImageModel =
+                        nextProvider === "openrouter-svg"
+                          ? modelOptions?.openrouterImage?.[0] ||
+                            settings.imageModel
+                          : nextProvider === "huggingface"
+                            ? modelOptions?.huggingfaceImage?.[0] ||
+                              settings.imageModel
+                            : settings.imageModel;
+
+                      setSettings((current) =>
+                        current
+                          ? {
+                              ...current,
+                              imageProvider: nextProvider,
+                              imageModel: nextImageModel,
+                            }
+                          : current,
+                      );
+                    }}
                     className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
                   >
+                    <option value="openrouter-svg">
+                      OpenRouter SVG infographic renderer
+                    </option>
                     <option value="huggingface">
                       Hugging Face image generation
                     </option>
@@ -501,20 +535,37 @@ export default function SocialPostsAdmin() {
 
                 <label className="space-y-2 text-sm">
                   <span className="text-gray-400">Image Model</span>
-                  <select
+                  <input
+                    list="social-image-models"
                     value={settings.imageModel}
                     onChange={(e) =>
                       updateSettings("imageModel", e.target.value)
                     }
-                    disabled={settings.imageProvider !== "huggingface"}
+                    placeholder={
+                      settings.imageProvider === "huggingface"
+                        ? "Paste a Hugging Face image model ID"
+                        : settings.imageProvider === "openrouter-svg"
+                          ? "Choose or paste an OpenRouter model ID"
+                          : "Image model"
+                    }
+                    disabled={
+                      settings.imageProvider !== "huggingface" &&
+                      settings.imageProvider !== "openrouter-svg"
+                    }
                     className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none disabled:opacity-50"
-                  >
+                  />
+                  <datalist id="social-image-models">
                     {currentImageModels.map((model) => (
-                      <option key={model} value={model}>
-                        {model}
-                      </option>
+                      <option key={model} value={model} />
                     ))}
-                  </select>
+                  </datalist>
+                  <p className="text-xs text-gray-500">
+                    {settings.imageProvider === "huggingface"
+                      ? "Paste a Hugging Face image model ID, a full hf.co model URL, or provider:model. Example: hf-inference:black-forest-labs/FLUX.1-schnell. The model still needs an active inference provider."
+                      : settings.imageProvider === "openrouter-svg"
+                        ? "Paste an OpenRouter model ID or use one of the recommended infographic models."
+                        : "Image model selection is only used for Hugging Face and OpenRouter SVG rendering."}
+                  </p>
                 </label>
               </div>
 
@@ -523,7 +574,7 @@ export default function SocialPostsAdmin() {
                   <div>
                     <h3 className="font-medium text-white">Template Library</h3>
                     <p className="text-sm text-gray-400">
-                      Each template changes both the text angle and the media
+                      Each template changes both the text angle and the visual
                       direction.
                     </p>
                   </div>
@@ -577,7 +628,9 @@ export default function SocialPostsAdmin() {
                         />
                       </label>
                       <label className="block space-y-2 text-sm">
-                        <span className="text-gray-400">Media Image Style</span>
+                        <span className="text-gray-400">
+                          Infographic Visual Direction
+                        </span>
                         <textarea
                           value={selectedTemplate.imageStyle}
                           onChange={(e) =>
@@ -619,10 +672,10 @@ export default function SocialPostsAdmin() {
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-100">
                 <div className="font-medium">Free setup notes</div>
                 <div className="mt-2 text-emerald-200/90">
-                  OpenRouter free models need an OpenRouter API key. Hugging
-                  Face free models need a Hugging Face token. Both stay on the
-                  free tier if your usage is modest. Hugging Face image
-                  generation removes the need for a paid image service.
+                  OpenRouter free models can now render SVG infographics
+                  directly into PNG files with an OpenRouter API key. Hugging
+                  Face remains available if you want more illustrative image
+                  output instead of structured infographics.
                 </div>
               </div>
             </>
@@ -635,19 +688,20 @@ export default function SocialPostsAdmin() {
               What the generator builds
             </h2>
             <p className="text-sm text-gray-400">
-              Each run produces a media image prompt first, then the short and
-              long text variants for review.
+              Each run produces a reviewable text package plus either an SVG
+              infographic rendered to PNG or an alternate image output.
             </p>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-2 text-sm text-gray-300">
               <ImageIcon className="w-4 h-4 text-geo-gold" />
-              Media image
+              Infographic image
             </div>
             <p className="mt-2 text-sm text-gray-400">
-              The selected template’s image style is combined with the day’s
-              data to generate a realistic editorial visual.
+              The selected template’s visual direction is combined with the
+              day’s data to generate a dark-themed SVG infographic rendered as a
+              PNG.
             </p>
           </div>
 
@@ -666,8 +720,8 @@ export default function SocialPostsAdmin() {
           <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300 space-y-2">
             <div className="font-medium text-white">Recommended first test</div>
             <div>1. Save your provider, model, and template.</div>
-            <div>2. Click Generate Media Post.</div>
-            <div>3. Review the image and text below.</div>
+            <div>2. Click Generate Infographic Post.</div>
+            <div>3. Review the infographic and text below.</div>
             <div>4. Click Regenerate until the admin likes it.</div>
             <div>5. Approve and publish.</div>
           </div>
@@ -699,8 +753,8 @@ export default function SocialPostsAdmin() {
           <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p className="text-lg">No social posts yet</p>
           <p className="text-sm mt-1">
-            Generate a media post from the studio above to create your first
-            image-plus-text campaign.
+            Generate an infographic post from the studio above to create your
+            first image-plus-text campaign.
           </p>
         </div>
       ) : (

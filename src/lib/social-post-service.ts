@@ -5,7 +5,7 @@ import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 
 export type SocialTextProvider = 'openrouter' | 'huggingface'
-export type SocialImageProvider = 'huggingface' | 'webhook' | 'none'
+export type SocialImageProvider = 'openrouter-svg' | 'huggingface' | 'webhook' | 'none'
 
 export interface SocialPostTemplate {
     id: string
@@ -46,8 +46,193 @@ export const HUGGINGFACE_FREE_TEXT_MODELS = [
 
 export const HUGGINGFACE_FREE_IMAGE_MODELS = [
     'black-forest-labs/FLUX.1-schnell',
-    'stabilityai/stable-diffusion-xl-base-1.0',
 ]
+
+interface HuggingFaceModelSelection {
+    modelId: string
+    provider?: string
+}
+
+interface HuggingFaceProviderMapping {
+    status: string
+    providerId: string
+    task: string
+}
+
+const SUPPORTED_HF_IMAGE_PROVIDERS = [
+    'hf-inference',
+    'fal-ai',
+    'black-forest-labs',
+] as const
+
+const HF_IMAGE_PROVIDER_PREFERENCE = [
+    'hf-inference',
+    'fal-ai',
+    'black-forest-labs',
+]
+
+const hfProviderMappingCache = new Map<string, Promise<Record<string, HuggingFaceProviderMapping>>>()
+
+function parseHuggingFaceModelSelection(input: string): HuggingFaceModelSelection {
+    const raw = input.trim()
+    if (!raw) {
+        throw new Error('Hugging Face model ID is required')
+    }
+
+    const providerPrefixed = raw.match(/^([a-z0-9-]+):(\S.+)$/i)
+    if (providerPrefixed) {
+        return {
+            provider: providerPrefixed[1],
+            modelId: providerPrefixed[2].trim(),
+        }
+    }
+
+    if (/^https?:\/\//i.test(raw)) {
+        try {
+            const url = new URL(raw)
+            const segments = url.pathname.split('/').filter(Boolean)
+            if (url.hostname.includes('huggingface.co') && segments.length >= 2) {
+                const owner = segments[0]
+                const model = segments[1]
+                return {
+                    provider: url.searchParams.get('inference_provider')?.trim() || 'hf-inference',
+                    modelId: `${owner}/${model}`,
+                }
+            }
+        } catch {
+            // Fall through to raw model handling.
+        }
+    }
+
+    return {
+        modelId: raw,
+    }
+}
+
+async function fetchHuggingFaceProviderMappings(modelId: string): Promise<Record<string, HuggingFaceProviderMapping>> {
+    const cached = hfProviderMappingCache.get(modelId)
+    if (cached) {
+        return cached
+    }
+
+    const request = (async () => {
+        const [owner, ...rest] = modelId.split('/')
+        const modelPath = [owner, ...rest].map((segment) => encodeURIComponent(segment)).join('/')
+        const res = await fetch(`https://huggingface.co/api/models/${modelPath}?expand=inferenceProviderMapping`)
+        if (!res.ok) {
+            const body = await res.text()
+            throw new Error(`Failed to load Hugging Face provider mapping for ${modelId} (${res.status}): ${body.slice(0, 200)}`)
+        }
+
+        const data = await res.json()
+        return (data.inferenceProviderMapping || {}) as Record<string, HuggingFaceProviderMapping>
+    })()
+
+    hfProviderMappingCache.set(modelId, request)
+    return request
+}
+
+async function resolveHuggingFaceImageSelection(selection: HuggingFaceModelSelection): Promise<Required<HuggingFaceModelSelection> & { providerId: string }> {
+    const mappings = await fetchHuggingFaceProviderMappings(selection.modelId)
+    const imageMappings = Object.entries(mappings).filter(([, mapping]) => mapping?.task === 'text-to-image')
+
+    if (!imageMappings.length) {
+        throw new Error(`Model ${selection.modelId} does not expose any Hugging Face text-to-image inference providers.`)
+    }
+
+    const requestedProvider = selection.provider?.trim()
+    if (requestedProvider) {
+        const requestedMapping = mappings[requestedProvider]
+
+        if (!requestedMapping) {
+            throw new Error(
+                `Model ${selection.modelId} is not available on Hugging Face provider ${requestedProvider}. `
+                + `Available image providers: ${imageMappings.map(([provider]) => provider).join(', ')}`,
+            )
+        }
+
+        if (requestedMapping.task !== 'text-to-image') {
+            throw new Error(`Model ${selection.modelId} is not mapped for text-to-image on provider ${requestedProvider}.`)
+        }
+
+        if (!SUPPORTED_HF_IMAGE_PROVIDERS.includes(requestedProvider as typeof SUPPORTED_HF_IMAGE_PROVIDERS[number])) {
+            throw new Error(
+                `Provider ${requestedProvider} is not wired in this app yet for image generation. `
+                + `Supported routed providers: ${SUPPORTED_HF_IMAGE_PROVIDERS.join(', ')}.`,
+            )
+        }
+
+        return {
+            modelId: selection.modelId,
+            provider: requestedProvider,
+            providerId: requestedMapping.providerId,
+        }
+    }
+
+    for (const provider of HF_IMAGE_PROVIDER_PREFERENCE) {
+        const mapping = mappings[provider]
+        if (mapping?.task === 'text-to-image') {
+            return {
+                modelId: selection.modelId,
+                provider,
+                providerId: mapping.providerId,
+            }
+        }
+    }
+
+    throw new Error(
+        `Model ${selection.modelId} is available on Hugging Face, but only through providers this app does not support yet. `
+        + `Available image providers: ${imageMappings.map(([provider]) => provider).join(', ')}.`,
+    )
+}
+
+async function downloadImageToUploads(bytes: Buffer): Promise<string> {
+    const outputDir = path.join(process.cwd(), 'public', 'uploads', 'social-posts')
+    await mkdir(outputDir, { recursive: true })
+
+    const filename = `social-post-${Date.now()}.png`
+    await writeFile(path.join(outputDir, filename), bytes)
+
+    return `/uploads/social-posts/${filename}`
+}
+
+async function downloadRemoteImage(url: string): Promise<Buffer> {
+    const res = await fetch(url)
+    if (!res.ok) {
+        throw new Error(`Failed to download generated image (${res.status}) from ${url}`)
+    }
+
+    return Buffer.from(await res.arrayBuffer())
+}
+
+async function pollBlackForestLabsImage(pollingUrl: string): Promise<Buffer> {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+
+        const pollRes = await fetch(pollingUrl, {
+            headers: { 'Content-Type': 'application/json' },
+        })
+        if (!pollRes.ok) {
+            const body = await pollRes.text()
+            throw new Error(`Black Forest Labs polling failed (${pollRes.status}): ${body.slice(0, 200)}`)
+        }
+
+        const pollData = await pollRes.json()
+        if (pollData.status === 'Ready' && pollData.result?.sample) {
+            return downloadRemoteImage(pollData.result.sample)
+        }
+    }
+
+    throw new Error('Black Forest Labs image generation timed out before a sample image was ready.')
+}
+
+export const OPENROUTER_INFOGRAPHIC_MODELS = [
+    'meta-llama/llama-3.3-70b-instruct:free',
+    ...OPENROUTER_FREE_MODELS.filter((model) => model !== 'meta-llama/llama-3.3-70b-instruct:free'),
+]
+
+const INFOGRAPHIC_WIDTH = 1080
+const INFOGRAPHIC_HEIGHT = 1350
 
 const DEFAULT_TEMPLATES: SocialPostTemplate[] = [
     {
@@ -73,8 +258,8 @@ const DEFAULT_TEMPLATES: SocialPostTemplate[] = [
 const DEFAULT_GENERATOR_SETTINGS: SocialPostGeneratorSettings = {
     provider: 'openrouter',
     textModel: OPENROUTER_FREE_MODELS[0],
-    imageProvider: 'huggingface',
-    imageModel: HUGGINGFACE_FREE_IMAGE_MODELS[0],
+    imageProvider: 'openrouter-svg',
+    imageModel: OPENROUTER_INFOGRAPHIC_MODELS[0],
     activeTemplateId: DEFAULT_TEMPLATES[0].id,
     templates: DEFAULT_TEMPLATES,
 }
@@ -101,7 +286,10 @@ function mergeGeneratorSettings(
         provider: raw?.provider === 'huggingface' ? 'huggingface' : 'openrouter',
         textModel: raw?.textModel?.trim() || DEFAULT_GENERATOR_SETTINGS.textModel,
         imageProvider:
-            raw?.imageProvider === 'webhook' || raw?.imageProvider === 'none' || raw?.imageProvider === 'huggingface'
+            raw?.imageProvider === 'openrouter-svg'
+                || raw?.imageProvider === 'webhook'
+                || raw?.imageProvider === 'none'
+                || raw?.imageProvider === 'huggingface'
                 ? raw.imageProvider
                 : DEFAULT_GENERATOR_SETTINGS.imageProvider,
         imageModel: raw?.imageModel?.trim() || DEFAULT_GENERATOR_SETTINGS.imageModel,
@@ -183,32 +371,183 @@ async function generateImageWithHuggingFace(prompt: string, model: string): Prom
         throw new Error('HUGGINGFACE_API_KEY or HF_TOKEN is not configured')
     }
 
-    const res = await fetch(`https://router.huggingface.co/hf-inference/models/${model}`, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            inputs: prompt,
-            parameters: {
-                guidance_scale: 4,
-                num_inference_steps: 4,
-            },
-        }),
-    })
+    const parsedSelection = parseHuggingFaceModelSelection(model)
+    const selection = await resolveHuggingFaceImageSelection(parsedSelection)
 
-    if (!res.ok) {
-        const body = await res.text()
-        throw new Error(`Hugging Face image failed (${res.status}): ${body.slice(0, 200)}`)
+    if (selection.provider === 'hf-inference') {
+        const res = await fetch(`https://router.huggingface.co/hf-inference/models/${encodeURIComponent(selection.modelId)}`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                inputs: prompt,
+                parameters: {
+                    guidance_scale: 4,
+                    num_inference_steps: 4,
+                },
+            }),
+        })
+
+        if (!res.ok) {
+            const body = await res.text()
+            throw new Error(
+                `Hugging Face image failed (${res.status}) for ${selection.provider}:${selection.modelId}. `
+                + `The model may be unsupported by that inference provider, gated, or deprecated. ${body.slice(0, 220)}`,
+            )
+        }
+
+        return downloadImageToUploads(Buffer.from(await res.arrayBuffer()))
     }
 
-    const bytes = Buffer.from(await res.arrayBuffer())
+    if (selection.provider === 'fal-ai') {
+        const res = await fetch(`https://router.huggingface.co/fal-ai/${selection.providerId}`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                prompt,
+                image_size: {
+                    width: INFOGRAPHIC_WIDTH,
+                    height: INFOGRAPHIC_HEIGHT,
+                },
+                guidance_scale: 4,
+                num_inference_steps: 4,
+            }),
+        })
+
+        if (!res.ok) {
+            const body = await res.text()
+            throw new Error(
+                `Hugging Face image failed (${res.status}) for ${selection.provider}:${selection.modelId}. `
+                + `The mapped provider route ${selection.providerId} rejected the request. ${body.slice(0, 220)}`,
+            )
+        }
+
+        const data = await res.json()
+        const imageUrl = data.images?.[0]?.url
+        if (!imageUrl) {
+            throw new Error(`fal-ai did not return an image URL for ${selection.modelId}.`)
+        }
+
+        return downloadImageToUploads(await downloadRemoteImage(imageUrl))
+    }
+
+    if (selection.provider === 'black-forest-labs') {
+        const res = await fetch(`https://router.huggingface.co/black-forest-labs/v1/${selection.providerId}`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                prompt,
+                width: INFOGRAPHIC_WIDTH,
+                height: INFOGRAPHIC_HEIGHT,
+                steps: 4,
+                guidance: 4,
+            }),
+        })
+
+        if (!res.ok) {
+            const body = await res.text()
+            throw new Error(
+                `Hugging Face image failed (${res.status}) for ${selection.provider}:${selection.modelId}. `
+                + `The mapped provider route ${selection.providerId} rejected the request. ${body.slice(0, 220)}`,
+            )
+        }
+
+        const data = await res.json()
+        if (!data.polling_url) {
+            throw new Error(`Black Forest Labs did not return a polling URL for ${selection.modelId}.`)
+        }
+
+        return downloadImageToUploads(await pollBlackForestLabsImage(data.polling_url))
+    }
+
+    throw new Error(`Hugging Face image provider ${selection.provider} is not supported by this app yet.`)
+}
+
+function getSvgMarkup(content: string): string {
+    const trimmed = content.trim().replace(/^```svg\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '')
+    const start = trimmed.indexOf('<svg')
+    const end = trimmed.lastIndexOf('</svg>')
+
+    if (start === -1 || end === -1 || end <= start) {
+        throw new Error(`OpenRouter did not return valid SVG markup. Preview: ${trimmed.slice(0, 200)}`)
+    }
+
+    return trimmed.slice(start, end + '</svg>'.length)
+}
+
+function normalizeSvgMarkup(svg: string): string {
+    const sanitized = svg
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
+
+    return sanitized.replace(/<svg\b([^>]*)>/i, (_match, attrs: string) => {
+        const hasXmlns = /\sxmlns=/.test(attrs)
+        const hasWidth = /\swidth=/.test(attrs)
+        const hasHeight = /\sheight=/.test(attrs)
+        const hasViewBox = /\sviewBox=/.test(attrs)
+
+        return `<svg${attrs}${hasXmlns ? '' : ' xmlns="http://www.w3.org/2000/svg"'}${hasWidth ? '' : ` width="${INFOGRAPHIC_WIDTH}"`}${hasHeight ? '' : ` height="${INFOGRAPHIC_HEIGHT}"`}${hasViewBox ? '' : ` viewBox="0 0 ${INFOGRAPHIC_WIDTH} ${INFOGRAPHIC_HEIGHT}"`}>`
+    })
+}
+
+async function generateInfographicWithOpenRouter(
+    topic: string,
+    template: SocialPostTemplate,
+    settings: SocialPostGeneratorSettings,
+    text: { shortText: string; longText: string },
+): Promise<string> {
+    const { Resvg } = await import('@resvg/resvg-js')
+
+    const preferredInfographicModels = OPENROUTER_INFOGRAPHIC_MODELS.includes(settings.imageModel)
+        ? [settings.imageModel]
+        : OPENROUTER_INFOGRAPHIC_MODELS
+
+    const prompt = `You are an SVG Infographic Generator. Create a ${INFOGRAPHIC_WIDTH}x${INFOGRAPHIC_HEIGHT} vertical social media post.
+
+Use a modern, dark-themed aesthetic with Tailwind-like colors (Slate, Indigo). Ensure all visible copy is rendered with <text> tags. Output ONLY the raw <svg>...</svg> code.
+
+Brand: GeoMoney
+Topic: ${topic}
+Headline: ${text.shortText || 'GeoMoney market intelligence update'}
+Context: ${text.longText || topic}
+Visual direction: ${template.imageStyle || 'Professional editorial infographic with premium financial media styling.'}
+
+Layout requirements:
+- 1080x1350 canvas with a dark slate to indigo gradient background
+- One top headline card
+- Three stacked insight cards with short phrases, not long paragraphs
+- One footer bar with GeoMoney branding
+- Rounded rectangles, subtle grid/data accents, clean hierarchy
+- White or near-white sans-serif text with strong contrast
+- Keep wording concise enough to fit without overflow
+- No external images, no CSS, no JavaScript, no foreignObject
+`
+
+    const result = await callOpenRouter(prompt, {
+        temperature: 0.4,
+        maxTokens: 2200,
+        caller: 'social-post-infographic',
+        preferredModels: preferredInfographicModels,
+    })
+
+    const svg = normalizeSvgMarkup(getSvgMarkup(result.content))
+    const pngBuffer = new Resvg(svg, {
+        fitTo: { mode: 'width', value: INFOGRAPHIC_WIDTH },
+    }).render().asPng()
+
     const outputDir = path.join(process.cwd(), 'public', 'uploads', 'social-posts')
     await mkdir(outputDir, { recursive: true })
 
     const filename = `social-post-${Date.now()}.png`
-    await writeFile(path.join(outputDir, filename), bytes)
+    await writeFile(path.join(outputDir, filename), pngBuffer)
 
     return `/uploads/social-posts/${filename}`
 }
@@ -343,6 +682,11 @@ Respond ONLY with valid JSON (no markdown fences):
         imageUrl = await generateImage(
             parsed.imagePrompt || 'Geopolitical finance illustration',
             settings,
+            template,
+            {
+                shortText: parsed.shortText || '',
+                longText: parsed.longText || '',
+            },
         )
     } catch (err) {
         console.warn('Image generation failed:', err instanceof Error ? err.message : String(err))
@@ -376,9 +720,15 @@ Respond ONLY with valid JSON (no markdown fences):
 async function generateImage(
     prompt: string,
     settings: SocialPostGeneratorSettings,
+    template: SocialPostTemplate,
+    text: { shortText: string; longText: string },
 ): Promise<string | null> {
     if (settings.imageProvider === 'none') {
         return null
+    }
+
+    if (settings.imageProvider === 'openrouter-svg') {
+        return generateInfographicWithOpenRouter(prompt, template, settings, text)
     }
 
     if (settings.imageProvider === 'huggingface') {

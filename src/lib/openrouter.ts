@@ -1,7 +1,8 @@
 import { getAiModel } from './get-ai-model'
 
-const OPENROUTER_API_KEY =
-    process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY
+function getOpenRouterApiKey(): string | undefined {
+    return process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY
+}
 
 /**
  * Models tried in sequence when the primary model fails.
@@ -33,6 +34,8 @@ export interface OpenRouterOptions {
     maxTokens?: number
     /** Caller label used in warn/error logs */
     caller?: string
+    /** Optional preferred models tried before the admin/default model chain. */
+    preferredModels?: string[]
 }
 
 /**
@@ -46,14 +49,25 @@ async function callOpenRouterWithTransform<R>(
     transform: (content: string, model: string) => R,
     options: OpenRouterOptions = {},
 ): Promise<R> {
-    if (!OPENROUTER_API_KEY) {
-        throw new Error('OPENROUTER_API_KEY is not configured')
+    const openRouterApiKey = getOpenRouterApiKey()
+
+    if (!openRouterApiKey) {
+        throw new Error('OPENROUTER_API_KEY is not configured. If you just edited .env or .env.local, restart the Next.js dev server.')
     }
 
-    const { temperature = 0.3, maxTokens = 1200, caller = 'openrouter' } = options
+    const {
+        temperature = 0.3,
+        maxTokens = 1200,
+        caller = 'openrouter',
+        preferredModels = [],
+    } = options
 
     const adminModel = await getAiModel()
-    const models = [adminModel, ...FALLBACK_MODELS.filter((m) => m !== adminModel)]
+    const models = [
+        ...preferredModels,
+        adminModel,
+        ...FALLBACK_MODELS,
+    ].filter((model, index, list) => Boolean(model) && list.indexOf(model) === index)
 
     let lastError = 'No models available'
 
@@ -66,7 +80,7 @@ async function callOpenRouterWithTransform<R>(
                 method: 'POST',
                 signal: controller.signal,
                 headers: {
-                    Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+                    Authorization: `Bearer ${openRouterApiKey}`,
                     'Content-Type': 'application/json',
                     'HTTP-Referer': 'https://geomoney.tv',
                     'X-Title': 'GeoMoney Intelligence',
@@ -81,6 +95,11 @@ async function callOpenRouterWithTransform<R>(
 
             if (!res.ok) {
                 const body = await res.text()
+                if (res.status === 401 || res.status === 403) {
+                    throw new Error(
+                        'OpenRouter authentication failed. Check OPENROUTER_API_KEY and restart the Next.js dev server if you changed .env or .env.local.',
+                    )
+                }
                 lastError = `[${caller}] ${model}: HTTP ${res.status} — ${body.slice(0, 200)}`
                 console.warn(`callOpenRouter: model failed, trying next. ${lastError}`)
                 continue
@@ -107,6 +126,13 @@ async function callOpenRouterWithTransform<R>(
                 continue
             }
         } catch (err) {
+            if (
+                err instanceof Error &&
+                err.message.startsWith('OpenRouter authentication failed')
+            ) {
+                throw err
+            }
+
             lastError = `[${caller}] ${model}: ${err instanceof Error ? err.message : String(err)}`
             console.warn(`callOpenRouter: threw, trying next. ${lastError}`)
         }

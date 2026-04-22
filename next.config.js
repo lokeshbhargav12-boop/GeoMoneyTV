@@ -3,6 +3,10 @@ const nextConfig = {
   // Ensure assets are properly referenced
   assetPrefix: process.env.ASSET_PREFIX || "",
 
+  experimental: {
+    serverComponentsExternalPackages: ["@resvg/resvg-js"],
+  },
+
   // Generate source maps in production for debugging
   productionBrowserSourceMaps: false,
 
