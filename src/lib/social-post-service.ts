@@ -606,6 +606,41 @@ function wrapText(text: string, maxCharsPerLine: number, maxLines: number): stri
     return lines.length ? lines : ['GeoMoney market intelligence update']
 }
 
+function sanitizeGraphicText(text: string, maxChars: number): string {
+    return text
+        .replace(/https?:\/\/\S+/gi, ' ')
+        .replace(/#[\w-]+/g, ' ')
+        .replace(/[•▪◦●]/g, ' ')
+        .replace(/[^\x20-\x7E]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, maxChars)
+        .trim()
+}
+
+function buildGraphicCopy(
+    topic: string,
+    template: SocialPostTemplate,
+    text: { shortText: string; longText: string },
+): { headline: string; support: string } {
+    const headline = sanitizeGraphicText(
+        text.shortText || topic || template.name || 'GeoMoney market intelligence update',
+        140,
+    ) || 'GeoMoney market intelligence update'
+
+    const contextSource = sanitizeGraphicText(text.longText || topic || headline, 320)
+    const supportSentences = contextSource
+        .split(/[.!?]+\s*/)
+        .map((sentence) => sentence.trim())
+        .filter((sentence) => sentence && sentence.toLowerCase() !== headline.toLowerCase())
+        .slice(0, 2)
+
+    return {
+        headline,
+        support: supportSentences.join(' | ') || sanitizeGraphicText(template.name, 80) || 'Global macro and strategic materials update',
+    }
+}
+
 function detectImageMime(bytes: Buffer): string {
     if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
         return 'image/png'
@@ -630,44 +665,92 @@ async function composeIllustrativeSocialCard(
     const { Resvg } = await import('@resvg/resvg-js')
     const mimeType = detectImageMime(backgroundBytes)
     const dataUri = `data:${mimeType};base64,${backgroundBytes.toString('base64')}`
-    const headlineLines = wrapText(text.shortText || 'GeoMoney market intelligence update', 28, 3)
-    const bodyLines = wrapText(text.longText || text.shortText || template.name, 42, 5)
-    const headlineStartY = 250
-    const bodyStartY = headlineStartY + (headlineLines.length * 78) + 85
+    const graphicCopy = buildGraphicCopy(template.name, template, text)
+    const headlineLines = wrapText(graphicCopy.headline, 23, 4)
+    const bodyLines = wrapText(graphicCopy.support, 44, 2)
+    const headlineStartY = 220
+    const bodyStartY = headlineStartY + (headlineLines.length * 72) + 42
 
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" viewBox="0 0 ${INFOGRAPHIC_WIDTH} ${INFOGRAPHIC_HEIGHT}">
   <defs>
-    <linearGradient id="panelGradient" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(15,23,42,0.16)"/>
-      <stop offset="100%" stop-color="rgba(2,6,23,0.88)"/>
+        <linearGradient id="scrimGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(5,10,20,0.08)"/>
+            <stop offset="55%" stop-color="rgba(7,12,24,0.34)"/>
+            <stop offset="100%" stop-color="rgba(4,8,18,0.88)"/>
     </linearGradient>
-    <linearGradient id="scrimGradient" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(2,6,23,0.10)"/>
-      <stop offset="55%" stop-color="rgba(2,6,23,0.28)"/>
-      <stop offset="100%" stop-color="rgba(2,6,23,0.82)"/>
+        <linearGradient id="headlinePanel" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="rgba(15,23,42,0.82)"/>
+            <stop offset="100%" stop-color="rgba(15,23,42,0.52)"/>
     </linearGradient>
+        <linearGradient id="chartPanel" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="rgba(8,15,28,0.92)"/>
+            <stop offset="100%" stop-color="rgba(15,23,42,0.72)"/>
+        </linearGradient>
+        <linearGradient id="accentLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(245,158,11,0.0)"/>
+            <stop offset="20%" stop-color="rgba(245,158,11,0.55)"/>
+            <stop offset="80%" stop-color="rgba(245,158,11,0.18)"/>
+            <stop offset="100%" stop-color="rgba(245,158,11,0.0)"/>
+        </linearGradient>
+        <radialGradient id="glowAccent" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="rgba(245,158,11,0.25)"/>
+            <stop offset="100%" stop-color="rgba(245,158,11,0)"/>
+        </radialGradient>
   </defs>
 
+    <!-- 1. Background image -->
   <image href="${dataUri}" x="0" y="0" width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" preserveAspectRatio="xMidYMid slice"/>
   <rect x="0" y="0" width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" fill="url(#scrimGradient)"/>
-  <rect x="64" y="72" width="220" height="44" rx="22" fill="rgba(15,23,42,0.72)" stroke="rgba(245,158,11,0.35)"/>
-  <text x="96" y="101" fill="#f8fafc" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="700">GEOMONEY</text>
 
-  <rect x="56" y="156" width="968" height="1030" rx="40" fill="url(#panelGradient)" stroke="rgba(255,255,255,0.12)"/>
-  <text x="88" y="205" fill="#f59e0b" font-size="22" font-family="Arial, Helvetica, sans-serif" font-weight="700">${escapeXml(template.name.toUpperCase())}</text>
+    <!-- 2. Visual overlays -->
+    <g opacity="0.95">
+        <rect x="56" y="64" width="968" height="1222" rx="38" fill="none" stroke="rgba(255,255,255,0.08)"/>
+        <rect x="72" y="82" width="520" height="28" rx="14" fill="rgba(15,23,42,0.74)"/>
+        <circle cx="868" cy="314" r="170" fill="url(#glowAccent)"/>
+        <path d="M710 274 C 796 202, 892 188, 982 232" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="3"/>
+        <path d="M690 338 C 786 272, 900 260, 1000 310" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="2"/>
+        <path d="M640 860 L 1006 860" stroke="url(#accentLine)" stroke-width="2"/>
+        <path d="M640 890 L 972 890" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+        <path d="M640 920 L 946 920" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <rect x="758" y="190" width="194" height="194" rx="26" fill="rgba(15,23,42,0.32)" stroke="rgba(255,255,255,0.08)"/>
+        <rect x="784" y="216" width="142" height="142" rx="20" fill="rgba(15,23,42,0.52)" stroke="rgba(255,255,255,0.12)"/>
+        <circle cx="854" cy="286" r="34" fill="rgba(245,158,11,0.95)"/>
+        <path d="M838 286 L 854 270 L 878 294" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+    </g>
+
+    <!-- 3. Charts -->
+    <g transform="translate(72 942)">
+        <rect x="0" y="0" width="936" height="230" rx="26" fill="url(#chartPanel)" stroke="rgba(255,255,255,0.10)"/>
+        <text x="32" y="42" fill="#f59e0b" font-size="20" font-family="Arial, Helvetica, sans-serif" font-weight="700">Market signal</text>
+        <text x="32" y="74" fill="#cbd5e1" font-size="18" font-family="Arial, Helvetica, sans-serif">Layered data overlay for strategic materials and macro risk</text>
+        <path d="M36 172 C 120 138, 196 154, 270 116 S 430 130, 504 102 S 676 126, 758 84 S 854 88, 900 58" fill="none" stroke="#f59e0b" stroke-width="6" stroke-linecap="round"/>
+        <path d="M36 186 L 900 186" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+        <rect x="36" y="118" width="22" height="54" rx="11" fill="rgba(255,255,255,0.12)"/>
+        <rect x="74" y="98" width="22" height="74" rx="11" fill="rgba(255,255,255,0.12)"/>
+        <rect x="112" y="132" width="22" height="40" rx="11" fill="rgba(255,255,255,0.12)"/>
+        <circle cx="270" cy="116" r="7" fill="#f59e0b"/>
+        <circle cx="504" cy="102" r="7" fill="#f59e0b"/>
+        <circle cx="758" cy="84" r="7" fill="#f59e0b"/>
+        <rect x="690" y="26" width="214" height="50" rx="18" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.08)"/>
+        <text x="716" y="58" fill="#f8fafc" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="700">GeoMoney intelligence layer</text>
+    </g>
+
+    <!-- 4. Text -->
+    <rect x="72" y="112" width="640" height="${Math.max(228, 92 + (headlineLines.length * 72) + (bodyLines.length * 34))}" rx="30" fill="url(#headlinePanel)" stroke="rgba(255,255,255,0.10)"/>
+    <text x="108" y="154" fill="#f59e0b" font-size="22" font-family="Arial, Helvetica, sans-serif" font-weight="700">${escapeXml(template.name.toUpperCase())}</text>
 
   ${headlineLines.map((line, index) => (
-        `<text x="88" y="${headlineStartY + (index * 78)}" fill="#ffffff" font-size="64" font-family="Arial, Helvetica, sans-serif" font-weight="800">${escapeXml(line)}</text>`
+        `<text x="108" y="${headlineStartY + (index * 72)}" fill="#ffffff" font-size="60" font-family="Arial, Helvetica, sans-serif" font-weight="800">${escapeXml(line)}</text>`
     )).join('')}
 
   ${bodyLines.map((line, index) => (
-        `<text x="88" y="${bodyStartY + (index * 42)}" fill="#e2e8f0" font-size="32" font-family="Arial, Helvetica, sans-serif" font-weight="500">${escapeXml(line)}</text>`
+        `<text x="108" y="${bodyStartY + (index * 34)}" fill="#dbe4f0" font-size="26" font-family="Arial, Helvetica, sans-serif" font-weight="500">${escapeXml(line)}</text>`
     )).join('')}
 
-  <rect x="88" y="1110" width="904" height="2" fill="rgba(255,255,255,0.16)"/>
-  <text x="88" y="1170" fill="#f8fafc" font-size="26" font-family="Arial, Helvetica, sans-serif" font-weight="700">Global macro, geopolitics, and strategic materials</text>
-  <text x="88" y="1210" fill="#cbd5e1" font-size="22" font-family="Arial, Helvetica, sans-serif">Editorial visual background with campaign copy composed on top</text>
+    <rect x="72" y="1236" width="936" height="1.5" fill="rgba(255,255,255,0.14)"/>
+    <text x="72" y="1274" fill="#f8fafc" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">GeoMoney</text>
+    <text x="238" y="1274" fill="#cbd5e1" font-size="20" font-family="Arial, Helvetica, sans-serif">Global macro, geopolitics, and strategic materials</text>
 </svg>`.trim()
 
     return downloadImageToUploads(
@@ -707,26 +790,35 @@ async function generateInfographicWithOpenRouter(
         ...OPENROUTER_INFOGRAPHIC_MODELS,
     ].filter((model, index, list) => Boolean(model) && list.indexOf(model) === index)
 
-    const prompt = `You are an SVG Infographic Generator. Create a ${INFOGRAPHIC_WIDTH}x${INFOGRAPHIC_HEIGHT} vertical social media post.
+    const prompt = `You are an SVG background scene designer. Create a ${INFOGRAPHIC_WIDTH}x${INFOGRAPHIC_HEIGHT} vertical editorial background scene for a social media post.
 
-Use a modern, dark-themed aesthetic with Tailwind-like colors (Slate, Indigo). Ensure all visible copy is rendered with <text> tags. Output ONLY the raw <svg>...</svg> code.
+Use a premium business-media aesthetic with cinematic lighting, realistic industrial or geopolitical composition, and strong negative space. Output ONLY the raw <svg>...</svg> code.
 
 Brand: GeoMoney
 Topic: ${topic}
-Headline: ${text.shortText || 'GeoMoney market intelligence update'}
-Context: ${text.longText || topic}
-Visual direction: ${template.imageStyle || 'Professional editorial infographic with premium financial media styling.'}
+Visual direction: ${template.imageStyle || 'Professional editorial magazine cover with premium financial media styling.'}
+
+Creative direction:
+- This must look like a premium magazine cover or institutional research graphic, not a toy infographic
+- Build one strong hero background scene with depth, atmosphere, shadow, and layered composition
+- Prefer realistic silhouettes, refined geometry, documentary-industrial mood, and subtle market-data overlays
+- Leave clear negative space in the upper-left for headline text
+- Leave room in the lower third for a chart/data panel overlay
+
+Hard bans:
+- No childish, cartoon, clip-art, or playful style
+- No simple blocky factories, crude arrows, chevrons, stick graphics, or classroom infographic icons
+- No emoji, no hashtags, no bullets, no list boxes, no sticker-like UI chips
+- No charts, no labels, no headlines, no paragraphs, no footer copy
+- No dense dashboards, tiny cards, or walls of text
+- No external images, no CSS, no JavaScript, no foreignObject
 
 Layout requirements:
-- 1080x1350 canvas with a premium illustrative editorial background scene, not a blank chart board
-- One strong headline block over the image
-- Two to four short supporting text lines over a dark glass panel
-- One footer branding line with GeoMoney
-- Clean hierarchy, strong contrast, large readable type
-- White or near-white sans-serif text with strong contrast
-- Keep wording concise enough to fit without overflow
-- Avoid dense dashboards, tiny cards, or walls of text
-- No external images, no CSS, no JavaScript, no foreignObject
+- 1080x1350 canvas
+- Background only: do not render any final text or chart copy into the SVG
+- Use lighting, texture, silhouette, and atmosphere to communicate the story
+
+If the topic is about rare earths, processing, supply chains, or geopolitics, use a sophisticated editorial composition: industrial infrastructure, map fragments, material textures, global routing hints, and restrained data marks. Avoid anything that looks childish or diagrammatic.
 `
 
     const result = await callOpenRouter(prompt, {
@@ -738,17 +830,11 @@ Layout requirements:
     })
 
     const svg = normalizeSvgMarkup(getSvgMarkup(result.content))
-    const pngBuffer = new Resvg(svg, {
+    const backgroundBytes = new Resvg(svg, {
         fitTo: { mode: 'width', value: INFOGRAPHIC_WIDTH },
     }).render().asPng()
 
-    const outputDir = path.join(process.cwd(), 'public', 'uploads', 'social-posts')
-    await mkdir(outputDir, { recursive: true })
-
-    const filename = `social-post-${Date.now()}.png`
-    await writeFile(path.join(outputDir, filename), pngBuffer)
-
-    return `/uploads/social-posts/${filename}`
+    return composeIllustrativeSocialCard(backgroundBytes, template, text)
 }
 
 async function generateTextForProvider(

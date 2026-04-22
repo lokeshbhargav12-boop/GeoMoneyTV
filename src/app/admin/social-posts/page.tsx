@@ -812,7 +812,9 @@ export default function SocialPostsAdmin() {
                             onClick={() =>
                               setViewerImage({
                                 src: post.imageUrl!,
-                                alt: parsed.templateName || "Generated social post image",
+                                alt:
+                                  parsed.templateName ||
+                                  "Generated social post image",
                               })
                             }
                           />
@@ -825,7 +827,9 @@ export default function SocialPostsAdmin() {
                               onClick={() =>
                                 setViewerImage({
                                   src: post.imageUrl!,
-                                  alt: parsed.templateName || "Generated social post image",
+                                  alt:
+                                    parsed.templateName ||
+                                    "Generated social post image",
                                 })
                               }
                               className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-gray-200 transition-all hover:bg-white/10 hover:text-white"
@@ -1086,7 +1090,9 @@ export default function SocialPostsAdmin() {
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/80 shadow-2xl">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                 <div>
-                  <div className="text-sm font-medium text-white">Generated image viewer</div>
+                  <div className="text-sm font-medium text-white">
+                    Generated image viewer
+                  </div>
                   <div className="text-xs text-gray-400">{viewerImage.alt}</div>
                 </div>
                 <a

@@ -1549,7 +1549,9 @@ function FocusController({
     const cameraDistance = focusTarget.distance ?? 2.85;
     const targetDepth = focusTarget.targetDepth ?? 0.7;
 
-    desiredTarget.current.copy(surfacePoint.clone().multiplyScalar(targetDepth));
+    desiredTarget.current.copy(
+      surfacePoint.clone().multiplyScalar(targetDepth),
+    );
     desiredPosition.current.copy(
       surfacePoint.clone().normalize().multiplyScalar(cameraDistance),
     );
