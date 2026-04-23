@@ -55,6 +55,79 @@ export interface ShipData {
   lastUpdate?: number;
 }
 
+type ShipTypeFilter =
+  | "tanker"
+  | "container"
+  | "lng"
+  | "military"
+  | "bulk"
+  | "cargo"
+  | "cruise"
+  | "fishing"
+  | "other"
+  | "stalled";
+
+type EventCategoryFilter =
+  | "military"
+  | "energy"
+  | "geopolitical"
+  | "economic"
+  | "cyber"
+  | "climate"
+  | "supply_chain";
+
+type InfrastructureType = "refinery" | "lng_terminal" | "storage";
+type ClimateOverlayType = "heat" | "drought" | "storm";
+type RouteGroup = "energy" | "trade" | "strategic";
+
+interface InfrastructureSite {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  type: InfrastructureType;
+  region: string;
+  detail: string;
+}
+
+interface ClimateHotspot {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+  type: ClimateOverlayType;
+  severity: number;
+  detail: string;
+}
+
+interface MaritimeRoute {
+  id: string;
+  name: string;
+  from: { lat: number; lng: number };
+  to: { lat: number; lng: number };
+  color: string;
+  group: RouteGroup;
+}
+
+interface GlobeLayerState {
+  groups: {
+    events: boolean;
+    ships: boolean;
+    aircraft: boolean;
+    infrastructure: boolean;
+    climate: boolean;
+    routes: boolean;
+    chokepoints: boolean;
+    satellites: boolean;
+    cityLights: boolean;
+  };
+  shipTypes: Record<ShipTypeFilter, boolean>;
+  eventCategories: Record<EventCategoryFilter, boolean>;
+  infrastructureTypes: Record<InfrastructureType, boolean>;
+  climateTypes: Record<ClimateOverlayType, boolean>;
+  routeGroups: Record<RouteGroup, boolean>;
+}
+
 export interface GlobeFocusTarget {
   key: string;
   lat: number;
@@ -73,6 +146,7 @@ interface GlobeProps {
   ships?: ShipData[];
   focusTarget?: GlobeFocusTarget | null;
   onZoomChange?: (zoom: number) => void;
+  layerState?: GlobeLayerState;
 }
 
 // ─── CONSTANTS ───────────────────────────────────────────────
@@ -245,6 +319,73 @@ const SHIPPING_ROUTES = [
     from: { lat: 6.4, lng: 3.4 },
     to: { lat: 29.7, lng: -95.3 },
     color: "#8B5CF6",
+  },
+];
+
+const MARITIME_ROUTES: MaritimeRoute[] = [
+  {
+    id: "hormuz-india",
+    name: "Hormuz to West India",
+    from: { lat: 26.5, lng: 56.2 },
+    to: { lat: 19.0, lng: 72.8 },
+    color: "#EF4444",
+    group: "energy",
+  },
+  {
+    id: "fujairah-singapore",
+    name: "Fujairah to Singapore",
+    from: { lat: 25.2, lng: 56.3 },
+    to: { lat: 1.3, lng: 103.8 },
+    color: "#F97316",
+    group: "energy",
+  },
+  {
+    id: "suez-rotterdam",
+    name: "Suez to Rotterdam",
+    from: { lat: 30.4, lng: 32.3 },
+    to: { lat: 51.9, lng: 4.5 },
+    color: "#D4AF37",
+    group: "trade",
+  },
+  {
+    id: "malacca-shanghai",
+    name: "Malacca to Shanghai",
+    from: { lat: 2.5, lng: 101.5 },
+    to: { lat: 31.2, lng: 121.4 },
+    color: "#3B82F6",
+    group: "trade",
+  },
+  {
+    id: "red-sea-med",
+    name: "Bab el-Mandeb to Mediterranean",
+    from: { lat: 12.5, lng: 43.3 },
+    to: { lat: 37.0, lng: 15.0 },
+    color: "#F59E0B",
+    group: "energy",
+  },
+  {
+    id: "giuk-atlantic",
+    name: "GIUK Gap patrol lane",
+    from: { lat: 63.0, lng: -15.0 },
+    to: { lat: 51.5, lng: -0.1 },
+    color: "#8B5CF6",
+    group: "strategic",
+  },
+  {
+    id: "taiwan-japan",
+    name: "Taiwan Strait to Okinawa",
+    from: { lat: 24.0, lng: 119.5 },
+    to: { lat: 26.2, lng: 127.7 },
+    color: "#EC4899",
+    group: "strategic",
+  },
+  {
+    id: "cape-brazil",
+    name: "Cape to Santos",
+    from: { lat: -34.3, lng: 18.4 },
+    to: { lat: -23.9, lng: -46.3 },
+    color: "#10B981",
+    group: "trade",
   },
 ];
 
@@ -514,6 +655,138 @@ const CITY_LIGHTS = [
   { lat: -41.2, lng: 174.7, s: 0.4 },
 ];
 
+const INFRASTRUCTURE_SITES: InfrastructureSite[] = [
+  {
+    id: "jamnagar",
+    name: "Jamnagar Refinery Complex",
+    lat: 22.47,
+    lng: 70.07,
+    type: "refinery",
+    region: "India",
+    detail: "1.24M bpd refining hub",
+  },
+  {
+    id: "ras-tanura",
+    name: "Ras Tanura Processing",
+    lat: 26.64,
+    lng: 50.16,
+    type: "storage",
+    region: "Saudi Arabia",
+    detail: "Strategic crude export terminal",
+  },
+  {
+    id: "fujairah",
+    name: "Fujairah Oil Hub",
+    lat: 25.13,
+    lng: 56.35,
+    type: "storage",
+    region: "UAE",
+    detail: "Bunkering and storage cluster",
+  },
+  {
+    id: "sabine-pass",
+    name: "Sabine Pass LNG",
+    lat: 29.73,
+    lng: -93.88,
+    type: "lng_terminal",
+    region: "United States",
+    detail: "Major LNG export terminal",
+  },
+  {
+    id: "rotterdam",
+    name: "Rotterdam Refining Belt",
+    lat: 51.95,
+    lng: 4.14,
+    type: "refinery",
+    region: "Netherlands",
+    detail: "European downstream hub",
+  },
+  {
+    id: "singapore-jurong",
+    name: "Jurong Island",
+    lat: 1.26,
+    lng: 103.7,
+    type: "refinery",
+    region: "Singapore",
+    detail: "Integrated petrochemicals cluster",
+  },
+  {
+    id: "freeport-lng",
+    name: "Freeport LNG",
+    lat: 28.95,
+    lng: -95.29,
+    type: "lng_terminal",
+    region: "United States",
+    detail: "Gulf Coast export capacity",
+  },
+  {
+    id: "yosu",
+    name: "Yeosu Refinery",
+    lat: 34.76,
+    lng: 127.66,
+    type: "refinery",
+    region: "South Korea",
+    detail: "Asia-Pacific fuels and chemicals node",
+  },
+];
+
+const CLIMATE_HOTSPOTS: ClimateHotspot[] = [
+  {
+    id: "arabian-heat",
+    label: "Arabian Gulf heat dome",
+    lat: 25.4,
+    lng: 53.9,
+    type: "heat",
+    severity: 0.92,
+    detail: "Extreme wet-bulb stress on ports and workers",
+  },
+  {
+    id: "india-heat",
+    label: "North India power stress",
+    lat: 28.8,
+    lng: 77.0,
+    type: "heat",
+    severity: 0.84,
+    detail: "Cooling demand and grid load spike",
+  },
+  {
+    id: "med-drought",
+    label: "Mediterranean drought belt",
+    lat: 37.5,
+    lng: 15.4,
+    type: "drought",
+    severity: 0.76,
+    detail: "Water stress near agriculture and shipping lanes",
+  },
+  {
+    id: "panama-drought",
+    label: "Panama Canal freshwater strain",
+    lat: 9.15,
+    lng: -79.75,
+    type: "drought",
+    severity: 0.88,
+    detail: "Transit constraints from reservoir shortages",
+  },
+  {
+    id: "bay-cyclone",
+    label: "Bay of Bengal cyclone watch",
+    lat: 16.2,
+    lng: 89.6,
+    type: "storm",
+    severity: 0.73,
+    detail: "Storm risk to LNG and bulk routes",
+  },
+  {
+    id: "gulf-mexico-storm",
+    label: "Gulf of Mexico storm belt",
+    lat: 26.1,
+    lng: -89.8,
+    type: "storm",
+    severity: 0.81,
+    detail: "Offshore production and export disruption risk",
+  },
+];
+
 // ─── UTILITIES ───────────────────────────────────────────────
 function latLngToVector3(
   lat: number,
@@ -554,6 +827,107 @@ function getThreatColor(score?: number): string {
   if (score >= 40) return "#EAB308";
   return "#10B981";
 }
+
+function normalizeShipType(type: string): ShipTypeFilter {
+  if (type === "tanker") return "tanker";
+  if (type === "container") return "container";
+  if (type === "lng") return "lng";
+  if (type === "military") return "military";
+  if (type === "bulk") return "bulk";
+  if (type === "cargo") return "cargo";
+  if (type === "cruise") return "cruise";
+  if (type === "fishing") return "fishing";
+  return "other";
+}
+
+function normalizeEventCategory(category: string): EventCategoryFilter {
+  const value = category.toLowerCase();
+  if (value.includes("military") || value.includes("terror")) return "military";
+  if (value.includes("energy") || value.includes("commodit")) return "energy";
+  if (value.includes("geo")) return "geopolitical";
+  if (value.includes("econom")) return "economic";
+  if (value.includes("cyber") || value.includes("tech")) return "cyber";
+  if (value.includes("climate")) return "climate";
+  if (
+    value.includes("supply") ||
+    value.includes("trade") ||
+    value.includes("logistic")
+  ) {
+    return "supply_chain";
+  }
+  return "geopolitical";
+}
+
+function getInfrastructureColor(type: InfrastructureType): string {
+  if (type === "refinery") return "#F97316";
+  if (type === "lng_terminal") return "#22C55E";
+  return "#38BDF8";
+}
+
+function getClimateColor(type: ClimateOverlayType): string {
+  if (type === "heat") return "#F97316";
+  if (type === "drought") return "#EAB308";
+  return "#06B6D4";
+}
+
+function isShipStalled(ship: ShipData): boolean {
+  return (
+    ship.speed <= 1 ||
+    ship.status === "anchored" ||
+    ship.status === "moored" ||
+    ship.status === "stopped"
+  );
+}
+
+const DEFAULT_LAYER_STATE: GlobeLayerState = {
+  groups: {
+    events: true,
+    ships: true,
+    aircraft: true,
+    infrastructure: true,
+    climate: true,
+    routes: true,
+    chokepoints: true,
+    satellites: true,
+    cityLights: true,
+  },
+  shipTypes: {
+    tanker: true,
+    container: true,
+    lng: true,
+    military: true,
+    bulk: true,
+    cargo: true,
+    cruise: true,
+    fishing: true,
+    other: true,
+    stalled: true,
+  },
+  eventCategories: {
+    military: true,
+    energy: true,
+    geopolitical: true,
+    economic: true,
+    cyber: true,
+    climate: true,
+    supply_chain: true,
+  },
+  infrastructureTypes: {
+    refinery: true,
+    lng_terminal: true,
+    storage: true,
+  },
+  climateTypes: {
+    heat: true,
+    drought: true,
+    storm: true,
+  },
+  routeGroups: {
+    energy: true,
+    trade: true,
+    strategic: true,
+  },
+};
 
 // ─── EARTH SPHERE WITH NASA TEXTURE ─────────────────────────
 function EarthSphere() {
@@ -1178,6 +1552,152 @@ function ChokepointMarker({
   );
 }
 
+function InfrastructureMarker({ site }: { site: InfrastructureSite }) {
+  const markerRef = useRef<THREE.Mesh>(null);
+  const pulseRef = useRef<THREE.Mesh>(null);
+  const [hovered, setHovered] = useState(false);
+  const position = useMemo(
+    () => latLngToVector3(site.lat, site.lng, GLOBE_RADIUS + 0.02),
+    [site.lat, site.lng],
+  );
+  const color = getInfrastructureColor(site.type);
+
+  useFrame(({ clock }) => {
+    if (markerRef.current) markerRef.current.lookAt(0, 0, 0);
+    if (pulseRef.current) {
+      pulseRef.current.lookAt(0, 0, 0);
+      const scale = 1 + Math.sin(clock.getElapsedTime() * 2.2) * 0.2;
+      pulseRef.current.scale.set(scale, scale, 1);
+      (pulseRef.current.material as THREE.MeshBasicMaterial).opacity =
+        0.22 + Math.sin(clock.getElapsedTime() * 2.2) * 0.08;
+    }
+  });
+
+  return (
+    <group position={position}>
+      <mesh ref={pulseRef}>
+        <ringGeometry args={[0.016, 0.028, 24]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.24}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <mesh
+        ref={markerRef}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+      >
+        <octahedronGeometry args={[0.015, 0]} />
+        <meshBasicMaterial color={color} transparent opacity={0.92} />
+      </mesh>
+      {hovered && (
+        <Html distanceFactor={8} center style={{ pointerEvents: "none" }}>
+          <div className="min-w-[220px] rounded-lg border border-white/15 bg-black/90 px-3 py-2 backdrop-blur-xl">
+            <div className="text-[10px] font-mono text-white">{site.name}</div>
+            <div className="text-[9px] uppercase tracking-wide text-gray-400">
+              {site.type.replace("_", " ")} • {site.region}
+            </div>
+            <div className="text-[9px] text-gray-500">{site.detail}</div>
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+}
+
+function ClimateOverlayPoint({ hotspot }: { hotspot: ClimateHotspot }) {
+  const coreRef = useRef<THREE.Mesh>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const [hovered, setHovered] = useState(false);
+  const position = useMemo(
+    () => latLngToVector3(hotspot.lat, hotspot.lng, GLOBE_RADIUS + 0.018),
+    [hotspot.lat, hotspot.lng],
+  );
+  const color = getClimateColor(hotspot.type);
+
+  useFrame(({ clock }) => {
+    if (coreRef.current) coreRef.current.lookAt(0, 0, 0);
+    if (ringRef.current) {
+      ringRef.current.lookAt(0, 0, 0);
+      const scale = 1 + Math.sin(clock.getElapsedTime() * 1.8) * 0.28;
+      ringRef.current.scale.set(scale, scale, 1);
+      (ringRef.current.material as THREE.MeshBasicMaterial).opacity =
+        0.22 + Math.sin(clock.getElapsedTime() * 1.8) * 0.1;
+    }
+  });
+
+  return (
+    <group position={position}>
+      <mesh
+        ref={ringRef}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+      >
+        <circleGeometry args={[0.04 + hotspot.severity * 0.06, 24]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.24}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh ref={coreRef}>
+        <ringGeometry args={[0.012, 0.018, 20]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.85}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      {hovered && (
+        <Html distanceFactor={8} center style={{ pointerEvents: "none" }}>
+          <div className="min-w-[220px] rounded-lg border border-white/15 bg-black/90 px-3 py-2 backdrop-blur-xl">
+            <div className="text-[10px] font-mono text-white">
+              {hotspot.label}
+            </div>
+            <div className="text-[9px] uppercase tracking-wide text-gray-400">
+              {hotspot.type} • severity {Math.round(hotspot.severity * 100)}
+            </div>
+            <div className="text-[9px] text-gray-500">{hotspot.detail}</div>
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+}
+
+function MaritimeCorridorsLayer({ routes }: { routes: MaritimeRoute[] }) {
+  return (
+    <>
+      {routes.map((route) => (
+        <ArcLine
+          key={`route-arc-${route.id}`}
+          from={route.from}
+          to={route.to}
+          color={route.color}
+          opacity={0.22}
+        />
+      ))}
+      {routes.map((route, index) => (
+        <AnimatedShip
+          key={`route-ship-${route.id}`}
+          from={route.from}
+          to={route.to}
+          speed={0.012 + (index % 3) * 0.004}
+          offset={(index * 0.17) % 1}
+          color={route.color}
+        />
+      ))}
+    </>
+  );
+}
+
 // ─── CONNECTION ARCS BETWEEN EVENTS ─────────────────────────
 function ConnectionArcs({ events }: { events: GlobeEvent[] }) {
   const arcs = useMemo(() => {
@@ -1403,60 +1923,112 @@ function RealShipLayer({
 }) {
   const [hovered, setHovered] = useState<ShipData | null>(null);
 
-  const shipMeshes = useMemo(() => {
-    return ships.map((ship) => {
+  const { positions, colors, stalledPositions } = useMemo(() => {
+    const positions = new Float32Array(ships.length * 3);
+    const colors = new Float32Array(ships.length * 3);
+    const stalled: number[] = [];
+
+    ships.forEach((ship, index) => {
       const pos = latLngToVector3(
         ship.latitude,
         ship.longitude,
-        GLOBE_RADIUS + 0.008,
+        GLOBE_RADIUS + 0.02,
       );
-      const color =
+      positions[index * 3] = pos.x;
+      positions[index * 3 + 1] = pos.y;
+      positions[index * 3 + 2] = pos.z;
+
+      const color = new THREE.Color(
         ship.type === "tanker"
-          ? "#FF6600"
+          ? "#FF7A1A"
           : ship.type === "container"
-            ? "#00CC88"
+            ? "#00D68F"
             : ship.type === "military"
-              ? "#FF2222"
+              ? "#FF4D4F"
               : ship.type === "lng"
-                ? "#FFAA00"
+                ? "#FFD166"
                 : ship.type === "cruise"
-                  ? "#CC66FF"
+                  ? "#C084FC"
                   : ship.type === "bulk"
-                    ? "#6688CC"
+                    ? "#60A5FA"
                     : ship.type === "fishing"
-                      ? "#44AAAA"
-                      : "#888888";
-      return { ship, pos, color };
+                      ? "#2DD4BF"
+                      : "#CBD5E1",
+      );
+      colors[index * 3] = color.r;
+      colors[index * 3 + 1] = color.g;
+      colors[index * 3 + 2] = color.b;
+
+      if (isShipStalled(ship)) {
+        stalled.push(pos.x, pos.y, pos.z);
+      }
     });
+
+    return {
+      positions,
+      colors,
+      stalledPositions: new Float32Array(stalled),
+    };
   }, [ships]);
+
+  const shipGeometry = useMemo(() => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    return geometry;
+  }, [positions, colors]);
+
+  const stalledGeometry = useMemo(() => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(stalledPositions, 3),
+    );
+    return geometry;
+  }, [stalledPositions]);
 
   return (
     <>
-      {shipMeshes.map(({ ship, pos, color }) => (
-        <group key={ship.mmsi} position={pos}>
-          <mesh
-            onPointerOver={() => setHovered(ship)}
-            onPointerOut={() => setHovered(null)}
-            onClick={(event) => {
-              event.stopPropagation();
-              onShipClick?.(ship);
-            }}
-          >
-            <coneGeometry args={[0.012, 0.025, 3]} />
-            <meshBasicMaterial color={color} transparent opacity={0.9} />
-          </mesh>
-          {/* Ship glow */}
-          <mesh>
-            <sphereGeometry args={[0.008, 8, 8]} />
-            <meshBasicMaterial
-              color={color}
-              transparent
-              opacity={0.3}
-              blending={THREE.AdditiveBlending}
-            />
-          </mesh>
-        </group>
-      ))}
+      <points
+        geometry={shipGeometry}
+        onPointerMove={(event) => {
+          if (event.index === undefined) return;
+          event.stopPropagation();
+          setHovered(ships[event.index] || null);
+        }}
+        onPointerOut={() => setHovered(null)}
+        onClick={(event) => {
+          if (event.index === undefined) return;
+          event.stopPropagation();
+          const selectedShip = ships[event.index];
+          if (selectedShip) {
+            onShipClick?.(selectedShip);
+          }
+        }}
+      >
+        <pointsMaterial
+          size={0.03}
+          sizeAttenuation
+          transparent
+          opacity={0.95}
+          vertexColors
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </points>
+      {stalledPositions.length > 0 && (
+        <points geometry={stalledGeometry}>
+          <pointsMaterial
+            size={0.05}
+            sizeAttenuation
+            transparent
+            opacity={0.7}
+            color="#FDE047"
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </points>
+      )}
       {hovered && (
         <Html
           position={latLngToVector3(
@@ -1480,6 +2052,11 @@ function RealShipLayer({
               SPD: {hovered.speed.toFixed(1)}kn | → {hovered.destination}
             </div>
             <div className="text-gray-600">L: {hovered.length}m</div>
+            {isShipStalled(hovered) && (
+              <div className="text-[9px] font-semibold text-yellow-300">
+                STALLED / CONSTRAINED
+              </div>
+            )}
           </div>
         </Html>
       )}
@@ -1601,10 +2178,65 @@ function GlobeScene({
   ships,
   focusTarget,
   onZoomChange,
+  layerState = DEFAULT_LAYER_STATE,
 }: GlobeProps) {
   const globeRef = useRef<THREE.Group>(null);
   const controlsRef = useRef<any>(null);
   const userInteractingRef = useRef(false);
+
+  const filteredEvents = useMemo(
+    () =>
+      events.filter(
+        (event) =>
+          layerState.groups.events &&
+          layerState.eventCategories[normalizeEventCategory(event.category)],
+      ),
+    [events, layerState],
+  );
+
+  const filteredShips = useMemo(
+    () =>
+      (ships || []).filter((ship) => {
+        if (!layerState.groups.ships) {
+          return false;
+        }
+        const type = normalizeShipType(ship.type);
+        const stalled = isShipStalled(ship);
+        return (
+          layerState.shipTypes[type] &&
+          (layerState.shipTypes.stalled || !stalled)
+        );
+      }),
+    [layerState, ships],
+  );
+
+  const filteredInfrastructure = useMemo(
+    () =>
+      INFRASTRUCTURE_SITES.filter(
+        (site) =>
+          layerState.groups.infrastructure &&
+          layerState.infrastructureTypes[site.type],
+      ),
+    [layerState],
+  );
+
+  const filteredClimate = useMemo(
+    () =>
+      CLIMATE_HOTSPOTS.filter(
+        (hotspot) =>
+          layerState.groups.climate && layerState.climateTypes[hotspot.type],
+      ),
+    [layerState],
+  );
+
+  const filteredRoutes = useMemo(
+    () =>
+      MARITIME_ROUTES.filter(
+        (route) =>
+          layerState.groups.routes && layerState.routeGroups[route.group],
+      ),
+    [layerState],
+  );
 
   useEffect(() => {
     const controls = controlsRef.current;
@@ -1682,7 +2314,7 @@ function GlobeScene({
         <NightLightsLayer />
 
         {/* Procedural city light points */}
-        <CityLightsLayer />
+        {layerState.groups.cityLights && <CityLightsLayer />}
 
         {/* Grid wireframe */}
         {gridLines.map((pts, i) => (
@@ -1699,19 +2331,33 @@ function GlobeScene({
         {/* Triple atmosphere glow */}
         <BrightAtmosphere />
 
-        {/* Chokepoint markers */}
-        {CHOKEPOINTS.map((cp) => (
-          <ChokepointMarker
-            key={cp.name}
-            lat={cp.lat}
-            lng={cp.lng}
-            name={cp.name}
-            type={cp.type}
-          />
+        {/* Climate and infrastructure overlays */}
+        {filteredClimate.map((hotspot) => (
+          <ClimateOverlayPoint key={hotspot.id} hotspot={hotspot} />
+        ))}
+        {filteredInfrastructure.map((site) => (
+          <InfrastructureMarker key={site.id} site={site} />
         ))}
 
+        {/* Animated maritime corridors */}
+        {filteredRoutes.length > 0 && (
+          <MaritimeCorridorsLayer routes={filteredRoutes} />
+        )}
+
+        {/* Chokepoint markers */}
+        {layerState.groups.chokepoints &&
+          CHOKEPOINTS.map((cp) => (
+            <ChokepointMarker
+              key={cp.name}
+              lat={cp.lat}
+              lng={cp.lng}
+              name={cp.name}
+              type={cp.type}
+            />
+          ))}
+
         {/* Event points from OSINT / articles */}
-        {events.map((event) =>
+        {filteredEvents.map((event) =>
           event.locations.map((loc, li) => (
             <PulsePoint
               key={`${event.id}-${li}`}
@@ -1735,10 +2381,10 @@ function GlobeScene({
         )}
 
         {/* Connection arcs between related events */}
-        <ConnectionArcs events={events} />
+        {layerState.groups.events && <ConnectionArcs events={filteredEvents} />}
 
         {/* REAL AIRCRAFT from OpenSky Network */}
-        {aircraft && aircraft.length > 0 && (
+        {layerState.groups.aircraft && aircraft && aircraft.length > 0 && (
           <RealAircraftLayer
             aircraft={aircraft}
             onAircraftClick={onAircraftClick}
@@ -1746,14 +2392,15 @@ function GlobeScene({
         )}
 
         {/* REAL-TIME SHIP TRACKING */}
-        {ships && ships.length > 0 && (
-          <RealShipLayer ships={ships} onShipClick={onShipClick} />
+        {filteredShips.length > 0 && (
+          <RealShipLayer ships={filteredShips} onShipClick={onShipClick} />
         )}
 
         {/* Enhanced satellites with solar panels & trails */}
-        {SATELLITE_ORBITS.map((orbit, i) => (
-          <SatelliteWithTrail key={`sat-${i}`} {...orbit} />
-        ))}
+        {layerState.groups.satellites &&
+          SATELLITE_ORBITS.map((orbit, i) => (
+            <SatelliteWithTrail key={`sat-${i}`} {...orbit} />
+          ))}
       </group>
 
       {/* Zoom level detection */}
@@ -1768,8 +2415,18 @@ function GlobeScene({
         maxDistance={8}
         autoRotate={false}
         enableDamping
-        dampingFactor={0.05}
-        rotateSpeed={0.5}
+        dampingFactor={0.08}
+        rotateSpeed={1.1}
+        zoomSpeed={0.9}
+        touches={{
+          ONE: THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_ROTATE,
+        }}
+        mouseButtons={{
+          LEFT: THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.ROTATE,
+        }}
       />
     </>
   );
@@ -1789,6 +2446,132 @@ export default function WorldGlobe({
 }: GlobeProps) {
   const [contextLost, setContextLost] = useState(false);
   const [key, setKey] = useState(0);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [isCompactPointer, setIsCompactPointer] = useState(false);
+  const [layerState, setLayerState] =
+    useState<GlobeLayerState>(DEFAULT_LAYER_STATE);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const media = window.matchMedia("(max-width: 1024px), (pointer: coarse)");
+    const updatePointerMode = () => {
+      setIsCompactPointer(media.matches);
+    };
+
+    updatePointerMode();
+
+    if (media.addEventListener) {
+      media.addEventListener("change", updatePointerMode);
+      return () => media.removeEventListener("change", updatePointerMode);
+    }
+
+    media.addListener(updatePointerMode);
+    return () => media.removeListener(updatePointerMode);
+  }, []);
+
+  const shipCounts = useMemo(() => {
+    const counts = {
+      tanker: 0,
+      container: 0,
+      lng: 0,
+      military: 0,
+      stalled: 0,
+    };
+
+    (ships || []).forEach((ship) => {
+      const type = normalizeShipType(ship.type);
+      if (type in counts) {
+        counts[type as keyof typeof counts] += 1;
+      }
+      if (isShipStalled(ship)) {
+        counts.stalled += 1;
+      }
+    });
+
+    return counts;
+  }, [ships]);
+
+  const eventCounts = useMemo(() => {
+    const counts = {
+      military: 0,
+      energy: 0,
+      geopolitical: 0,
+      economic: 0,
+      cyber: 0,
+      climate: 0,
+      supply_chain: 0,
+    };
+
+    events.forEach((event) => {
+      const key = normalizeEventCategory(event.category);
+      counts[key] += 1;
+    });
+
+    return counts;
+  }, [events]);
+
+  const toggleGroup = (group: keyof GlobeLayerState["groups"]) => {
+    setLayerState((current) => ({
+      ...current,
+      groups: {
+        ...current.groups,
+        [group]: !current.groups[group],
+      },
+    }));
+  };
+
+  const toggleShipType = (type: ShipTypeFilter) => {
+    setLayerState((current) => ({
+      ...current,
+      shipTypes: {
+        ...current.shipTypes,
+        [type]: !current.shipTypes[type],
+      },
+    }));
+  };
+
+  const toggleEventCategory = (category: EventCategoryFilter) => {
+    setLayerState((current) => ({
+      ...current,
+      eventCategories: {
+        ...current.eventCategories,
+        [category]: !current.eventCategories[category],
+      },
+    }));
+  };
+
+  const toggleInfrastructureType = (type: InfrastructureType) => {
+    setLayerState((current) => ({
+      ...current,
+      infrastructureTypes: {
+        ...current.infrastructureTypes,
+        [type]: !current.infrastructureTypes[type],
+      },
+    }));
+  };
+
+  const toggleClimateType = (type: ClimateOverlayType) => {
+    setLayerState((current) => ({
+      ...current,
+      climateTypes: {
+        ...current.climateTypes,
+        [type]: !current.climateTypes[type],
+      },
+    }));
+  };
+
+  const toggleRouteGroup = (group: RouteGroup) => {
+    setLayerState((current) => ({
+      ...current,
+      routeGroups: {
+        ...current.routeGroups,
+        [group]: !current.routeGroups[group],
+      },
+    }));
+  };
 
   // Handle WebGL context loss and auto-recover
   const onCreated = (state: { gl: THREE.WebGLRenderer }) => {
@@ -1836,8 +2619,12 @@ export default function WorldGlobe({
           powerPreference: "high-performance",
           failIfMajorPerformanceCaveat: false,
         }}
-        style={{ background: "transparent" }}
-        dpr={Math.min(window.devicePixelRatio, 1.5)}
+        style={{ background: "transparent", touchAction: "none" }}
+        dpr={
+          typeof window === "undefined"
+            ? 1
+            : Math.min(window.devicePixelRatio, isCompactPointer ? 1.25 : 1.5)
+        }
         onCreated={onCreated}
       >
         <GlobeScene
@@ -1850,67 +2637,225 @@ export default function WorldGlobe({
           ships={ships}
           focusTarget={focusTarget}
           onZoomChange={onZoomChange}
+          layerState={layerState}
         />
       </Canvas>
 
       {/* Live tracking indicator */}
-      <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5 border border-white/10">
+      <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-1.5 backdrop-blur-sm sm:left-4 sm:top-4">
         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
         <span className="text-[10px] font-mono text-green-400">
-          LIVE TRACKING
+          OPS GLOBE • {ships?.length || 0} VESSELS
         </span>
       </div>
 
-      {/* Legend overlay */}
-      <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-xl border border-white/10 rounded-xl p-3 text-[10px] space-y-1.5">
-        <div className="text-gray-400 font-mono tracking-wider mb-2 text-[9px]">
-          LEGEND
-        </div>
-        {[
-          { color: "bg-red-500", label: "Military / Critical" },
-          { color: "bg-orange-500", label: "Energy / Supply Chain" },
-          { color: "bg-yellow-500", label: "Geopolitical" },
-          { color: "bg-blue-500", label: "Economic" },
-          { color: "bg-purple-500", label: "Cyber / Technology" },
-          { color: "bg-emerald-500", label: "Climate / Stable" },
-        ].map(({ color, label }) => (
-          <div key={label} className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${color}`}
-              style={{ boxShadow: "0 0 4px currentColor" }}
-            />
-            <span className="text-gray-400">{label}</span>
+      <div
+        className={`absolute rounded-2xl border border-white/10 bg-black/70 backdrop-blur-xl shadow-2xl shadow-black/30 ${isCompactPointer ? "bottom-3 right-3 left-3" : "bottom-4 left-[6.5rem] w-[min(24rem,calc(100%-7.5rem))]"}`}
+      >
+        <button
+          type="button"
+          onClick={() => setPanelOpen((open) => !open)}
+          className="flex w-full items-center justify-between px-4 py-3 text-left"
+        >
+          <div>
+            <div className="text-[10px] font-mono tracking-[0.25em] text-gray-400">
+              LEGEND / FILTERS
+            </div>
+            <div className="text-xs text-white">
+              Maritime, climate, infrastructure
+            </div>
           </div>
-        ))}
-        <div className="border-t border-white/5 mt-2 pt-2 space-y-1.5">
-          <div className="flex items-center gap-2">
-            <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-green-400" />
-            <span className="text-gray-400">Live Vessels</span>
+          <div className="text-lg leading-none text-gray-300">
+            {panelOpen ? "−" : "+"}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-white" />
-            <span className="text-gray-400">Live Aircraft</span>
+        </button>
+
+        {panelOpen && (
+          <div
+            className={`space-y-3 overflow-y-auto border-t border-white/5 px-4 py-3 text-[10px] ${isCompactPointer ? "max-h-[38vh]" : "max-h-[45vh]"}`}
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[9px] font-mono tracking-[0.2em] text-gray-500">
+                <span>CORE LAYERS</span>
+                <span>{events.length} SIGNALS</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ["events", "OSINT / NEWS"],
+                  ["ships", "LIVE VESSELS"],
+                  ["aircraft", "AIRCRAFT"],
+                  ["infrastructure", "REFINERIES"],
+                  ["climate", "CLIMATE"],
+                  ["routes", "SHIPPING ROUTES"],
+                  ["chokepoints", "CHOKEPOINTS"],
+                  ["satellites", "SATELLITES"],
+                  ["cityLights", "CITY LIGHTS"],
+                ].map(([key, label]) => {
+                  const groupKey = key as keyof GlobeLayerState["groups"];
+                  const enabled = layerState.groups[groupKey];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleGroup(groupKey)}
+                      className={`rounded-lg border px-2.5 py-2 text-left transition ${
+                        enabled
+                          ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
+                          : "border-white/10 bg-white/5 text-gray-500"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[9px] font-mono tracking-[0.2em] text-gray-500">
+                VESSEL CATEGORIES
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["tanker", `Tankers ${shipCounts.tanker}`],
+                  ["container", `Containers ${shipCounts.container}`],
+                  ["lng", `LNG ${shipCounts.lng}`],
+                  ["military", `Military ${shipCounts.military}`],
+                  ["stalled", `Stalled ${shipCounts.stalled}`],
+                ].map(([key, label]) => {
+                  const shipKey = key as ShipTypeFilter;
+                  const enabled = layerState.shipTypes[shipKey];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleShipType(shipKey)}
+                      className={`rounded-full border px-2.5 py-1.5 transition ${
+                        enabled
+                          ? "border-orange-400/40 bg-orange-400/10 text-orange-100"
+                          : "border-white/10 bg-white/5 text-gray-500"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[9px] font-mono tracking-[0.2em] text-gray-500">
+                INTELLIGENCE CATEGORIES
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["energy", `Energy ${eventCounts.energy}`],
+                  ["military", `Military ${eventCounts.military}`],
+                  ["geopolitical", `Geopolitical ${eventCounts.geopolitical}`],
+                  ["economic", `Economic ${eventCounts.economic}`],
+                  ["cyber", `Cyber ${eventCounts.cyber}`],
+                  ["climate", `Climate ${eventCounts.climate}`],
+                  ["supply_chain", `Supply ${eventCounts.supply_chain}`],
+                ].map(([key, label]) => {
+                  const categoryKey = key as EventCategoryFilter;
+                  const enabled = layerState.eventCategories[categoryKey];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleEventCategory(categoryKey)}
+                      className={`rounded-full border px-2.5 py-1.5 transition ${
+                        enabled
+                          ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-100"
+                          : "border-white/10 bg-white/5 text-gray-500"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[9px] font-mono tracking-[0.2em] text-gray-500">
+                INFRASTRUCTURE / CLIMATE / ROUTES
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["refinery", "Refineries"],
+                  ["lng_terminal", "LNG terminals"],
+                  ["storage", "Storage hubs"],
+                ].map(([key, label]) => {
+                  const infraKey = key as InfrastructureType;
+                  const enabled = layerState.infrastructureTypes[infraKey];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleInfrastructureType(infraKey)}
+                      className={`rounded-full border px-2.5 py-1.5 transition ${
+                        enabled
+                          ? "border-orange-400/40 bg-orange-400/10 text-orange-100"
+                          : "border-white/10 bg-white/5 text-gray-500"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["heat", "Extreme heat"],
+                  ["drought", "Drought stress"],
+                  ["storm", "Storm watch"],
+                ].map(([key, label]) => {
+                  const climateKey = key as ClimateOverlayType;
+                  const enabled = layerState.climateTypes[climateKey];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleClimateType(climateKey)}
+                      className={`rounded-full border px-2.5 py-1.5 transition ${
+                        enabled
+                          ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-100"
+                          : "border-white/10 bg-white/5 text-gray-500"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["energy", "Energy lanes"],
+                  ["trade", "Trade lanes"],
+                  ["strategic", "Strategic lanes"],
+                ].map(([key, label]) => {
+                  const routeKey = key as RouteGroup;
+                  const enabled = layerState.routeGroups[routeKey];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleRouteGroup(routeKey)}
+                      className={`rounded-full border px-2.5 py-1.5 transition ${
+                        enabled
+                          ? "border-sky-400/40 bg-sky-400/10 text-sky-100"
+                          : "border-white/10 bg-white/5 text-gray-500"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-geo-gold" />
-            <span className="text-gray-400">Focused Selection</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rotate-45 border border-red-500" />
-            <span className="text-gray-400">Chokepoints</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-yellow-400" />
-            <span className="text-gray-400">Satellites</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div
-              className="w-2 h-2 rounded-full bg-amber-400"
-              style={{ boxShadow: "0 0 4px #FDB813" }}
-            />
-            <span className="text-gray-400">City Lights</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

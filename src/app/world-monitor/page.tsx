@@ -277,7 +277,7 @@ const SIGINT_FEEDS = [
     freq: "HF-4.72MHz",
     classification: "CRITICAL",
     time: "2m ago",
-    detail: "Iranian naval comms surge — IRGC fleet repositioning detected",
+    detail: "Iranian naval comms surge - IRGC fleet repositioning detected",
   },
   {
     source: "ELINT DETECTION",
@@ -293,7 +293,7 @@ const SIGINT_FEEDS = [
     freq: "TCP/443",
     classification: "ELEVATED",
     time: "14m ago",
-    detail: "APT29 C2 infrastructure rotation — new domains registered",
+    detail: "APT29 C2 infrastructure rotation - new domains registered",
   },
   {
     source: "SAT COMMS",
@@ -309,7 +309,7 @@ const SIGINT_FEEDS = [
     freq: "VHF-156.8MHz",
     classification: "MODERATE",
     time: "31m ago",
-    detail: "Russian Baltic Fleet routine encrypted comms — pattern normal",
+    detail: "Russian Baltic Fleet routine encrypted comms - pattern normal",
   },
   {
     source: "ELINT DETECTION",
@@ -317,7 +317,7 @@ const SIGINT_FEEDS = [
     freq: "S-Band",
     classification: "HIGH",
     time: "45m ago",
-    detail: "PLA air defense radar network activation — possible drill",
+    detail: "PLA air defense radar network activation - possible drill",
   },
   {
     source: "OSINT FUSION",
@@ -326,7 +326,7 @@ const SIGINT_FEEDS = [
     classification: "ELEVATED",
     time: "1h ago",
     detail:
-      "3 vessels AIS dark in Northern Sea Route — suspected sanctions evasion",
+      "3 vessels AIS dark in Northern Sea Route - suspected sanctions evasion",
   },
   {
     source: "CYBER SIGINT",
@@ -687,8 +687,8 @@ export default function WorldMonitorPage() {
   const [aiQuery, setAiQuery] = useState("");
   const [zoomLevel, setZoomLevel] = useState(4.5);
   const [apertureActive, setApertureActive] = useState(false);
-  const [aiNavigatorMinimized, setAiNavigatorMinimized] = useState(false);
-  const [assetCoverageMinimized, setAssetCoverageMinimized] = useState(false);
+  const [aiNavigatorMinimized, setAiNavigatorMinimized] = useState(true);
+  const [assetCoverageMinimized, setAssetCoverageMinimized] = useState(true);
   const [selectedWebcam, setSelectedWebcam] = useState<Webcam | null>(null);
   const [selectedAircraft, setSelectedAircraft] = useState<AircraftData | null>(
     null,
@@ -696,6 +696,13 @@ export default function WorldMonitorPage() {
   const [selectedShip, setSelectedShip] = useState<ShipData | null>(null);
   const [globeFocusTarget, setGlobeFocusTarget] =
     useState<GlobeFocusTarget | null>(null);
+  const [isCompactLayout, setIsCompactLayout] = useState(false);
+  const [desktopDefaultsApplied, setDesktopDefaultsApplied] = useState(false);
+  const [desktopHudOpen, setDesktopHudOpen] = useState(false);
+  const [mobileHudOpen, setMobileHudOpen] = useState(false);
+  const [mobileHudTab, setMobileHudTab] = useState<
+    "overview" | "ai" | "selection"
+  >("overview");
 
   // Real-time clock
   useEffect(() => {
@@ -706,6 +713,25 @@ export default function WorldMonitorPage() {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const media = window.matchMedia("(max-width: 1279px), (pointer: coarse)");
+    const updateLayoutMode = () => setIsCompactLayout(media.matches);
+
+    updateLayoutMode();
+
+    if (media.addEventListener) {
+      media.addEventListener("change", updateLayoutMode);
+      return () => media.removeEventListener("change", updateLayoutMode);
+    }
+
+    media.addListener(updateLayoutMode);
+    return () => media.removeListener(updateLayoutMode);
   }, []);
 
   // Fetch data
@@ -1031,9 +1057,40 @@ export default function WorldMonitorPage() {
         }
       : null;
 
+  useEffect(() => {
+    if (!isCompactLayout) {
+      return;
+    }
+
+    if (selectedAsset || (showDetail && selectedEvent)) {
+      setMobileHudTab("selection");
+      setMobileHudOpen(true);
+    }
+  }, [isCompactLayout, selectedAsset, selectedEvent, showDetail]);
+
+  useEffect(() => {
+    if (isCompactLayout) {
+      setDesktopDefaultsApplied(false);
+      setDesktopHudOpen(false);
+      return;
+    }
+
+    if (!desktopDefaultsApplied) {
+      setDesktopHudOpen(false);
+      setAiNavigatorMinimized(true);
+      setAssetCoverageMinimized(true);
+      setDesktopDefaultsApplied(true);
+    }
+  }, [desktopDefaultsApplied, isCompactLayout]);
+
+  const openMobileHud = useCallback((tab: "overview" | "ai" | "selection") => {
+    setMobileHudTab(tab);
+    setMobileHudOpen(true);
+  }, []);
+
   // ──────────────────────────────────────────────────────────
   return (
-    <main className="h-screen text-white relative overflow-hidden flex flex-col pt-[128px]">
+    <main className="relative flex h-dvh flex-col overflow-hidden pt-[104px] text-white sm:pt-[128px]">
       {/* BG */}
       <div className="fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0d1b2a] via-[#060d18] to-[#030812]" />
 
@@ -1121,31 +1178,87 @@ export default function WorldMonitorPage() {
               : "--:--"}
           </div>
         </div>
+
+        <div className="border-t border-white/5 bg-black/45 px-4 py-2 xl:hidden">
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setApertureActive((current) => !current)}
+              className={`shrink-0 rounded-full border px-3 py-2 text-[11px] font-semibold transition-colors ${
+                apertureActive
+                  ? "border-cyan-300 bg-cyan-400 text-black"
+                  : "border-cyan-400/40 bg-cyan-500/10 text-cyan-300"
+              }`}
+            >
+              {apertureActive ? "Close Aperture" : "Open Aperture"}
+            </button>
+            {!apertureActive && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openMobileHud("overview")}
+                  className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white"
+                >
+                  Overview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openMobileHud("ai")}
+                  className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white"
+                >
+                  AI Navigator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openMobileHud("selection")}
+                  className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white"
+                >
+                  {selectedAsset || selectedEvent ? "Selection" : "Details"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ═══ MAIN LAYOUT ════════════════════════════════════ */}
       <div className="relative z-10 flex-1 flex overflow-hidden">
         {/* ICON SIDEBAR — Vision Pro glass */}
-        <div className="w-[148px] bg-black/40 backdrop-blur-2xl border-r border-white/[0.06] flex flex-col py-3 px-2 gap-1.5 shrink-0">
+        <div className="absolute bottom-4 left-4 top-4 z-20 hidden w-[78px] flex-col gap-2 rounded-[28px] border border-white/[0.06] bg-black/60 px-2 py-3 shadow-2xl shadow-black/35 backdrop-blur-2xl xl:flex">
           {/* GeoMoney Aperture 2D Map Toggle */}
           <button
             onClick={() => setApertureActive(!apertureActive)}
             title="GeoMoney Aperture Street Map (2D)"
-            className={`w-full rounded-xl flex items-center gap-3 px-3 py-2 transition-all mb-1 ${
+            className={`mb-1 flex w-full flex-col items-center gap-1 rounded-2xl px-2 py-3 text-center transition-all ${
               apertureActive
                 ? "bg-cyan-400 text-black border border-cyan-300 shadow-lg shadow-cyan-500/30"
                 : "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 hover:bg-cyan-500/30"
             }`}
           >
             <Map className="w-4 h-4 shrink-0" />
-            <div className="flex flex-col items-start leading-none">
-              <span className="text-[10px] font-bold tracking-[0.18em]">
+            <div className="flex flex-col items-center leading-none">
+              <span className="text-[9px] font-bold tracking-[0.18em]">
                 APERTURE
               </span>
-              <span className="text-[9px] opacity-80">2D street map</span>
+              <span className="text-[8px] opacity-80">2D map</span>
             </div>
           </button>
-          <div className="w-full h-px bg-white/10 mb-1" />
+          <button
+            type="button"
+            onClick={() => setDesktopHudOpen((current) => !current)}
+            title={
+              desktopHudOpen ? "Collapse intel drawer" : "Open intel drawer"
+            }
+            className="flex w-full flex-col items-center gap-1 rounded-2xl border border-white/10 bg-white/5 px-2 py-3 text-center text-gray-300 transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+          >
+            <ChevronRight
+              className={`h-4 w-4 transition-transform ${desktopHudOpen ? "rotate-180" : "rotate-0"}`}
+            />
+            <span className="text-[8px] font-medium tracking-[0.16em]">
+              INTEL
+            </span>
+          </button>
+          <div className="mb-1 h-px w-full bg-white/10" />
           {/* Panel tabs */}
           {[
             { key: "feed" as const, icon: Radio, label: "Feed" },
@@ -1173,16 +1286,19 @@ export default function WorldMonitorPage() {
           ].map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActivePanel(tab.key)}
+              onClick={() => {
+                setActivePanel(tab.key);
+                setDesktopHudOpen(true);
+              }}
               title={tab.label}
-              className={`w-full rounded-xl flex items-center gap-3 px-3 py-2 text-left transition-all ${
+              className={`flex w-full flex-col items-center gap-1 rounded-2xl px-2 py-3 text-center transition-all ${
                 activePanel === tab.key
                   ? "bg-geo-gold/15 text-geo-gold shadow-lg shadow-geo-gold/5"
                   : "text-gray-600 hover:text-white hover:bg-white/5"
               }`}
             >
               <tab.icon className="w-4 h-4 shrink-0" />
-              <span className="text-[11px] font-medium leading-tight">
+              <span className="text-[9px] font-medium leading-tight">
                 {tab.label}
               </span>
             </button>
@@ -1190,885 +1306,927 @@ export default function WorldMonitorPage() {
         </div>
 
         {/* LEFT PANEL — Vision Pro glass */}
-        <div className="w-[360px] shrink-0 hidden lg:flex flex-col overflow-hidden bg-black/30 backdrop-blur-2xl border-r border-white/[0.06]">
-          <AnimatePresence mode="wait">
-            {activePanel === "feed" && (
-              <motion.div
-                key="feed"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="h-full"
+        {desktopHudOpen && (
+          <div className="absolute bottom-4 left-[106px] top-4 z-20 hidden w-[340px] overflow-hidden rounded-[30px] border border-white/[0.06] bg-black/78 shadow-2xl shadow-black/40 backdrop-blur-2xl xl:flex xl:flex-col">
+            <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
+              <div>
+                <div className="text-[10px] font-mono tracking-[0.22em] text-geo-gold">
+                  COMMAND DRAWER
+                </div>
+                <div className="mt-1 text-xs text-gray-400">
+                  Intel panels stay collapsible so the globe remains primary.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDesktopHudOpen(false)}
+                className="rounded-xl border border-white/10 bg-white/5 p-2 text-gray-400 transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+                aria-label="Close intel drawer"
               >
-                <OsintFeed
-                  events={allEvents}
-                  selectedEvent={selectedEvent}
-                  onEventSelect={handleEventClick}
-                  isLoading={isLoading}
-                />
-              </motion.div>
-            )}
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <AnimatePresence mode="wait">
+              {activePanel === "feed" && (
+                <motion.div
+                  key="feed"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="h-full"
+                >
+                  <OsintFeed
+                    events={allEvents}
+                    selectedEvent={selectedEvent}
+                    onEventSelect={handleEventClick}
+                    isLoading={isLoading}
+                  />
+                </motion.div>
+              )}
 
-            {activePanel === "chokepoints" && (
-              <motion.div
-                key="choke"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-geo-gold" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      GLOBAL CHOKEPOINTS
-                    </h2>
+              {activePanel === "chokepoints" && (
+                <motion.div
+                  key="choke"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Target className="w-4 h-4 text-geo-gold" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        GLOBAL CHOKEPOINTS
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Critical maritime & strategic bottlenecks
+                    </p>
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Critical maritime & strategic bottlenecks
-                  </p>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-                  {CHOKEPOINTS.map((cp) => (
-                    <button
-                      type="button"
-                      key={cp.name}
-                      onClick={() => handleChokepointClick(cp)}
-                      className="w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-white">
-                          {cp.name}
-                        </span>
-                        <span
-                          className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
-                            cp.risk >= 70
-                              ? "text-red-400 bg-red-500/10 border-red-500/30"
-                              : cp.risk >= 50
-                                ? "text-orange-400 bg-orange-500/10 border-orange-500/30"
-                                : cp.risk >= 30
-                                  ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
-                                  : "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
-                          }`}
-                        >
-                          {cp.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-gray-500 mb-2">
-                        <span>{cp.dailyTraffic}</span>
-                        <span>{cp.percentGlobal} global</span>
-                      </div>
-                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${riskBarColor(cp.risk)}`}
-                          style={{ width: `${cp.risk}%` }}
-                        />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {activePanel === "assets" && (
-              <motion.div
-                key="assets"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Crosshair className="w-4 h-4 text-geo-gold" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      ASSET TRACKING
-                    </h2>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Multi-domain surveillance systems
-                  </p>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-                  {trackedAssets.map((asset) => (
-                    <div key={asset.type} className="px-4 py-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <asset.icon className="w-4 h-4 text-geo-gold" />
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {CHOKEPOINTS.map((cp) => (
+                      <button
+                        type="button"
+                        key={cp.name}
+                        onClick={() => handleChokepointClick(cp)}
+                        className="w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-semibold text-white">
-                            {asset.type}
+                            {cp.name}
                           </span>
-                        </div>
-                        <span className="text-[10px] font-mono text-emerald-400">
-                          ACTIVE
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-gray-500 mb-2">
-                        <span>{asset.active.toLocaleString()} active</span>
-                        <span>{asset.total.toLocaleString()} total</span>
-                      </div>
-                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-geo-gold/60 rounded-full"
-                          style={{
-                            width: `${asset.total > 0 ? (asset.active / asset.total) * 100 : 0}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  <div className="px-4 py-4 bg-geo-gold/5">
-                    <div className="text-[10px] text-gray-500 uppercase mb-1">
-                      Total Active Monitoring
-                    </div>
-                    <div className="text-xl font-bold text-geo-gold font-mono">
-                      {trackedAssets
-                        .reduce((sum, asset) => sum + asset.active, 0)
-                        .toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activePanel === "risks" && (
-              <motion.div
-                key="risks"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-geo-gold" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      RISK INDICES
-                    </h2>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-                  {RISK_INDICES.map((idx) => (
-                    <div key={idx.name} className="px-4 py-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-white">
-                          {idx.name}
-                        </span>
-                        <span
-                          className={`text-xs font-mono ${idx.change > 0 ? "text-red-400" : "text-emerald-400"}`}
-                        >
-                          {idx.change > 0 ? "▲" : "▼"} {Math.abs(idx.change)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <span
-                          className={`text-2xl font-bold font-mono ${getRiskColor(idx.value)}`}
-                        >
-                          {idx.value}
-                        </span>
-                        <span className="text-xs text-gray-600">/ 100</span>
-                      </div>
-                      <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full bg-gradient-to-r ${idx.color}`}
-                          style={{ width: `${idx.value}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  <div className="px-4 py-4 bg-geo-gold/5">
-                    <div className="text-[10px] text-gray-500 uppercase mb-1">
-                      Composite Risk Index
-                    </div>
-                    <div className="text-3xl font-bold text-geo-gold font-mono">
-                      {Math.round(
-                        RISK_INDICES.reduce((s, i) => s + i.value, 0) /
-                          RISK_INDICES.length,
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activePanel === "sigint" && (
-              <motion.div
-                key="sigint"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Wifi className="w-4 h-4 text-cyan-400" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      SIGNALS INTELLIGENCE
-                    </h2>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    COMINT \u2022 ELINT \u2022 CYBER \u2022 SATCOM intercepts
-                  </p>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                  {SIGINT_FEEDS.map((sig, i) => (
-                    <div
-                      key={i}
-                      className="px-4 py-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span
-                          className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
-                            sig.classification === "CRITICAL"
-                              ? "text-red-400 bg-red-500/10 border border-red-500/30"
-                              : sig.classification === "HIGH"
-                                ? "text-orange-400 bg-orange-500/10 border border-orange-500/30"
-                                : sig.classification === "ELEVATED"
-                                  ? "text-yellow-400 bg-yellow-500/10 border border-yellow-500/30"
-                                  : "text-blue-400 bg-blue-500/10 border border-blue-500/30"
-                          }`}
-                        >
-                          {sig.classification}
-                        </span>
-                        <span className="text-[9px] text-gray-600 font-mono">
-                          {sig.time}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-mono text-cyan-400">
-                          {sig.source}
-                        </span>
-                        <span className="text-[9px] text-gray-600">\u2022</span>
-                        <span className="text-[10px] text-gray-500">
-                          {sig.region}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-300 leading-relaxed mb-1.5">
-                        {sig.detail}
-                      </p>
-                      <div className="text-[9px] font-mono text-gray-600">
-                        FREQ: {sig.freq}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="px-4 py-4 bg-cyan-500/5 border-t border-cyan-500/10">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                        <span className="text-[10px] text-cyan-400 font-mono">
-                          {SIGINT_FEEDS.length} active intercepts
-                        </span>
-                      </div>
-                      <div className="text-[9px] text-gray-600 font-mono">
-                        {
-                          SIGINT_FEEDS.filter(
-                            (s) => s.classification === "CRITICAL",
-                          ).length
-                        }{" "}
-                        critical
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activePanel === "countries" && (
-              <motion.div
-                key="countries"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Flag className="w-4 h-4 text-geo-gold" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      COUNTRY BRIEFS
-                    </h2>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Intelligence assessments &mdash; threat &amp; stability
-                    indices
-                  </p>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-                  {COUNTRY_BRIEFS.map((cb) => (
-                    <div
-                      key={cb.country}
-                      className="px-4 py-3 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">{cb.flag}</span>
-                          <span className="text-xs font-bold text-white">
-                            {cb.country}
-                          </span>
-                        </div>
-                        <span
-                          className={`text-[10px] font-mono font-bold ${
-                            cb.threat >= 80
-                              ? "text-red-400"
-                              : cb.threat >= 60
-                                ? "text-orange-400"
-                                : cb.threat >= 40
-                                  ? "text-yellow-400"
-                                  : "text-emerald-400"
-                          }`}
-                        >
-                          THREAT: {cb.threat}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        <div>
-                          <div className="text-[9px] text-gray-600 uppercase">
-                            Threat
-                          </div>
-                          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mt-1">
-                            <div
-                              className={`h-full rounded-full ${cb.threat >= 70 ? "bg-red-500" : cb.threat >= 50 ? "bg-orange-500" : "bg-yellow-500"}`}
-                              style={{ width: `${cb.threat}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] text-gray-600 uppercase">
-                            Stability
-                          </div>
-                          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mt-1">
-                            <div
-                              className={`h-full rounded-full ${cb.stability >= 60 ? "bg-emerald-500" : cb.stability >= 40 ? "bg-yellow-500" : "bg-red-500"}`}
-                              style={{ width: `${cb.stability}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-gray-400 leading-relaxed mb-2">
-                        {cb.brief}
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {cb.hotTopics.map((topic) => (
                           <span
-                            key={topic}
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400 font-mono"
+                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                              cp.risk >= 70
+                                ? "text-red-400 bg-red-500/10 border-red-500/30"
+                                : cp.risk >= 50
+                                  ? "text-orange-400 bg-orange-500/10 border-orange-500/30"
+                                  : cp.risk >= 30
+                                    ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
+                                    : "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+                            }`}
                           >
-                            {topic}
+                            {cp.status}
                           </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {activePanel === "sanctions" && (
-              <motion.div
-                key="sanctions"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Ban className="w-4 h-4 text-red-400" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      SANCTIONS TRACKER
-                    </h2>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Active sanctions regimes &amp; economic warfare
-                  </p>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-                  {SANCTIONS_DATA.map((s) => (
-                    <div
-                      key={s.entity}
-                      className="px-4 py-3 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-white">
-                          {s.entity}
-                        </span>
-                        <span
-                          className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
-                            s.status === "Escalating"
-                              ? "text-red-400 bg-red-500/10 border-red-500/30"
-                              : s.status === "Active"
-                                ? "text-orange-400 bg-orange-500/10 border-orange-500/30"
-                                : "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
-                          }`}
-                        >
-                          {s.status}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-[10px] mb-2">
-                        <div>
-                          <div className="text-gray-600 text-[9px]">Type</div>
-                          <div className="text-gray-400">{s.type}</div>
                         </div>
-                        <div>
-                          <div className="text-gray-600 text-[9px]">
-                            Packages
-                          </div>
-                          <div className="text-gray-400 font-mono">
-                            {s.packages}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600 text-[9px]">
-                            Updated
-                          </div>
-                          <div className="text-gray-400">{s.lastUpdate}</div>
-                        </div>
-                      </div>
-                      <div className="text-[10px] text-gray-500 mb-2">
-                        Sectors: {s.sectors}
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between text-[9px] mb-1">
-                          <span className="text-gray-600">Impact Index</span>
-                          <span
-                            className={`font-mono font-bold ${s.impact >= 80 ? "text-red-400" : s.impact >= 60 ? "text-orange-400" : "text-yellow-400"}`}
-                          >
-                            {s.impact}/100
-                          </span>
+                        <div className="flex items-center justify-between text-[10px] text-gray-500 mb-2">
+                          <span>{cp.dailyTraffic}</span>
+                          <span>{cp.percentGlobal} global</span>
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full ${s.impact >= 80 ? "bg-red-500" : s.impact >= 60 ? "bg-orange-500" : "bg-yellow-500"}`}
-                            style={{ width: `${s.impact}%` }}
+                            className={`h-full rounded-full ${riskBarColor(cp.risk)}`}
+                            style={{ width: `${cp.risk}%` }}
+                          />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {activePanel === "assets" && (
+                <motion.div
+                  key="assets"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Crosshair className="w-4 h-4 text-geo-gold" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        ASSET TRACKING
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Multi-domain surveillance systems
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {trackedAssets.map((asset) => (
+                      <div key={asset.type} className="px-4 py-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <asset.icon className="w-4 h-4 text-geo-gold" />
+                            <span className="text-xs font-semibold text-white">
+                              {asset.type}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-emerald-400">
+                            ACTIVE
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-gray-500 mb-2">
+                          <span>{asset.active.toLocaleString()} active</span>
+                          <span>{asset.total.toLocaleString()} total</span>
+                        </div>
+                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-geo-gold/60 rounded-full"
+                            style={{
+                              width: `${asset.total > 0 ? (asset.active / asset.total) * 100 : 0}%`,
+                            }}
                           />
                         </div>
                       </div>
-                    </div>
-                  ))}
-                  <div className="px-4 py-3 bg-red-500/5 border-t border-red-500/10">
-                    <div className="text-[10px] text-gray-500 uppercase mb-1">
-                      Total Active Regimes
-                    </div>
-                    <div className="text-xl font-bold text-red-400 font-mono">
-                      {SANCTIONS_DATA.length}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activePanel === "nuclear" && (
-              <motion.div
-                key="nuclear"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Atom className="w-4 h-4 text-yellow-400" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      NUCLEAR MONITOR
-                    </h2>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Global nuclear arsenal tracking &amp; proliferation
-                  </p>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-                  {NUCLEAR_STATUS.map((n) => (
-                    <div
-                      key={n.state}
-                      className="px-4 py-3 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-white">
-                          {n.state}
-                        </span>
-                        <span
-                          className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
-                            n.alert === "CRITICAL"
-                              ? "text-red-400 bg-red-500/10 border-red-500/30 animate-pulse"
-                              : n.alert === "HIGH"
-                                ? "text-orange-400 bg-orange-500/10 border-orange-500/30"
-                                : n.alert === "MODERATE"
-                                  ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
-                                  : "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
-                          }`}
-                        >
-                          {n.alert}
-                        </span>
+                    ))}
+                    <div className="px-4 py-4 bg-geo-gold/5">
+                      <div className="text-[10px] text-gray-500 uppercase mb-1">
+                        Total Active Monitoring
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-[10px] mb-2">
-                        <div>
-                          <div className="text-gray-600 text-[9px]">Total</div>
-                          <div className="text-gray-300 font-mono font-bold">
-                            {n.warheads.toLocaleString()}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600 text-[9px]">
-                            Deployed
-                          </div>
-                          <div className="text-gray-300 font-mono">
-                            {n.deployed.toLocaleString()}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-600 text-[9px]">Status</div>
-                          <div
-                            className={`${
-                              n.status === "Expanding" ||
-                              n.status === "Testing" ||
-                              n.status === "Threshold"
-                                ? "text-red-400"
-                                : n.status === "Elevated" ||
-                                    n.status === "Growing"
-                                  ? "text-orange-400"
-                                  : "text-emerald-400"
-                            }`}
+                      <div className="text-xl font-bold text-geo-gold font-mono">
+                        {trackedAssets
+                          .reduce((sum, asset) => sum + asset.active, 0)
+                          .toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activePanel === "risks" && (
+                <motion.div
+                  key="risks"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-geo-gold" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        RISK INDICES
+                      </h2>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {RISK_INDICES.map((idx) => (
+                      <div key={idx.name} className="px-4 py-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-white">
+                            {idx.name}
+                          </span>
+                          <span
+                            className={`text-xs font-mono ${idx.change > 0 ? "text-red-400" : "text-emerald-400"}`}
                           >
-                            {n.status}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-yellow-500/70"
-                          style={{
-                            width: `${Math.min((n.warheads / 6000) * 100, 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  <div className="px-4 py-3 bg-yellow-500/5 border-t border-yellow-500/10">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="text-[9px] text-gray-600 uppercase">
-                          Global Warheads
-                        </div>
-                        <div className="text-lg font-bold text-yellow-400 font-mono">
-                          {NUCLEAR_STATUS.reduce(
-                            (s, n) => s + n.warheads,
-                            0,
-                          ).toLocaleString()}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] text-gray-600 uppercase">
-                          Deployed
-                        </div>
-                        <div className="text-lg font-bold text-orange-400 font-mono">
-                          {NUCLEAR_STATUS.reduce(
-                            (s, n) => s + n.deployed,
-                            0,
-                          ).toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ═══ AIRCRAFT TRACKER ═══════════════════════════ */}
-            {activePanel === "aircraft" && (
-              <motion.div
-                key="aircraft"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Plane className="w-4 h-4 text-cyan-400" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      AIRCRAFT RADAR
-                    </h2>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Live OpenSky Network • {aircraftTotal.toLocaleString()}{" "}
-                    tracked globally
-                  </p>
-                </div>
-                <div className="px-4 py-3 border-b border-white/5">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3">
-                      <div className="text-[9px] text-gray-500 uppercase">
-                        In Flight
-                      </div>
-                      <div className="text-xl font-bold text-cyan-400 font-mono">
-                        {aircraftData.length.toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-3">
-                      <div className="text-[9px] text-gray-500 uppercase">
-                        Military
-                      </div>
-                      <div className="text-xl font-bold text-orange-400 font-mono">
-                        {
-                          aircraftData.filter((a) => a.category === "military")
-                            .length
-                        }
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="px-4 py-2 border-b border-white/5">
-                  <div className="flex items-center justify-between text-[9px] font-mono text-gray-600">
-                    <span>CATEGORY</span>
-                    <span>COUNT</span>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-                  {[
-                    {
-                      cat: "commercial",
-                      label: "Commercial",
-                      color: "text-cyan-400",
-                      icon: "✈",
-                    },
-                    {
-                      cat: "cargo",
-                      label: "Cargo / Freight",
-                      color: "text-orange-400",
-                      icon: "📦",
-                    },
-                    {
-                      cat: "military",
-                      label: "Military",
-                      color: "text-red-400",
-                      icon: "🎖",
-                    },
-                    {
-                      cat: "private",
-                      label: "Private / GA",
-                      color: "text-green-400",
-                      icon: "🛩",
-                    },
-                    {
-                      cat: "unknown",
-                      label: "Unidentified",
-                      color: "text-gray-400",
-                      icon: "❓",
-                    },
-                  ].map((c) => {
-                    const count = aircraftData.filter(
-                      (a) => a.category === c.cat,
-                    ).length;
-                    return (
-                      <div
-                        key={c.cat}
-                        className="px-4 py-2.5 flex items-center justify-between hover:bg-white/[0.02]"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>{c.icon}</span>
-                          <span className={`text-xs ${c.color}`}>
-                            {c.label}
+                            {idx.change > 0 ? "▲" : "▼"} {Math.abs(idx.change)}
                           </span>
                         </div>
-                        <span className="text-xs font-mono text-gray-300">
-                          {count.toLocaleString()}
-                        </span>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span
+                            className={`text-2xl font-bold font-mono ${getRiskColor(idx.value)}`}
+                          >
+                            {idx.value}
+                          </span>
+                          <span className="text-xs text-gray-600">/ 100</span>
+                        </div>
+                        <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${idx.color}`}
+                            style={{ width: `${idx.value}%` }}
+                          />
+                        </div>
                       </div>
-                    );
-                  })}
-                  <div className="px-4 py-3">
-                    <div className="text-[9px] text-gray-600 uppercase mb-2">
-                      Top Countries
+                    ))}
+                    <div className="px-4 py-4 bg-geo-gold/5">
+                      <div className="text-[10px] text-gray-500 uppercase mb-1">
+                        Composite Risk Index
+                      </div>
+                      <div className="text-3xl font-bold text-geo-gold font-mono">
+                        {Math.round(
+                          RISK_INDICES.reduce((s, i) => s + i.value, 0) /
+                            RISK_INDICES.length,
+                        )}
+                      </div>
                     </div>
-                    {Object.entries(
-                      aircraftData.reduce<Record<string, number>>((acc, a) => {
-                        acc[a.origin_country] =
-                          (acc[a.origin_country] || 0) + 1;
-                        return acc;
-                      }, {}),
-                    )
-                      .sort((a, b) => b[1] - a[1])
-                      .slice(0, 10)
-                      .map(([country, count]) => (
-                        <div
-                          key={country}
-                          className="flex items-center justify-between text-[10px] mb-1"
-                        >
-                          <span className="text-gray-400">{country}</span>
+                  </div>
+                </motion.div>
+              )}
+
+              {activePanel === "sigint" && (
+                <motion.div
+                  key="sigint"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Wifi className="w-4 h-4 text-cyan-400" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        SIGNALS INTELLIGENCE
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      COMINT \u2022 ELINT \u2022 CYBER \u2022 SATCOM intercepts
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    {SIGINT_FEEDS.map((sig, i) => (
+                      <div
+                        key={i}
+                        className="px-4 py-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span
+                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
+                              sig.classification === "CRITICAL"
+                                ? "text-red-400 bg-red-500/10 border border-red-500/30"
+                                : sig.classification === "HIGH"
+                                  ? "text-orange-400 bg-orange-500/10 border border-orange-500/30"
+                                  : sig.classification === "ELEVATED"
+                                    ? "text-yellow-400 bg-yellow-500/10 border border-yellow-500/30"
+                                    : "text-blue-400 bg-blue-500/10 border border-blue-500/30"
+                            }`}
+                          >
+                            {sig.classification}
+                          </span>
+                          <span className="text-[9px] text-gray-600 font-mono">
+                            {sig.time}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-mono text-cyan-400">
+                            {sig.source}
+                          </span>
+                          <span className="text-[9px] text-gray-600">
+                            \u2022
+                          </span>
+                          <span className="text-[10px] text-gray-500">
+                            {sig.region}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-300 leading-relaxed mb-1.5">
+                          {sig.detail}
+                        </p>
+                        <div className="text-[9px] font-mono text-gray-600">
+                          FREQ: {sig.freq}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="px-4 py-4 bg-cyan-500/5 border-t border-cyan-500/10">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                          <span className="text-[10px] text-cyan-400 font-mono">
+                            {SIGINT_FEEDS.length} active intercepts
+                          </span>
+                        </div>
+                        <div className="text-[9px] text-gray-600 font-mono">
+                          {
+                            SIGINT_FEEDS.filter(
+                              (s) => s.classification === "CRITICAL",
+                            ).length
+                          }{" "}
+                          critical
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activePanel === "countries" && (
+                <motion.div
+                  key="countries"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Flag className="w-4 h-4 text-geo-gold" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        COUNTRY BRIEFS
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Intelligence assessments &mdash; threat &amp; stability
+                      indices
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {COUNTRY_BRIEFS.map((cb) => (
+                      <div
+                        key={cb.country}
+                        className="px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-cyan-500/60 rounded-full"
-                                style={{
-                                  width: `${Math.min((count / aircraftData.length) * 100 * 3, 100)}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="text-gray-500 font-mono w-8 text-right">
-                              {count}
+                            <span className="text-base">{cb.flag}</span>
+                            <span className="text-xs font-bold text-white">
+                              {cb.country}
                             </span>
                           </div>
+                          <span
+                            className={`text-[10px] font-mono font-bold ${
+                              cb.threat >= 80
+                                ? "text-red-400"
+                                : cb.threat >= 60
+                                  ? "text-orange-400"
+                                  : cb.threat >= 40
+                                    ? "text-yellow-400"
+                                    : "text-emerald-400"
+                            }`}
+                          >
+                            THREAT: {cb.threat}
+                          </span>
                         </div>
-                      ))}
-                  </div>
-                  <div className="px-4 py-3 bg-cyan-500/5 border-t border-cyan-500/10">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                      <span className="text-[10px] text-cyan-400 font-mono">
-                        OPENSKY •{" "}
-                        {aircraftUpdatedAt
-                          ? new Date(aircraftUpdatedAt).toLocaleTimeString()
-                          : "Awaiting sync"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ═══ SHIP TRACKER ═══════════════════════════════ */}
-            {activePanel === "ships" && (
-              <motion.div
-                key="ships"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
-              >
-                <div className="px-4 py-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Ship className="w-4 h-4 text-orange-400" />
-                    <h2 className="text-sm font-bold tracking-wide">
-                      MARITIME TRACKER
-                    </h2>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    {shipSource} • {shipTotal} vessels
-                  </p>
-                </div>
-                <div className="px-4 py-3 border-b border-white/5">
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      {
-                        label: "Tankers",
-                        count: shipData.filter((s) => s.type === "tanker")
-                          .length,
-                        color: "text-orange-400",
-                      },
-                      {
-                        label: "Container",
-                        count: shipData.filter((s) => s.type === "container")
-                          .length,
-                        color: "text-emerald-400",
-                      },
-                      {
-                        label: "Military",
-                        count: shipData.filter((s) => s.type === "military")
-                          .length,
-                        color: "text-red-400",
-                      },
-                    ].map((s) => (
-                      <div
-                        key={s.label}
-                        className="bg-white/5 rounded-lg p-2 text-center"
-                      >
-                        <div
-                          className="text-lg font-bold font-mono"
-                          style={{
-                            color: s.color
-                              .replace("text-", "")
-                              .includes("orange")
-                              ? "#fb923c"
-                              : s.color.includes("emerald")
-                                ? "#34d399"
-                                : "#f87171",
-                          }}
-                        >
-                          {s.count}
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          <div>
+                            <div className="text-[9px] text-gray-600 uppercase">
+                              Threat
+                            </div>
+                            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mt-1">
+                              <div
+                                className={`h-full rounded-full ${cb.threat >= 70 ? "bg-red-500" : cb.threat >= 50 ? "bg-orange-500" : "bg-yellow-500"}`}
+                                style={{ width: `${cb.threat}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-gray-600 uppercase">
+                              Stability
+                            </div>
+                            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mt-1">
+                              <div
+                                className={`h-full rounded-full ${cb.stability >= 60 ? "bg-emerald-500" : cb.stability >= 40 ? "bg-yellow-500" : "bg-red-500"}`}
+                                style={{ width: `${cb.stability}%` }}
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[8px] text-gray-500 uppercase">
-                          {s.label}
+                        <p className="text-[11px] text-gray-400 leading-relaxed mb-2">
+                          {cb.brief}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {cb.hotTopics.map((topic) => (
+                            <span
+                              key={topic}
+                              className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400 font-mono"
+                            >
+                              {topic}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     ))}
                   </div>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-                  {shipData.map((ship) => (
-                    <button
-                      type="button"
-                      key={ship.mmsi}
-                      onClick={() => handleShipClick(ship)}
-                      className={`w-full px-4 py-3 text-left transition-colors ${selectedShip?.mmsi === ship.mmsi ? "bg-orange-500/10" : "hover:bg-white/[0.02]"}`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              ship.type === "military"
-                                ? "bg-red-500"
-                                : ship.type === "tanker"
-                                  ? "bg-orange-500"
-                                  : ship.type === "container"
-                                    ? "bg-emerald-500"
-                                    : ship.type === "lng"
-                                      ? "bg-yellow-500"
-                                      : ship.type === "cruise"
-                                        ? "bg-purple-500"
-                                        : "bg-blue-500"
-                            }`}
-                          />
+                </motion.div>
+              )}
+
+              {activePanel === "sanctions" && (
+                <motion.div
+                  key="sanctions"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Ban className="w-4 h-4 text-red-400" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        SANCTIONS TRACKER
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Active sanctions regimes &amp; economic warfare
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {SANCTIONS_DATA.map((s) => (
+                      <div
+                        key={s.entity}
+                        className="px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-bold text-white">
-                            {ship.name}
+                            {s.entity}
+                          </span>
+                          <span
+                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                              s.status === "Escalating"
+                                ? "text-red-400 bg-red-500/10 border-red-500/30"
+                                : s.status === "Active"
+                                  ? "text-orange-400 bg-orange-500/10 border-orange-500/30"
+                                  : "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
+                            }`}
+                          >
+                            {s.status}
                           </span>
                         </div>
-                        <span className="text-[9px] font-mono text-gray-500 uppercase">
-                          {ship.type}
+                        <div className="grid grid-cols-3 gap-2 text-[10px] mb-2">
+                          <div>
+                            <div className="text-gray-600 text-[9px]">Type</div>
+                            <div className="text-gray-400">{s.type}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600 text-[9px]">
+                              Packages
+                            </div>
+                            <div className="text-gray-400 font-mono">
+                              {s.packages}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600 text-[9px]">
+                              Updated
+                            </div>
+                            <div className="text-gray-400">{s.lastUpdate}</div>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-gray-500 mb-2">
+                          Sectors: {s.sectors}
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between text-[9px] mb-1">
+                            <span className="text-gray-600">Impact Index</span>
+                            <span
+                              className={`font-mono font-bold ${s.impact >= 80 ? "text-red-400" : s.impact >= 60 ? "text-orange-400" : "text-yellow-400"}`}
+                            >
+                              {s.impact}/100
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${s.impact >= 80 ? "bg-red-500" : s.impact >= 60 ? "bg-orange-500" : "bg-yellow-500"}`}
+                              style={{ width: `${s.impact}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="px-4 py-3 bg-red-500/5 border-t border-red-500/10">
+                      <div className="text-[10px] text-gray-500 uppercase mb-1">
+                        Total Active Regimes
+                      </div>
+                      <div className="text-xl font-bold text-red-400 font-mono">
+                        {SANCTIONS_DATA.length}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activePanel === "nuclear" && (
+                <motion.div
+                  key="nuclear"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Atom className="w-4 h-4 text-yellow-400" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        NUCLEAR MONITOR
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Global nuclear arsenal tracking &amp; proliferation
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {NUCLEAR_STATUS.map((n) => (
+                      <div
+                        key={n.state}
+                        className="px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-white">
+                            {n.state}
+                          </span>
+                          <span
+                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                              n.alert === "CRITICAL"
+                                ? "text-red-400 bg-red-500/10 border-red-500/30 animate-pulse"
+                                : n.alert === "HIGH"
+                                  ? "text-orange-400 bg-orange-500/10 border-orange-500/30"
+                                  : n.alert === "MODERATE"
+                                    ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
+                                    : "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+                            }`}
+                          >
+                            {n.alert}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[10px] mb-2">
+                          <div>
+                            <div className="text-gray-600 text-[9px]">
+                              Total
+                            </div>
+                            <div className="text-gray-300 font-mono font-bold">
+                              {n.warheads.toLocaleString()}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600 text-[9px]">
+                              Deployed
+                            </div>
+                            <div className="text-gray-300 font-mono">
+                              {n.deployed.toLocaleString()}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600 text-[9px]">
+                              Status
+                            </div>
+                            <div
+                              className={`${
+                                n.status === "Expanding" ||
+                                n.status === "Testing" ||
+                                n.status === "Threshold"
+                                  ? "text-red-400"
+                                  : n.status === "Elevated" ||
+                                      n.status === "Growing"
+                                    ? "text-orange-400"
+                                    : "text-emerald-400"
+                              }`}
+                            >
+                              {n.status}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-yellow-500/70"
+                            style={{
+                              width: `${Math.min((n.warheads / 6000) * 100, 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="px-4 py-3 bg-yellow-500/5 border-t border-yellow-500/10">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-[9px] text-gray-600 uppercase">
+                            Global Warheads
+                          </div>
+                          <div className="text-lg font-bold text-yellow-400 font-mono">
+                            {NUCLEAR_STATUS.reduce(
+                              (s, n) => s + n.warheads,
+                              0,
+                            ).toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-gray-600 uppercase">
+                            Deployed
+                          </div>
+                          <div className="text-lg font-bold text-orange-400 font-mono">
+                            {NUCLEAR_STATUS.reduce(
+                              (s, n) => s + n.deployed,
+                              0,
+                            ).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ═══ AIRCRAFT TRACKER ═══════════════════════════ */}
+              {activePanel === "aircraft" && (
+                <motion.div
+                  key="aircraft"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Plane className="w-4 h-4 text-cyan-400" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        AIRCRAFT RADAR
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Live OpenSky Network • {aircraftTotal.toLocaleString()}{" "}
+                      tracked globally
+                    </p>
+                  </div>
+                  <div className="px-4 py-3 border-b border-white/5">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3">
+                        <div className="text-[9px] text-gray-500 uppercase">
+                          In Flight
+                        </div>
+                        <div className="text-xl font-bold text-cyan-400 font-mono">
+                          {aircraftData.length.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-3">
+                        <div className="text-[9px] text-gray-500 uppercase">
+                          Military
+                        </div>
+                        <div className="text-xl font-bold text-orange-400 font-mono">
+                          {
+                            aircraftData.filter(
+                              (a) => a.category === "military",
+                            ).length
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-4 py-2 border-b border-white/5">
+                    <div className="flex items-center justify-between text-[9px] font-mono text-gray-600">
+                      <span>CATEGORY</span>
+                      <span>COUNT</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {[
+                      {
+                        cat: "commercial",
+                        label: "Commercial",
+                        color: "text-cyan-400",
+                        icon: "✈",
+                      },
+                      {
+                        cat: "cargo",
+                        label: "Cargo / Freight",
+                        color: "text-orange-400",
+                        icon: "📦",
+                      },
+                      {
+                        cat: "military",
+                        label: "Military",
+                        color: "text-red-400",
+                        icon: "🎖",
+                      },
+                      {
+                        cat: "private",
+                        label: "Private / GA",
+                        color: "text-green-400",
+                        icon: "🛩",
+                      },
+                      {
+                        cat: "unknown",
+                        label: "Unidentified",
+                        color: "text-gray-400",
+                        icon: "❓",
+                      },
+                    ].map((c) => {
+                      const count = aircraftData.filter(
+                        (a) => a.category === c.cat,
+                      ).length;
+                      return (
+                        <div
+                          key={c.cat}
+                          className="px-4 py-2.5 flex items-center justify-between hover:bg-white/[0.02]"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{c.icon}</span>
+                            <span className={`text-xs ${c.color}`}>
+                              {c.label}
+                            </span>
+                          </div>
+                          <span className="text-xs font-mono text-gray-300">
+                            {count.toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    <div className="px-4 py-3">
+                      <div className="text-[9px] text-gray-600 uppercase mb-2">
+                        Top Countries
+                      </div>
+                      {Object.entries(
+                        aircraftData.reduce<Record<string, number>>(
+                          (acc, a) => {
+                            acc[a.origin_country] =
+                              (acc[a.origin_country] || 0) + 1;
+                            return acc;
+                          },
+                          {},
+                        ),
+                      )
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 10)
+                        .map(([country, count]) => (
+                          <div
+                            key={country}
+                            className="flex items-center justify-between text-[10px] mb-1"
+                          >
+                            <span className="text-gray-400">{country}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-cyan-500/60 rounded-full"
+                                  style={{
+                                    width: `${Math.min((count / aircraftData.length) * 100 * 3, 100)}%`,
+                                  }}
+                                />
+                              </div>
+                              <span className="text-gray-500 font-mono w-8 text-right">
+                                {count}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                    <div className="px-4 py-3 bg-cyan-500/5 border-t border-cyan-500/10">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                        <span className="text-[10px] text-cyan-400 font-mono">
+                          OPENSKY •{" "}
+                          {aircraftUpdatedAt
+                            ? new Date(aircraftUpdatedAt).toLocaleTimeString()
+                            : "Awaiting sync"}
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-[10px] text-gray-500">
-                        <div>
-                          <span className="text-gray-600">Flag:</span>{" "}
-                          <span>
-                            {ship.flagEmoji} {ship.flag}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Speed:</span>{" "}
-                          <span className="font-mono">
-                            {ship.speed.toFixed(1)}kn
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Len:</span>{" "}
-                          <span className="font-mono">{ship.length}m</span>
-                        </div>
-                      </div>
-                      <div className="text-[10px] text-gray-600 mt-1">
-                        → {ship.destination}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <div className="px-4 py-3 bg-orange-500/5 border-t border-orange-500/10">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-2 h-2 rounded-full ${shipDataLive ? "bg-orange-400 animate-pulse" : "bg-yellow-400"}`}
-                    />
-                    <span
-                      className={`text-[10px] font-mono ${shipDataLive ? "text-orange-400" : "text-yellow-300"}`}
-                    >
-                      {shipDataLive ? "LIVE AIS" : "DEMO COVERAGE"} •{" "}
-                      {shipData.filter((s) => s.type === "military").length}{" "}
-                      military tracked
-                    </span>
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                </motion.div>
+              )}
+
+              {/* ═══ SHIP TRACKER ═══════════════════════════════ */}
+              {activePanel === "ships" && (
+                <motion.div
+                  key="ships"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Ship className="w-4 h-4 text-orange-400" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        MARITIME TRACKER
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      {shipSource} • {shipTotal} vessels
+                    </p>
+                  </div>
+                  <div className="px-4 py-3 border-b border-white/5">
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        {
+                          label: "Tankers",
+                          count: shipData.filter((s) => s.type === "tanker")
+                            .length,
+                          color: "text-orange-400",
+                        },
+                        {
+                          label: "Container",
+                          count: shipData.filter((s) => s.type === "container")
+                            .length,
+                          color: "text-emerald-400",
+                        },
+                        {
+                          label: "Military",
+                          count: shipData.filter((s) => s.type === "military")
+                            .length,
+                          color: "text-red-400",
+                        },
+                      ].map((s) => (
+                        <div
+                          key={s.label}
+                          className="bg-white/5 rounded-lg p-2 text-center"
+                        >
+                          <div
+                            className="text-lg font-bold font-mono"
+                            style={{
+                              color: s.color
+                                .replace("text-", "")
+                                .includes("orange")
+                                ? "#fb923c"
+                                : s.color.includes("emerald")
+                                  ? "#34d399"
+                                  : "#f87171",
+                            }}
+                          >
+                            {s.count}
+                          </div>
+                          <div className="text-[8px] text-gray-500 uppercase">
+                            {s.label}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {shipData.map((ship) => (
+                      <button
+                        type="button"
+                        key={ship.mmsi}
+                        onClick={() => handleShipClick(ship)}
+                        className={`w-full px-4 py-3 text-left transition-colors ${selectedShip?.mmsi === ship.mmsi ? "bg-orange-500/10" : "hover:bg-white/[0.02]"}`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                ship.type === "military"
+                                  ? "bg-red-500"
+                                  : ship.type === "tanker"
+                                    ? "bg-orange-500"
+                                    : ship.type === "container"
+                                      ? "bg-emerald-500"
+                                      : ship.type === "lng"
+                                        ? "bg-yellow-500"
+                                        : ship.type === "cruise"
+                                          ? "bg-purple-500"
+                                          : "bg-blue-500"
+                              }`}
+                            />
+                            <span className="text-xs font-bold text-white">
+                              {ship.name}
+                            </span>
+                          </div>
+                          <span className="text-[9px] font-mono text-gray-500 uppercase">
+                            {ship.type}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[10px] text-gray-500">
+                          <div>
+                            <span className="text-gray-600">Flag:</span>{" "}
+                            <span>
+                              {ship.flagEmoji} {ship.flag}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Speed:</span>{" "}
+                            <span className="font-mono">
+                              {ship.speed.toFixed(1)}kn
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Len:</span>{" "}
+                            <span className="font-mono">{ship.length}m</span>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-gray-600 mt-1">
+                          → {ship.destination}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="px-4 py-3 bg-orange-500/5 border-t border-orange-500/10">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-2 h-2 rounded-full ${shipDataLive ? "bg-orange-400 animate-pulse" : "bg-yellow-400"}`}
+                      />
+                      <span
+                        className={`text-[10px] font-mono ${shipDataLive ? "text-orange-400" : "text-yellow-300"}`}
+                      >
+                        {shipDataLive ? "LIVE AIS" : "DEMO COVERAGE"} •{" "}
+                        {shipData.filter((s) => s.type === "military").length}{" "}
+                        military tracked
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
         <div className="flex-1 relative">
+          {!isCompactLayout && !desktopHudOpen && (
+            <div className="pointer-events-none absolute left-[106px] top-4 z-20 hidden xl:block">
+              <button
+                type="button"
+                onClick={() => setDesktopHudOpen(true)}
+                className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/65 px-4 py-2 text-[11px] font-medium text-white shadow-lg shadow-black/25 backdrop-blur-xl transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Open intel drawer
+              </button>
+            </div>
+          )}
           <div className="absolute inset-0">
             <WorldGlobe
               events={allEvents}
@@ -2095,315 +2253,405 @@ export default function WorldMonitorPage() {
             />
           )}
 
-          {!apertureActive && (
-            <div className="absolute left-4 right-4 top-4 z-10 pointer-events-none">
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_400px] pointer-events-auto xl:items-start">
-                <div className="rounded-2xl border border-white/[0.08] bg-black/50 p-4 shadow-xl shadow-black/20 backdrop-blur-2xl">
+          {!apertureActive && !isCompactLayout && (
+            <div className="pointer-events-none absolute right-4 top-4 z-10">
+              <div className="pointer-events-auto flex w-[min(21rem,calc(100vw-8rem))] flex-col gap-3">
+                <div className="rounded-[26px] border border-white/[0.08] bg-black/58 p-4 shadow-xl shadow-black/20 backdrop-blur-2xl">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-mono tracking-[0.22em] text-geo-gold">
-                        TOPSIDE AI NAVIGATOR
+                        DESKTOP COMMAND SURFACE
                       </div>
-                      <h2 className="mt-1 text-sm font-semibold text-white">
-                        Ask live questions about aircraft, vessels, and
-                        chokepoints directly from the monitor.
-                      </h2>
+                      <p className="mt-1 text-xs text-gray-400">
+                        Desktop keeps the globe primary. Open panels only when
+                        needed.
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-mono ${shipDataLive ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"}`}
-                      >
-                        <Radar className="h-3.5 w-3.5" />
-                        {shipDataLive
-                          ? "Live AIS coverage"
-                          : "Demo vessel coverage"}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setAiNavigatorMinimized((current) => !current)
-                        }
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-300 transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
-                        aria-label={
-                          aiNavigatorMinimized
-                            ? "Expand AI navigator"
-                            : "Minimize AI navigator"
-                        }
-                        title={
-                          aiNavigatorMinimized
-                            ? "Expand AI navigator"
-                            : "Minimize AI navigator"
-                        }
-                      >
-                        {aiNavigatorMinimized ? (
-                          <Maximize2 className="h-4 w-4" />
-                        ) : (
-                          <Minimize2 className="h-4 w-4" />
-                        )}
-                      </button>
+                    <div
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-mono ${shipDataLive ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"}`}
+                    >
+                      <Radar className="h-3.5 w-3.5" />
+                      {shipDataLive ? "Live AIS" : "Demo AIS"}
                     </div>
                   </div>
 
-                  {aiNavigatorMinimized ? (
-                    <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] text-gray-400">
-                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 font-mono text-gray-300">
-                        {featuredChokepoints[0]?.name || "No chokepoints"}
-                      </span>
-                      <span>
-                        {shipData.length.toLocaleString()} vessels visible
-                      </span>
-                      <span>
-                        {aircraftData.length.toLocaleString()} aircraft visible
-                      </span>
-                      <span className="text-geo-gold">
-                        Expand to query AI or inspect chokepoints.
-                      </span>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="mt-4 flex flex-col gap-2 lg:flex-row">
-                        <input
-                          type="text"
-                          value={aiQuery}
-                          onChange={(e) => setAiQuery(e.target.value)}
-                          onKeyDown={(e) =>
-                            e.key === "Enter" && fetchAiBrief(aiQuery)
-                          }
-                          placeholder="Ask about Hormuz, military flights, vessel congestion, or active chokepoints..."
-                          className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-geo-gold/40"
-                        />
-                        <button
-                          onClick={() => fetchAiBrief(aiQuery)}
-                          disabled={aiLoading}
-                          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-geo-gold/30 bg-geo-gold/10 px-4 text-sm font-semibold text-geo-gold transition-colors hover:bg-geo-gold/20 disabled:opacity-50"
-                        >
-                          <Cpu className="h-4 w-4" />
-                          {aiLoading ? "Analyzing..." : "Run AI query"}
-                        </button>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {AI_QUICK_QUERIES.map((question) => (
-                          <button
-                            key={question}
-                            onClick={() => {
-                              setAiQuery(question);
-                              fetchAiBrief(question);
-                            }}
-                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-gray-300 transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
-                          >
-                            {question}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="mt-4 grid gap-2 md:grid-cols-3">
-                        {featuredChokepoints.map((chokepoint) => (
-                          <button
-                            type="button"
-                            key={chokepoint.name}
-                            onClick={() =>
-                              handleChokepointClick(
-                                CHOKEPOINTS.find(
-                                  (candidate) =>
-                                    candidate.name === chokepoint.name,
-                                ) || CHOKEPOINTS[0],
-                              )
-                            }
-                            className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-left transition-colors hover:border-geo-gold/30"
-                          >
-                            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">
-                              {chokepoint.name}
-                            </div>
-                            <div className="mt-2 flex items-end gap-3">
-                              <div>
-                                <div className="text-lg font-bold text-orange-400 font-mono">
-                                  {chokepoint.vessels}
-                                </div>
-                                <div className="text-[10px] text-gray-500">
-                                  vessels
-                                </div>
-                              </div>
-                              <div>
-                                <div className="text-lg font-bold text-yellow-300 font-mono">
-                                  {chokepoint.strandedShips}
-                                </div>
-                                <div className="text-[10px] text-gray-500">
-                                  stranded
-                                </div>
-                              </div>
-                              <div>
-                                <div className="text-lg font-bold text-cyan-400 font-mono">
-                                  {chokepoint.aircraft}
-                                </div>
-                                <div className="text-[10px] text-gray-500">
-                                  aircraft
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-
-                      {aiBrief && (
-                        <div className="mt-4 rounded-xl border border-purple-500/20 bg-purple-500/8 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-purple-300">
-                              {aiBrief.threatLevel || "MONITOR"}
-                            </div>
-                            <div className="text-[10px] text-gray-500">
-                              {new Date(
-                                aiBrief.timestamp || Date.now(),
-                              ).toLocaleTimeString()}
-                            </div>
-                          </div>
-                          <div className="mt-1 text-sm font-semibold text-white">
-                            {aiBrief.headline}
-                          </div>
-                          <p className="mt-2 text-xs leading-relaxed text-gray-300">
-                            {aiBrief.summary}
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div className="rounded-2xl border border-white/[0.08] bg-black/50 p-4 shadow-xl shadow-black/20 backdrop-blur-2xl">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[10px] font-mono tracking-[0.22em] text-gray-500">
-                        LIVE ASSET COVERAGE
-                      </div>
-                      <p className="mt-1 text-xs text-gray-400">
-                        Collapse this panel when you want a cleaner globe view.
-                      </p>
-                    </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      onClick={() =>
-                        setAssetCoverageMinimized((current) => !current)
-                      }
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-300 transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
-                      aria-label={
-                        assetCoverageMinimized
-                          ? "Expand asset coverage panel"
-                          : "Minimize asset coverage panel"
-                      }
-                      title={
-                        assetCoverageMinimized
-                          ? "Expand asset coverage panel"
-                          : "Minimize asset coverage panel"
-                      }
+                      onClick={() => {
+                        setActivePanel("feed");
+                        setDesktopHudOpen(true);
+                      }}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
                     >
-                      {assetCoverageMinimized ? (
-                        <Maximize2 className="h-4 w-4" />
-                      ) : (
-                        <Minimize2 className="h-4 w-4" />
-                      )}
+                      Feed
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePanel("ships");
+                        setDesktopHudOpen(true);
+                      }}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+                    >
+                      Vessels
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePanel("aircraft");
+                        setDesktopHudOpen(true);
+                      }}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+                    >
+                      Aircraft
                     </button>
                   </div>
 
-                  {assetCoverageMinimized ? (
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
-                        <div className="text-[10px] uppercase text-gray-500">
-                          Aircraft
-                        </div>
-                        <div className="mt-1 text-xl font-bold font-mono text-cyan-400">
-                          {aircraftData.length.toLocaleString()}
-                        </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+                      <div className="text-[10px] uppercase text-gray-500">
+                        Aircraft
                       </div>
-                      <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3">
-                        <div className="text-[10px] uppercase text-gray-500">
-                          Vessels
-                        </div>
-                        <div className="mt-1 text-xl font-bold font-mono text-orange-400">
-                          {shipData.length.toLocaleString()}
-                        </div>
+                      <div className="mt-1 text-xl font-bold font-mono text-cyan-400">
+                        {aircraftData.length.toLocaleString()}
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
-                          <div className="text-[10px] uppercase text-gray-500">
-                            Aircraft visible
-                          </div>
-                          <div className="mt-1 text-2xl font-bold font-mono text-cyan-400">
-                            {aircraftData.length.toLocaleString()}
-                          </div>
-                          <div className="text-[10px] text-gray-500">
-                            OpenSky total {aircraftTotal.toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3">
-                          <div className="text-[10px] uppercase text-gray-500">
-                            Vessels visible
-                          </div>
-                          <div className="mt-1 text-2xl font-bold font-mono text-orange-400">
-                            {shipData.length.toLocaleString()}
-                          </div>
-                          <div className="text-[10px] text-gray-500">
-                            {shipSource}
-                          </div>
-                        </div>
+                    <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-3">
+                      <div className="text-[10px] uppercase text-gray-500">
+                        Vessels
                       </div>
+                      <div className="mt-1 text-xl font-bold font-mono text-orange-400">
+                        {shipData.length.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
 
-                      <div className="mt-3 space-y-2">
-                        {regionCounts.slice(0, 4).map((region) => {
-                          const threat = THREAT_LEVELS[region.threat - 1];
-                          return (
-                            <div
-                              key={region.name}
-                              className="flex items-center justify-between rounded-xl border border-white/6 bg-white/[0.03] px-3 py-2"
-                            >
-                              <div>
-                                <div className="text-xs text-white">
-                                  {region.name}
-                                </div>
-                                <div className="text-[10px] text-gray-500">
-                                  {region.events} reported events
-                                </div>
-                              </div>
-                              <div
-                                className={`text-[11px] font-mono ${threat.color}`}
-                              >
-                                {threat.label}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="mt-3 rounded-xl border border-white/6 bg-white/[0.03] p-3 text-[10px] text-gray-500">
-                        <div>
-                          Aircraft sync:{" "}
-                          {aircraftUpdatedAt
-                            ? new Date(aircraftUpdatedAt).toLocaleTimeString()
-                            : "Awaiting sync"}
-                        </div>
-                        <div className="mt-1">
-                          Vessel sync:{" "}
-                          {shipUpdatedAt
-                            ? new Date(shipUpdatedAt).toLocaleTimeString()
-                            : "Awaiting sync"}
-                        </div>
-                        {!shipDataLive && shipNotice && (
-                          <div className="mt-2 text-yellow-300/80">
-                            {shipNotice}
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
+                  <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-[11px] text-gray-400">
+                    <div>
+                      Focus: {featuredChokepoints[0]?.name || "Global monitor"}
+                    </div>
+                    <div className="mt-1">
+                      {
+                        allEvents.filter((event) => event.locations.length > 0)
+                          .length
+                      }{" "}
+                      plotted events • {osintEvents.length} OSINT •{" "}
+                      {articleEvents.length} intel
+                    </div>
+                    <div className="mt-1">
+                      Zoom {zoomLevel.toFixed(1)} • Vessel sync{" "}
+                      {shipUpdatedAt
+                        ? new Date(shipUpdatedAt).toLocaleTimeString()
+                        : "awaiting"}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
+          {!apertureActive && isCompactLayout && (
+            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20">
+              <div className="pointer-events-auto rounded-[24px] border border-white/10 bg-black/72 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+                <button
+                  type="button"
+                  onClick={() => setMobileHudOpen((current) => !current)}
+                  className="flex w-full items-center justify-between px-4 py-3"
+                >
+                  <div>
+                    <div className="text-[10px] font-mono tracking-[0.2em] text-geo-gold">
+                      MOBILE COMMAND SURFACE
+                    </div>
+                    <div className="mt-1 text-xs text-gray-300">
+                      Secondary controls stay in a sheet so the globe remains
+                      draggable.
+                    </div>
+                  </div>
+                  <ChevronRight
+                    className={`h-5 w-5 text-gray-400 transition-transform ${mobileHudOpen ? "rotate-90" : "-rotate-90"}`}
+                  />
+                </button>
+
+                <div className="border-t border-white/5 px-3 py-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      ["overview", "Overview"],
+                      ["ai", "AI"],
+                      [
+                        "selection",
+                        selectedAsset || selectedEvent
+                          ? "Selection"
+                          : "Details",
+                      ],
+                    ].map(([key, label]) => {
+                      const selected = mobileHudTab === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            setMobileHudTab(
+                              key as "overview" | "ai" | "selection",
+                            );
+                            setMobileHudOpen(true);
+                          }}
+                          className={`rounded-2xl border px-3 py-2 text-[11px] font-medium transition-colors ${
+                            selected
+                              ? "border-geo-gold/40 bg-geo-gold/15 text-geo-gold"
+                              : "border-white/10 bg-white/5 text-gray-300"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {mobileHudOpen && (
+                  <div className="max-h-[52vh] space-y-3 overflow-y-auto border-t border-white/5 px-4 py-4">
+                    {mobileHudTab === "overview" && (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+                            <div className="text-[10px] uppercase text-gray-500">
+                              Aircraft
+                            </div>
+                            <div className="mt-1 text-xl font-bold font-mono text-cyan-400">
+                              {aircraftData.length.toLocaleString()}
+                            </div>
+                            <div className="text-[10px] text-gray-500">
+                              Total {aircraftTotal.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-3">
+                            <div className="text-[10px] uppercase text-gray-500">
+                              Vessels
+                            </div>
+                            <div className="mt-1 text-xl font-bold font-mono text-orange-400">
+                              {shipData.length.toLocaleString()}
+                            </div>
+                            <div className="text-[10px] text-gray-500">
+                              {shipDataLive ? "Live AIS" : shipSource}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                          <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">
+                            Featured chokepoints
+                          </div>
+                          <div className="mt-3 grid gap-2">
+                            {featuredChokepoints
+                              .slice(0, 3)
+                              .map((chokepoint) => (
+                                <button
+                                  type="button"
+                                  key={chokepoint.name}
+                                  onClick={() =>
+                                    handleChokepointClick(
+                                      CHOKEPOINTS.find(
+                                        (candidate) =>
+                                          candidate.name === chokepoint.name,
+                                      ) || CHOKEPOINTS[0],
+                                    )
+                                  }
+                                  className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3 text-left"
+                                >
+                                  <div className="text-xs text-white">
+                                    {chokepoint.name}
+                                  </div>
+                                  <div className="mt-1 text-[11px] text-gray-400">
+                                    {chokepoint.vessels} vessels •{" "}
+                                    {chokepoint.strandedShips} stranded •{" "}
+                                    {chokepoint.aircraft} aircraft
+                                  </div>
+                                </button>
+                              ))}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-[11px] text-gray-400">
+                          <div>
+                            {
+                              allEvents.filter(
+                                (event) => event.locations.length > 0,
+                              ).length
+                            }{" "}
+                            plotted events • {osintEvents.length} OSINT •{" "}
+                            {articleEvents.length} intel
+                          </div>
+                          <div className="mt-1">
+                            Zoom {zoomLevel.toFixed(1)} • Aircraft sync{" "}
+                            {aircraftUpdatedAt
+                              ? new Date(aircraftUpdatedAt).toLocaleTimeString()
+                              : "awaiting"}
+                          </div>
+                          <div className="mt-1">
+                            Vessel sync{" "}
+                            {shipUpdatedAt
+                              ? new Date(shipUpdatedAt).toLocaleTimeString()
+                              : "awaiting"}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {mobileHudTab === "ai" && (
+                      <>
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={aiQuery}
+                            onChange={(e) => setAiQuery(e.target.value)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && fetchAiBrief(aiQuery)
+                            }
+                            placeholder="Ask about chokepoints, vessel congestion, or flights..."
+                            className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white placeholder:text-gray-500 focus:border-geo-gold/40 focus:outline-none"
+                          />
+                          <button
+                            onClick={() => fetchAiBrief(aiQuery)}
+                            disabled={aiLoading}
+                            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-geo-gold/30 bg-geo-gold/10 px-4 text-sm font-semibold text-geo-gold transition-colors hover:bg-geo-gold/20 disabled:opacity-50"
+                          >
+                            <Cpu className="h-4 w-4" />
+                            {aiLoading ? "Analyzing..." : "Run AI query"}
+                          </button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {AI_QUICK_QUERIES.slice(0, 4).map((question) => (
+                            <button
+                              key={question}
+                              onClick={() => {
+                                setAiQuery(question);
+                                fetchAiBrief(question);
+                              }}
+                              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-gray-300"
+                            >
+                              {question}
+                            </button>
+                          ))}
+                        </div>
+
+                        {aiBrief && (
+                          <div className="rounded-2xl border border-purple-500/20 bg-purple-500/8 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-purple-300">
+                                {aiBrief.threatLevel || "MONITOR"}
+                              </div>
+                              <div className="text-[10px] text-gray-500">
+                                {new Date(
+                                  aiBrief.timestamp || Date.now(),
+                                ).toLocaleTimeString()}
+                              </div>
+                            </div>
+                            <div className="mt-1 text-sm font-semibold text-white">
+                              {aiBrief.headline}
+                            </div>
+                            <p className="mt-2 text-xs leading-relaxed text-gray-300">
+                              {aiBrief.summary}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {mobileHudTab === "selection" && (
+                      <>
+                        {selectedAsset ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-geo-gold">
+                              {selectedAsset.kind === "aircraft"
+                                ? "Aircraft selected"
+                                : "Vessel selected"}
+                            </div>
+                            <div className="mt-2 text-base font-semibold text-white">
+                              {selectedAsset.title}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {selectedAsset.subtitle}
+                            </div>
+                            <p className="mt-3 text-xs leading-relaxed text-gray-300">
+                              {selectedAsset.summary}
+                            </p>
+                            <div className="mt-4 flex gap-2">
+                              <button
+                                onClick={() => router.push(selectedAsset.href)}
+                                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-geo-gold/30 bg-geo-gold/10 px-3 py-2 text-xs font-semibold text-geo-gold"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                Open report
+                              </button>
+                              <button
+                                onClick={clearSelectedAsset}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-xs text-gray-300"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
+                        ) : showDetail && selectedEvent ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded border border-geo-gold/30 bg-geo-gold/10 px-2 py-0.5 text-[10px] font-mono uppercase text-geo-gold">
+                                {selectedEvent.category}
+                              </span>
+                              <span className="text-[10px] font-mono text-gray-500">
+                                {selectedEvent.source}
+                              </span>
+                            </div>
+                            <div className="mt-2 text-base font-semibold text-white">
+                              {selectedEvent.title}
+                            </div>
+                            {selectedEvent.description && (
+                              <p className="mt-3 text-xs leading-relaxed text-gray-300">
+                                {selectedEvent.description}
+                              </p>
+                            )}
+                            <div className="mt-4 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  router.push(
+                                    buildEventReportHref(selectedEvent),
+                                  )
+                                }
+                                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-geo-gold/30 bg-geo-gold/10 px-3 py-2 text-xs font-semibold text-geo-gold"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                Open report
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowDetail(false);
+                                  setSelectedEvent(null);
+                                }}
+                                className="rounded-xl border border-white/10 px-3 py-2 text-xs text-gray-300"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-center text-sm text-gray-500">
+                            Tap an event, aircraft, or vessel on the globe to
+                            inspect it here.
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Globe stats overlay (bottom-center) — Vision Pro glass */}
-          {!apertureActive && (
+          {!apertureActive && !isCompactLayout && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
               <div className="bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl px-5 py-2.5 flex items-center gap-3 shadow-xl shadow-black/20">
                 <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
@@ -2441,7 +2689,7 @@ export default function WorldMonitorPage() {
             </div>
           )}
 
-          {!apertureActive && selectedAsset && (
+          {!apertureActive && !isCompactLayout && selectedAsset && (
             <div className="absolute right-4 bottom-20 w-[320px] max-w-[calc(100vw-2rem)]">
               <div className="rounded-2xl border border-white/10 bg-black/70 backdrop-blur-2xl p-4 shadow-2xl shadow-black/40">
                 <div className="flex items-start justify-between gap-3">
@@ -2488,15 +2736,15 @@ export default function WorldMonitorPage() {
 
         {/* ═══ RIGHT: EVENT DETAIL PANEL ════════════════════ */}
         <AnimatePresence>
-          {showDetail && selectedEvent && (
+          {!isCompactLayout && showDetail && selectedEvent && (
             <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 380, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
+              initial={{ x: 24, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 24, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="shrink-0 bg-black/80 backdrop-blur-xl border-l border-white/10 overflow-hidden"
+              className="absolute inset-y-4 right-4 z-20 w-[380px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-3xl border border-white/10 bg-black/80 shadow-2xl shadow-black/40 backdrop-blur-xl"
             >
-              <div className="w-[380px] h-full flex flex-col">
+              <div className="flex h-full w-[380px] max-w-full flex-col">
                 {/* Header */}
                 <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between shrink-0">
                   <div className="text-xs font-mono text-geo-gold tracking-wider">
