@@ -569,6 +569,32 @@ function escapeXml(text: string): string {
         .replace(/'/g, '&apos;')
 }
 
+function sanitizeSvgColorAttributes(svg: string): string {
+    const opacityAttributeFor = (attributeName: string): string | null => {
+        switch (attributeName) {
+            case 'fill':
+                return 'fill-opacity'
+            case 'stroke':
+                return 'stroke-opacity'
+            case 'stop-color':
+                return 'stop-opacity'
+            case 'flood-color':
+                return 'flood-opacity'
+            default:
+                return null
+        }
+    }
+
+    return svg.replace(
+        /\s(fill|stroke|stop-color|flood-color)="rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*((?:0|1)(?:\.\d+)?)\s*\)"/gi,
+        (_match, attributeName: string, red: string, green: string, blue: string, alpha: string) => {
+            const opacityAttribute = opacityAttributeFor(attributeName.toLowerCase())
+            const opacitySuffix = opacityAttribute ? ` ${opacityAttribute}="${alpha}"` : ''
+            return ` ${attributeName}="rgb(${red},${green},${blue})"${opacitySuffix}`
+        },
+    )
+}
+
 function wrapText(text: string, maxCharsPerLine: number, maxLines: number): string[] {
     const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)
     const lines: string[] = []
@@ -754,7 +780,7 @@ async function composeIllustrativeSocialCard(
 </svg>`.trim()
 
     return downloadImageToUploads(
-        new Resvg(svg, {
+        new Resvg(sanitizeSvgColorAttributes(svg), {
             fitTo: { mode: 'width', value: INFOGRAPHIC_WIDTH },
         }).render().asPng(),
     )
@@ -778,7 +804,7 @@ function normalizeSvgMarkup(svg: string): string {
 }
 
 function buildFallbackInfographicBackground(template: SocialPostTemplate): string {
-        return `
+    return `
 <svg xmlns="http://www.w3.org/2000/svg" width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" viewBox="0 0 ${INFOGRAPHIC_WIDTH} ${INFOGRAPHIC_HEIGHT}">
     <defs>
         <linearGradient id="bgGradient" x1="0" y1="0" x2="1" y2="1">
@@ -837,11 +863,11 @@ function buildFallbackInfographicBackground(template: SocialPostTemplate): strin
 }
 
 async function renderSvgMarkupToPng(svg: string): Promise<Buffer> {
-        const { Resvg } = await import('@resvg/resvg-js')
+    const { Resvg } = await import('@resvg/resvg-js')
 
-        return new Resvg(svg, {
-                fitTo: { mode: 'width', value: INFOGRAPHIC_WIDTH },
-        }).render().asPng()
+    return new Resvg(sanitizeSvgColorAttributes(svg), {
+        fitTo: { mode: 'width', value: INFOGRAPHIC_WIDTH },
+    }).render().asPng()
 }
 
 async function generateInfographicWithOpenRouter(
