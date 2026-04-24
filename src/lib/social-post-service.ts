@@ -315,7 +315,7 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
     }
 
     if (imageUrl.startsWith('data:')) {
-        const base64Match = imageUrl.match(/^data:[^;]+;base64,(.+)$/s)
+        const base64Match = imageUrl.match(/^data:[^;]+;base64,([\s\S]+)$/)
         if (!base64Match) {
             throw new Error('Could not parse base64 image data from OpenRouter response')
         }
