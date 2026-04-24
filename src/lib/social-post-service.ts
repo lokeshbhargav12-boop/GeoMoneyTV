@@ -777,14 +777,79 @@ function normalizeSvgMarkup(svg: string): string {
     })
 }
 
+function buildFallbackInfographicBackground(template: SocialPostTemplate): string {
+        return `
+<svg xmlns="http://www.w3.org/2000/svg" width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" viewBox="0 0 ${INFOGRAPHIC_WIDTH} ${INFOGRAPHIC_HEIGHT}">
+    <defs>
+        <linearGradient id="bgGradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#07111f"/>
+            <stop offset="52%" stop-color="#10253d"/>
+            <stop offset="100%" stop-color="#26130a"/>
+        </linearGradient>
+        <radialGradient id="signalGlow" cx="78%" cy="24%" r="42%">
+            <stop offset="0%" stop-color="rgba(245,158,11,0.34)"/>
+            <stop offset="100%" stop-color="rgba(245,158,11,0)"/>
+        </radialGradient>
+        <linearGradient id="gridStroke" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.03)"/>
+            <stop offset="50%" stop-color="rgba(255,255,255,0.12)"/>
+            <stop offset="100%" stop-color="rgba(255,255,255,0.03)"/>
+        </linearGradient>
+    </defs>
+
+    <rect width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" fill="url(#bgGradient)"/>
+    <rect width="${INFOGRAPHIC_WIDTH}" height="${INFOGRAPHIC_HEIGHT}" fill="url(#signalGlow)"/>
+    <circle cx="872" cy="282" r="192" fill="rgba(245,158,11,0.08)"/>
+    <circle cx="894" cy="304" r="128" fill="rgba(255,255,255,0.03)"/>
+    <path d="M604 214 C 726 140, 860 136, 1000 236" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="3"/>
+    <path d="M560 284 C 694 214, 840 212, 1006 318" fill="none" stroke="rgba(245,158,11,0.18)" stroke-width="2"/>
+
+    <g opacity="0.55">
+        <path d="M70 904 H1010" stroke="url(#gridStroke)" stroke-width="2"/>
+        <path d="M70 972 H1010" stroke="url(#gridStroke)" stroke-width="1.5"/>
+        <path d="M70 1040 H1010" stroke="url(#gridStroke)" stroke-width="1.5"/>
+        <path d="M70 1108 H1010" stroke="url(#gridStroke)" stroke-width="1.5"/>
+        <path d="M150 874 V1170" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+        <path d="M362 874 V1170" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+        <path d="M574 874 V1170" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+        <path d="M786 874 V1170" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+    </g>
+
+    <g>
+        <rect x="72" y="76" width="936" height="1198" rx="42" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
+        <rect x="72" y="76" width="592" height="362" rx="34" fill="rgba(7,17,31,0.34)"/>
+        <rect x="72" y="942" width="936" height="232" rx="28" fill="rgba(7,17,31,0.44)" stroke="rgba(255,255,255,0.10)"/>
+        <rect x="756" y="180" width="196" height="196" rx="26" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.10)"/>
+        <rect x="782" y="206" width="144" height="144" rx="22" fill="rgba(7,17,31,0.36)" stroke="rgba(255,255,255,0.08)"/>
+        <circle cx="854" cy="278" r="34" fill="#f59e0b" opacity="0.92"/>
+        <path d="M836 278 L 852 262 L 876 288" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.76"/>
+    </g>
+
+    <g>
+        <path d="M108 1122 C 188 1042, 270 1088, 356 1004 S 542 1038, 630 962 S 804 958, 918 884" fill="none" stroke="#f59e0b" stroke-width="8" stroke-linecap="round"/>
+        <circle cx="356" cy="1004" r="8" fill="#f59e0b"/>
+        <circle cx="630" cy="962" r="8" fill="#f59e0b"/>
+        <circle cx="918" cy="884" r="8" fill="#f59e0b"/>
+    </g>
+
+    <text x="108" y="146" fill="#f59e0b" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="700">${escapeXml(template.name.toUpperCase())}</text>
+</svg>`.trim()
+}
+
+async function renderSvgMarkupToPng(svg: string): Promise<Buffer> {
+        const { Resvg } = await import('@resvg/resvg-js')
+
+        return new Resvg(svg, {
+                fitTo: { mode: 'width', value: INFOGRAPHIC_WIDTH },
+        }).render().asPng()
+}
+
 async function generateInfographicWithOpenRouter(
     topic: string,
     template: SocialPostTemplate,
     settings: SocialPostGeneratorSettings,
     text: { shortText: string; longText: string },
 ): Promise<string> {
-    const { Resvg } = await import('@resvg/resvg-js')
-
     const preferredInfographicModels = [
         settings.imageModel,
         ...OPENROUTER_INFOGRAPHIC_MODELS,
@@ -830,9 +895,17 @@ If the topic is about rare earths, processing, supply chains, or geopolitics, us
     })
 
     const svg = normalizeSvgMarkup(getSvgMarkup(result.content))
-    const backgroundBytes = new Resvg(svg, {
-        fitTo: { mode: 'width', value: INFOGRAPHIC_WIDTH },
-    }).render().asPng()
+    let backgroundBytes: Buffer
+
+    try {
+        backgroundBytes = await renderSvgMarkupToPng(svg)
+    } catch (error) {
+        console.warn(
+            'OpenRouter SVG parse failed, using fallback infographic background:',
+            error instanceof Error ? error.message : String(error),
+        )
+        backgroundBytes = await renderSvgMarkupToPng(buildFallbackInfographicBackground(template))
+    }
 
     return composeIllustrativeSocialCard(backgroundBytes, template, text)
 }
