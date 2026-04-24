@@ -35,11 +35,21 @@ export interface AircraftData {
   heading: number;
   vertical_rate: number;
   category: string;
+  trail?: Array<{
+    latitude: number;
+    longitude: number;
+    altitude: number;
+    heading: number;
+    velocity: number;
+    timestamp: number;
+  }>;
 }
 
 export interface ShipData {
   mmsi: string;
   name: string;
+  imo?: string;
+  callsign?: string;
   type: string;
   flag: string;
   flagEmoji: string;
@@ -53,6 +63,20 @@ export interface ShipData {
   live?: boolean;
   source?: string;
   lastUpdate?: number;
+  zone?: string;
+  lastPort?: string;
+  owner?: string;
+  manager?: string;
+  built?: number;
+  beam?: number;
+  deadweight?: number;
+  trail?: Array<{
+    latitude: number;
+    longitude: number;
+    heading: number;
+    speed: number;
+    timestamp: number;
+  }>;
 }
 
 type ShipTypeFilter =
@@ -1817,6 +1841,18 @@ function RealAircraftLayer({
   const pointsRef = useRef<THREE.Points>(null);
   const [hovered, setHovered] = useState<AircraftData | null>(null);
 
+  const trailAircraft = useMemo(
+    () =>
+      aircraft
+        .filter((asset) => (asset.trail?.length || 0) > 1)
+        .sort(
+          (left, right) =>
+            (right.trail?.length || 0) - (left.trail?.length || 0),
+        )
+        .slice(0, 260),
+    [aircraft],
+  );
+
   const { positions, colors } = useMemo(() => {
     const pos = new Float32Array(aircraft.length * 3);
     const col = new Float32Array(aircraft.length * 3);
@@ -1859,6 +1895,32 @@ function RealAircraftLayer({
 
   return (
     <>
+      {trailAircraft.map((asset) => (
+        <Line
+          key={`flight-trail-${asset.icao24}`}
+          points={(asset.trail || []).map((point) => {
+            const alt = Math.max(point.altitude || 8000, 1000);
+            const heightOffset = 0.015 + (alt / 45000) * 0.06;
+            return latLngToVector3(
+              point.latitude,
+              point.longitude,
+              GLOBE_RADIUS + heightOffset,
+            );
+          })}
+          color={
+            asset.category === "military"
+              ? "#FF4444"
+              : asset.category === "cargo"
+                ? "#FF8800"
+                : asset.category === "commercial"
+                  ? "#00CCFF"
+                  : "#88FF88"
+          }
+          transparent
+          opacity={0.22}
+          lineWidth={1}
+        />
+      ))}
       <points
         ref={pointsRef}
         geometry={geometry}
@@ -1923,6 +1985,29 @@ function RealShipLayer({
 }) {
   const [hovered, setHovered] = useState<ShipData | null>(null);
 
+  const trailShips = useMemo(
+    () =>
+      ships
+        .filter((ship) => (ship.trail?.length || 0) > 1)
+        .sort(
+          (left, right) =>
+            (right.trail?.length || 0) - (left.trail?.length || 0),
+        )
+        .slice(0, 320),
+    [ships],
+  );
+
+  const getShipColor = useCallback((ship: ShipData) => {
+    if (ship.type === "tanker") return "#FF7A1A";
+    if (ship.type === "container") return "#00D68F";
+    if (ship.type === "military") return "#FF4D4F";
+    if (ship.type === "lng") return "#FFD166";
+    if (ship.type === "cruise") return "#C084FC";
+    if (ship.type === "bulk") return "#60A5FA";
+    if (ship.type === "fishing") return "#2DD4BF";
+    return "#CBD5E1";
+  }, []);
+
   const { positions, colors, stalledPositions } = useMemo(() => {
     const positions = new Float32Array(ships.length * 3);
     const colors = new Float32Array(ships.length * 3);
@@ -1938,23 +2023,7 @@ function RealShipLayer({
       positions[index * 3 + 1] = pos.y;
       positions[index * 3 + 2] = pos.z;
 
-      const color = new THREE.Color(
-        ship.type === "tanker"
-          ? "#FF7A1A"
-          : ship.type === "container"
-            ? "#00D68F"
-            : ship.type === "military"
-              ? "#FF4D4F"
-              : ship.type === "lng"
-                ? "#FFD166"
-                : ship.type === "cruise"
-                  ? "#C084FC"
-                  : ship.type === "bulk"
-                    ? "#60A5FA"
-                    : ship.type === "fishing"
-                      ? "#2DD4BF"
-                      : "#CBD5E1",
-      );
+      const color = new THREE.Color(getShipColor(ship));
       colors[index * 3] = color.r;
       colors[index * 3 + 1] = color.g;
       colors[index * 3 + 2] = color.b;
@@ -1969,7 +2038,7 @@ function RealShipLayer({
       colors,
       stalledPositions: new Float32Array(stalled),
     };
-  }, [ships]);
+  }, [getShipColor, ships]);
 
   const shipGeometry = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
@@ -1989,6 +2058,22 @@ function RealShipLayer({
 
   return (
     <>
+      {trailShips.map((ship) => (
+        <Line
+          key={`trail-${ship.mmsi}`}
+          points={(ship.trail || []).map((point) =>
+            latLngToVector3(
+              point.latitude,
+              point.longitude,
+              GLOBE_RADIUS + 0.012,
+            ),
+          )}
+          color={getShipColor(ship)}
+          transparent
+          opacity={ship.type === "tanker" ? 0.45 : 0.26}
+          lineWidth={ship.type === "tanker" ? 1.6 : 1.1}
+        />
+      ))}
       <points
         geometry={shipGeometry}
         onPointerMove={(event) => {
@@ -2052,6 +2137,9 @@ function RealShipLayer({
               SPD: {hovered.speed.toFixed(1)}kn | → {hovered.destination}
             </div>
             <div className="text-gray-600">L: {hovered.length}m</div>
+            {hovered.zone && (
+              <div className="text-gray-600">ZONE: {hovered.zone}</div>
+            )}
             {isShipStalled(hovered) && (
               <div className="text-[9px] font-semibold text-yellow-300">
                 STALLED / CONSTRAINED

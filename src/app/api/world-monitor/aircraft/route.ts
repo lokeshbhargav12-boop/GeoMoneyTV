@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
 
 // ─── TYPES ──────────────────────────────────────────────────
 export interface AircraftState {
@@ -14,11 +15,37 @@ export interface AircraftState {
     on_ground: boolean;
     squawk: string;
     category: "commercial" | "cargo" | "military" | "private" | "unknown";
+    trail?: AircraftTrackPoint[];
+}
+
+interface AircraftTrackPoint {
+    latitude: number;
+    longitude: number;
+    altitude: number;
+    heading: number;
+    velocity: number;
+    timestamp: number;
 }
 
 // ─── CACHE ──────────────────────────────────────────────────
 let cache: { data: AircraftState[]; timestamp: number } | null = null;
 const CACHE_TTL = 20_000; // 20s — OpenSky anonymous rate limit is ~10 req/min
+const FLIGHT_TRACK_LOOKBACK_MS = Math.max(
+    60 * 60 * 1000,
+    Number(process.env.FLIGHT_TRACK_LOOKBACK_MS || `${6 * 60 * 60 * 1000}`),
+);
+const FLIGHT_TRACK_HISTORY_LIMIT = Math.max(
+    4,
+    Number(process.env.FLIGHT_TRACK_HISTORY_LIMIT || "12"),
+);
+const FLIGHT_TRACK_MIN_PERSIST_INTERVAL_MS = Math.max(
+    60_000,
+    Number(process.env.FLIGHT_TRACK_MIN_PERSIST_INTERVAL_MS || `${2 * 60 * 1000}`),
+);
+const lastPersistedByAircraft = new Map<
+    string,
+    { latitude: number; longitude: number; timestamp: number }
+>();
 
 // ─── AIRLINE PREFIX → CATEGORY ──────────────────────────────
 const MILITARY_PREFIXES = [
@@ -48,6 +75,147 @@ function classifyAircraft(callsign: string, country: string): AircraftState["cat
     // Short callsigns with only letters/numbers likely private
     if (cs.length <= 6 && /^[A-Z0-9-]+$/.test(cs)) return "private";
     return "unknown";
+}
+
+function toRadians(value: number): number {
+    return (value * Math.PI) / 180;
+}
+
+function distanceKm(
+    leftLat: number,
+    leftLng: number,
+    rightLat: number,
+    rightLng: number,
+): number {
+    const earthRadiusKm = 6371;
+    const dLat = toRadians(rightLat - leftLat);
+    const dLng = toRadians(rightLng - leftLng);
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRadians(leftLat)) *
+        Math.cos(toRadians(rightLat)) *
+        Math.sin(dLng / 2) ** 2;
+
+    return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+async function persistAircraftTracks(aircraft: AircraftState[]): Promise<void> {
+    const writeCandidates = aircraft.filter((asset) => {
+        const previous = lastPersistedByAircraft.get(asset.icao24);
+        if (!previous) {
+            return true;
+        }
+
+        const elapsed = Date.now() - previous.timestamp;
+        if (elapsed >= FLIGHT_TRACK_MIN_PERSIST_INTERVAL_MS) {
+            return true;
+        }
+
+        return (
+            distanceKm(
+                previous.latitude,
+                previous.longitude,
+                asset.latitude,
+                asset.longitude,
+            ) >= 10
+        );
+    });
+
+    if (!writeCandidates.length) {
+        return;
+    }
+
+    try {
+        await (prisma as any).flightTrack.createMany({
+            data: writeCandidates.map((asset) => ({
+                icao24: asset.icao24,
+                callsign: asset.callsign,
+                latitude: asset.latitude,
+                longitude: asset.longitude,
+                altitude: asset.altitude,
+                heading: asset.heading,
+                velocity: asset.velocity,
+                source: "OpenSky Network",
+                recordedAt: new Date(),
+            })),
+        });
+
+        const now = Date.now();
+        for (const asset of writeCandidates) {
+            lastPersistedByAircraft.set(asset.icao24, {
+                latitude: asset.latitude,
+                longitude: asset.longitude,
+                timestamp: now,
+            });
+        }
+    } catch (error) {
+        console.warn(
+            "[Aircraft API] Flight track persistence unavailable:",
+            error instanceof Error ? error.message : String(error),
+        );
+    }
+}
+
+async function hydrateAircraftTracks(aircraft: AircraftState[]): Promise<AircraftState[]> {
+    if (!aircraft.length) {
+        return aircraft;
+    }
+
+    try {
+        const records = await (prisma as any).flightTrack.findMany({
+            where: {
+                icao24: { in: aircraft.map((asset) => asset.icao24) },
+                recordedAt: { gte: new Date(Date.now() - FLIGHT_TRACK_LOOKBACK_MS) },
+            },
+            orderBy: [{ recordedAt: "desc" }],
+            take: Math.min(aircraft.length * FLIGHT_TRACK_HISTORY_LIMIT * 4, 12000),
+        });
+
+        const grouped = new Map<string, AircraftTrackPoint[]>();
+        for (const record of records) {
+            const items = grouped.get(record.icao24) || [];
+            if (items.length >= FLIGHT_TRACK_HISTORY_LIMIT) {
+                continue;
+            }
+            items.push({
+                latitude: record.latitude,
+                longitude: record.longitude,
+                altitude: record.altitude ?? 0,
+                heading: record.heading ?? 0,
+                velocity: record.velocity ?? 0,
+                timestamp: new Date(record.recordedAt).getTime(),
+            });
+            grouped.set(record.icao24, items);
+        }
+
+        return aircraft.map((asset) => ({
+            ...asset,
+            trail: [
+                ...(grouped.get(asset.icao24) || []),
+                {
+                    latitude: asset.latitude,
+                    longitude: asset.longitude,
+                    altitude: asset.altitude,
+                    heading: asset.heading,
+                    velocity: asset.velocity,
+                    timestamp: Date.now(),
+                },
+            ]
+                .filter(
+                    (point, index, points) =>
+                        points.findIndex(
+                            (candidate) => candidate.timestamp === point.timestamp,
+                        ) === index,
+                )
+                .sort((left, right) => left.timestamp - right.timestamp),
+        }));
+    } catch (error) {
+        console.warn(
+            "[Aircraft API] Flight track history unavailable:",
+            error instanceof Error ? error.message : String(error),
+        );
+        return aircraft;
+    }
 }
 
 // ─── HANDLER ────────────────────────────────────────────────
@@ -117,14 +285,17 @@ export async function GET(request: Request) {
                 category: classifyAircraft((s[1] || "").trim(), s[2] || ""),
             }));
 
-        cache = { data: aircraft, timestamp: Date.now() };
+        await persistAircraftTracks(aircraft);
+        const hydratedAircraft = await hydrateAircraftTracks(aircraft);
 
-        const filtered = filterBounds(aircraft, bounds);
+        cache = { data: hydratedAircraft, timestamp: Date.now() };
+
+        const filtered = filterBounds(hydratedAircraft, bounds);
 
         return NextResponse.json(
             {
                 aircraft: filtered,
-                total: aircraft.length,
+                total: hydratedAircraft.length,
                 cached: false,
                 timestamp: Date.now(),
             },

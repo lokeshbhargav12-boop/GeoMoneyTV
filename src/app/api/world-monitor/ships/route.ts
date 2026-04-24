@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createRequire } from "node:module";
+import prisma from "@/lib/prisma";
 
 process.env.WS_NO_BUFFER_UTIL ??= "1";
 process.env.WS_NO_UTF_8_VALIDATE ??= "1";
@@ -37,6 +38,22 @@ export interface ShipState {
     live?: boolean;
     source?: string;
     lastUpdate?: number;
+    zone?: string;
+    lastPort?: string;
+    owner?: string;
+    manager?: string;
+    built?: number;
+    beam?: number;
+    deadweight?: number;
+    trail?: ShipTrackPoint[];
+}
+
+interface ShipTrackPoint {
+    latitude: number;
+    longitude: number;
+    heading: number;
+    speed: number;
+    timestamp: number;
 }
 
 interface CachedResponse {
@@ -54,6 +71,13 @@ interface LiveShipSnapshot {
     ships: ShipState[];
     source: string;
     timestamp: number;
+}
+
+interface CoverageRegion {
+    id: string;
+    name: string;
+    bounds: [[number, number], [number, number]];
+    minSlots: number;
 }
 
 type AisEnvelope = {
@@ -79,13 +103,32 @@ const AISTREAM_URL =
     process.env.AISTREAM_STREAM_URL || "wss://stream.aisstream.io/v0/stream";
 const AISTREAM_API_KEY = process.env.AISTREAM_API_KEY || "";
 const AISTREAM_SOURCE = "AISStream.io websocket feed";
+const VESSELFINDER_API_KEY = process.env.VESSELFINDER_API_KEY || "";
+const VESSELFINDER_LIVEDATA_URL =
+    process.env.VESSELFINDER_LIVEDATA_URL || "https://api.vesselfinder.com/livedata";
+const VESSELFINDER_INTERVAL_MINUTES = Math.max(
+    1,
+    Number(process.env.VESSELFINDER_INTERVAL_MINUTES || "10"),
+);
 const AISTREAM_SAMPLE_MS = Math.max(
     3000,
     Number(process.env.AISTREAM_SAMPLE_MS || "7000"),
 );
 const AISTREAM_MAX_VESSELS = Math.max(
     250,
-    Number(process.env.AISTREAM_MAX_VESSELS || "2500"),
+    Number(process.env.AISTREAM_MAX_VESSELS || "3500"),
+);
+const TRACK_LOOKBACK_MS = Math.max(
+    60 * 60 * 1000,
+    Number(process.env.VESSEL_TRACK_LOOKBACK_MS || `${12 * 60 * 60 * 1000}`),
+);
+const TRACK_HISTORY_LIMIT = Math.max(
+    4,
+    Number(process.env.VESSEL_TRACK_HISTORY_LIMIT || "14"),
+);
+const TRACK_MIN_PERSIST_INTERVAL_MS = Math.max(
+    60_000,
+    Number(process.env.VESSEL_TRACK_MIN_PERSIST_INTERVAL_MS || `${2 * 60 * 1000}`),
 );
 const DEFAULT_AISTREAM_TYPES = [
     "PositionReport",
@@ -96,10 +139,78 @@ const DEFAULT_AISTREAM_TYPES = [
     "StaticDataReport",
 ];
 
+const DEFAULT_COVERAGE_REGIONS: CoverageRegion[] = [
+    {
+        id: "middle-east",
+        name: "Middle East / Strait of Hormuz",
+        bounds: [[12, 43], [31.5, 61.5]],
+        minSlots: 450,
+    },
+    {
+        id: "red-sea",
+        name: "Red Sea / Suez",
+        bounds: [[8, 30], [33.5, 44.5]],
+        minSlots: 300,
+    },
+    {
+        id: "arabian-sea",
+        name: "Arabian Sea / West India",
+        bounds: [[5, 58], [26, 78]],
+        minSlots: 280,
+    },
+    {
+        id: "mediterranean",
+        name: "Mediterranean",
+        bounds: [[28, -7], [47, 37]],
+        minSlots: 320,
+    },
+    {
+        id: "north-sea",
+        name: "North Sea / Baltic",
+        bounds: [[48, -10], [63, 20]],
+        minSlots: 320,
+    },
+    {
+        id: "west-africa",
+        name: "West Africa",
+        bounds: [[-10, -20], [25, 20]],
+        minSlots: 220,
+    },
+    {
+        id: "singapore-malacca",
+        name: "Singapore / Malacca",
+        bounds: [[-2, 95], [15, 110]],
+        minSlots: 320,
+    },
+    {
+        id: "south-china-sea",
+        name: "South China Sea",
+        bounds: [[0, 105], [28, 125]],
+        minSlots: 320,
+    },
+    {
+        id: "east-asia",
+        name: "East Asia",
+        bounds: [[28, 120], [46, 146]],
+        minSlots: 280,
+    },
+    {
+        id: "americas",
+        name: "Americas",
+        bounds: [[5, -100], [45, -65]],
+        minSlots: 260,
+    },
+];
+
+const lastPersistedByShip = new Map<
+    string,
+    { latitude: number; longitude: number; timestamp: number }
+>();
+
 function parseBoundingBoxes(): number[][][] {
     const raw = process.env.AISTREAM_BOUNDING_BOXES;
     if (!raw) {
-        return [[[-90, -180], [90, 180]]];
+        return DEFAULT_COVERAGE_REGIONS.map((region) => region.bounds);
     }
 
     try {
@@ -111,7 +222,7 @@ function parseBoundingBoxes(): number[][][] {
         console.warn("[Ships API] Invalid AISTREAM_BOUNDING_BOXES:", error);
     }
 
-    return [[[-90, -180], [90, 180]]];
+    return DEFAULT_COVERAGE_REGIONS.map((region) => region.bounds);
 }
 
 function parseMessageTypes(): string[] {
@@ -294,6 +405,137 @@ function normalizeShipStatus(value: unknown): ShipState["status"] {
     return "underway";
 }
 
+function isWithinBounds(
+    latitude: number,
+    longitude: number,
+    bounds: [[number, number], [number, number]],
+): boolean {
+    return (
+        latitude >= bounds[0][0] &&
+        latitude <= bounds[1][0] &&
+        longitude >= bounds[0][1] &&
+        longitude <= bounds[1][1]
+    );
+}
+
+function getCoverageRegion(ship: ShipState): CoverageRegion | null {
+    for (const region of DEFAULT_COVERAGE_REGIONS) {
+        if (isWithinBounds(ship.latitude, ship.longitude, region.bounds)) {
+            return region;
+        }
+    }
+    return null;
+}
+
+function selectCoverageBalancedShips(ships: ShipState[]): ShipState[] {
+    if (ships.length <= AISTREAM_MAX_VESSELS) {
+        return ships;
+    }
+
+    const selected = new Map<string, ShipState>();
+
+    for (const region of DEFAULT_COVERAGE_REGIONS) {
+        const regionalShips = ships
+            .filter((ship) => isWithinBounds(ship.latitude, ship.longitude, region.bounds))
+            .sort((left, right) => (right.lastUpdate ?? 0) - (left.lastUpdate ?? 0))
+            .slice(0, region.minSlots);
+
+        for (const ship of regionalShips) {
+            selected.set(ship.mmsi, ship);
+        }
+    }
+
+    for (const ship of ships) {
+        if (selected.size >= AISTREAM_MAX_VESSELS) {
+            break;
+        }
+        selected.set(ship.mmsi, ship);
+    }
+
+    return Array.from(selected.values())
+        .sort((left, right) => (right.lastUpdate ?? 0) - (left.lastUpdate ?? 0))
+        .slice(0, AISTREAM_MAX_VESSELS);
+}
+
+function mergeShipDetails(base: ShipState, incoming: ShipState): ShipState {
+    return {
+        ...base,
+        ...incoming,
+        name: incoming.name || base.name,
+        imo: incoming.imo || base.imo,
+        callsign: incoming.callsign || base.callsign,
+        flag: incoming.flag || base.flag,
+        flagEmoji: incoming.flagEmoji || base.flagEmoji,
+        destination: incoming.destination || base.destination,
+        zone: incoming.zone || base.zone,
+        lastPort: incoming.lastPort || base.lastPort,
+        owner: incoming.owner || base.owner,
+        manager: incoming.manager || base.manager,
+        built: incoming.built || base.built,
+        beam: incoming.beam || base.beam,
+        deadweight: incoming.deadweight || base.deadweight,
+        source: incoming.source || base.source,
+        lastUpdate: Math.max(incoming.lastUpdate ?? 0, base.lastUpdate ?? 0),
+    };
+}
+
+function mergeShipSnapshots(
+    snapshots: Array<LiveShipSnapshot | null>,
+): LiveShipSnapshot | null {
+    const available = snapshots.filter(
+        (snapshot): snapshot is LiveShipSnapshot => snapshot !== null,
+    );
+
+    if (!available.length) {
+        return null;
+    }
+
+    const merged = new Map<string, ShipState>();
+    let newestTimestamp = 0;
+
+    for (const snapshot of available) {
+        newestTimestamp = Math.max(newestTimestamp, snapshot.timestamp);
+        for (const ship of snapshot.ships) {
+            const existing = merged.get(ship.mmsi);
+            merged.set(ship.mmsi, existing ? mergeShipDetails(existing, ship) : ship);
+        }
+    }
+
+    const ships = selectCoverageBalancedShips(
+        Array.from(merged.values()).sort(
+            (left, right) => (right.lastUpdate ?? 0) - (left.lastUpdate ?? 0),
+        ),
+    );
+
+    return {
+        ships,
+        source: available.map((snapshot) => snapshot.source).join(" + "),
+        timestamp: newestTimestamp || Date.now(),
+    };
+}
+
+function toRadians(value: number): number {
+    return (value * Math.PI) / 180;
+}
+
+function distanceKm(
+    leftLat: number,
+    leftLng: number,
+    rightLat: number,
+    rightLng: number,
+): number {
+    const earthRadiusKm = 6371;
+    const dLat = toRadians(rightLat - leftLat);
+    const dLng = toRadians(rightLng - leftLng);
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRadians(leftLat)) *
+        Math.cos(toRadians(rightLat)) *
+        Math.sin(dLng / 2) ** 2;
+
+    return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function extractShipEntries(payload: any): any[] {
     if (Array.isArray(payload)) return payload;
     if (Array.isArray(payload?.ships)) return payload.ships;
@@ -348,6 +590,55 @@ function normalizeProviderShip(entry: any, timestamp: number): ShipState | null 
         live: true,
         source: LEGACY_AIS_SOURCE,
         lastUpdate: timestamp,
+        zone: firstString(entry.zone, entry.region),
+    };
+}
+
+function normalizeVesselFinderShip(entry: any, timestamp: number): ShipState | null {
+    const ais = entry?.AIS ?? {};
+    const master = entry?.MASTERDATA ?? {};
+    const voyage = entry?.VOYAGE ?? {};
+
+    const latitude = toNumber(ais.LATITUDE);
+    const longitude = toNumber(ais.LONGITUDE);
+    if (latitude == null || longitude == null) {
+        return null;
+    }
+
+    const parsedTimestamp = new Date(firstString(ais.TIMESTAMP)).getTime();
+    const lastUpdate = Number.isFinite(parsedTimestamp) ? parsedTimestamp : timestamp;
+    const flag = firstString(master.FLAG, ais.FLAG, "Unknown");
+    const type = normalizeShipType(master.TYPE ?? ais.TYPE);
+    const length =
+        toNumber(master.LENGTH) ??
+        ((toNumber(ais.A) ?? 0) + (toNumber(ais.B) ?? 0));
+
+    return {
+        mmsi: firstString(ais.MMSI) || `vf-${latitude}-${longitude}`,
+        name: sanitizeAisText(firstString(master.NAME, ais.NAME, "Unknown vessel")),
+        imo: firstString(master.IMO, ais.IMO),
+        callsign: sanitizeAisText(firstString(ais.CALLSIGN)),
+        type,
+        flag,
+        flagEmoji: resolveFlagEmoji(flag),
+        latitude,
+        longitude,
+        heading: toNumber(ais.HEADING) ?? toNumber(ais.COURSE) ?? 0,
+        speed: toNumber(ais.SPEED) ?? 0,
+        destination: sanitizeAisText(firstString(ais.DESTINATION, "Unknown")),
+        status: normalizeShipStatus(ais.NAVSTAT),
+        length,
+        draught: toNumber(master.MAXDRAUGHT) ?? toNumber(ais.DRAUGHT) ?? 0,
+        live: true,
+        source: `VesselFinder ${ais.SRC === "SAT" ? "satellite" : "terrestrial"}`,
+        lastUpdate,
+        zone: firstString(ais.ZONE),
+        lastPort: firstString(voyage.LASTPORT),
+        owner: firstString(master.OWNER),
+        manager: firstString(master.MANAGER),
+        built: toNumber(master.BUILT) ?? undefined,
+        beam: toNumber(master.BEAM) ?? undefined,
+        deadweight: toNumber(master.DWT) ?? undefined,
     };
 }
 
@@ -534,6 +825,61 @@ async function fetchConfiguredProviderShips(): Promise<LiveShipSnapshot | null> 
     }
 }
 
+async function fetchVesselFinderShips(): Promise<LiveShipSnapshot | null> {
+    if (!VESSELFINDER_API_KEY) {
+        return null;
+    }
+
+    const requestUrl = new URL(VESSELFINDER_LIVEDATA_URL);
+    requestUrl.searchParams.set("userkey", VESSELFINDER_API_KEY);
+    requestUrl.searchParams.set("format", "json");
+    requestUrl.searchParams.set("interval", String(VESSELFINDER_INTERVAL_MINUTES));
+    requestUrl.searchParams.set("errormode", "409");
+    if (!requestUrl.searchParams.has("extradata")) {
+        requestUrl.searchParams.set("extradata", "voyage,master");
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+
+    try {
+        const res = await fetch(requestUrl, {
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+            cache: "no-store",
+        });
+
+        if (!res.ok) {
+            throw new Error(`VesselFinder HTTP ${res.status}`);
+        }
+
+        const payload = await res.json();
+        if (!Array.isArray(payload)) {
+            if (payload?.error) {
+                throw new Error(String(payload.error));
+            }
+            throw new Error("VesselFinder returned an unexpected payload");
+        }
+
+        const timestamp = Date.now();
+        const ships = payload
+            .map((entry) => normalizeVesselFinderShip(entry, timestamp))
+            .filter((ship): ship is ShipState => ship !== null);
+
+        if (!ships.length) {
+            throw new Error("VesselFinder returned no usable vessel positions");
+        }
+
+        return {
+            ships,
+            source: "VesselFinder live data",
+            timestamp,
+        };
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
 async function collectAisStreamSnapshot(): Promise<LiveShipSnapshot | null> {
     if (!AISTREAM_API_KEY) {
         return null;
@@ -568,9 +914,11 @@ async function collectAisStreamSnapshot(): Promise<LiveShipSnapshot | null> {
                 }
             }
 
-            const ships = Array.from(vessels.values())
-                .sort((left, right) => (right.lastUpdate ?? 0) - (left.lastUpdate ?? 0))
-                .slice(0, AISTREAM_MAX_VESSELS);
+            const ships = selectCoverageBalancedShips(
+                Array.from(vessels.values()).sort(
+                    (left, right) => (right.lastUpdate ?? 0) - (left.lastUpdate ?? 0),
+                ),
+            );
 
             if (ships.length > 0) {
                 resolve({
@@ -632,6 +980,130 @@ async function collectAisStreamSnapshot(): Promise<LiveShipSnapshot | null> {
     return inflightSnapshot;
 }
 
+async function persistShipTracks(ships: ShipState[]): Promise<void> {
+    if (!ships.length) {
+        return;
+    }
+
+    const writeCandidates = ships.filter((ship) => {
+        const previous = lastPersistedByShip.get(ship.mmsi);
+        if (!previous) {
+            return true;
+        }
+
+        const elapsed = (ship.lastUpdate ?? Date.now()) - previous.timestamp;
+        if (elapsed >= TRACK_MIN_PERSIST_INTERVAL_MS) {
+            return true;
+        }
+
+        return (
+            distanceKm(
+                previous.latitude,
+                previous.longitude,
+                ship.latitude,
+                ship.longitude,
+            ) >= 2.5
+        );
+    });
+
+    if (!writeCandidates.length) {
+        return;
+    }
+
+    try {
+        await (prisma as any).vesselTrack.createMany({
+            data: writeCandidates.map((ship) => ({
+                mmsi: ship.mmsi,
+                shipName: ship.name,
+                latitude: ship.latitude,
+                longitude: ship.longitude,
+                heading: ship.heading,
+                speed: ship.speed,
+                source: ship.source,
+                recordedAt: new Date(ship.lastUpdate ?? Date.now()),
+            })),
+        });
+
+        for (const ship of writeCandidates) {
+            lastPersistedByShip.set(ship.mmsi, {
+                latitude: ship.latitude,
+                longitude: ship.longitude,
+                timestamp: ship.lastUpdate ?? Date.now(),
+            });
+        }
+    } catch (error) {
+        console.warn(
+            "[Ships API] Vessel track persistence unavailable:",
+            error instanceof Error ? error.message : String(error),
+        );
+    }
+}
+
+async function hydrateShipTracks(ships: ShipState[]): Promise<ShipState[]> {
+    if (!ships.length) {
+        return ships;
+    }
+
+    try {
+        const records = await (prisma as any).vesselTrack.findMany({
+            where: {
+                mmsi: { in: ships.map((ship) => ship.mmsi) },
+                recordedAt: { gte: new Date(Date.now() - TRACK_LOOKBACK_MS) },
+            },
+            orderBy: [{ recordedAt: "desc" }],
+            take: Math.min(ships.length * TRACK_HISTORY_LIMIT * 4, 12000),
+        });
+
+        const grouped = new Map<string, ShipTrackPoint[]>();
+        for (const record of records) {
+            const items = grouped.get(record.mmsi) || [];
+            if (items.length >= TRACK_HISTORY_LIMIT) {
+                continue;
+            }
+            items.push({
+                latitude: record.latitude,
+                longitude: record.longitude,
+                heading: record.heading ?? 0,
+                speed: record.speed ?? 0,
+                timestamp: new Date(record.recordedAt).getTime(),
+            });
+            grouped.set(record.mmsi, items);
+        }
+
+        return ships.map((ship) => {
+            const history = grouped.get(ship.mmsi) || [];
+            const livePoint: ShipTrackPoint = {
+                latitude: ship.latitude,
+                longitude: ship.longitude,
+                heading: ship.heading,
+                speed: ship.speed,
+                timestamp: ship.lastUpdate ?? Date.now(),
+            };
+
+            const deduped = [
+                ...history,
+                livePoint,
+            ].filter(
+                (point, index, points) =>
+                    points.findIndex(
+                        (candidate) => candidate.timestamp === point.timestamp,
+                    ) === index,
+            );
+
+            return {
+                ...ship,
+                trail: deduped.sort((left, right) => left.timestamp - right.timestamp),
+            };
+        });
+    } catch (error) {
+        console.warn(
+            "[Ships API] Vessel track history unavailable:",
+            error instanceof Error ? error.message : String(error),
+        );
+        return ships;
+    }
+}
+
 function buildDemoShips(timestamp: number): ShipState[] {
     return VESSEL_DB.map((vessel, index) => {
         const position = getSimulatedPosition(index, index % ROUTES.length);
@@ -648,14 +1120,29 @@ function buildDemoShips(timestamp: number): ShipState[] {
     });
 }
 
-function buildResponseFromSnapshot(snapshot: LiveShipSnapshot): CachedResponse {
+async function buildResponseFromSnapshot(
+    snapshot: LiveShipSnapshot,
+): Promise<CachedResponse> {
+    await persistShipTracks(snapshot.ships);
+    const ships = await hydrateShipTracks(snapshot.ships);
+    const regionCounts = ships.reduce<Record<string, number>>((accumulator, ship) => {
+        const region = getCoverageRegion(ship)?.name || ship.zone || "Open ocean";
+        accumulator[region] = (accumulator[region] || 0) + 1;
+        return accumulator;
+    }, {});
+
     return {
-        ships: snapshot.ships,
-        total: snapshot.ships.length,
+        ships,
+        total: ships.length,
         timestamp: snapshot.timestamp,
         live: true,
         demo: false,
         source: snapshot.source,
+        notice: Object.entries(regionCounts)
+            .sort((left, right) => right[1] - left[1])
+            .slice(0, 4)
+            .map(([region, count]) => `${region}: ${count}`)
+            .join(" • "),
     };
 }
 
@@ -674,24 +1161,26 @@ export async function GET() {
             return null;
         });
 
-        if (liveSnapshot) {
-            const response = buildResponseFromSnapshot(liveSnapshot);
-            cache = { response, timestamp: Date.now() };
-
-            return NextResponse.json(response, {
-                headers: {
-                    "Cache-Control": "public, s-maxage=10, stale-while-revalidate=20",
-                },
-            });
-        }
+        const vesselFinderSnapshot = await fetchVesselFinderShips().catch(
+            (error: Error) => {
+                console.warn("[Ships API] VesselFinder unavailable:", error.message);
+                return null;
+            },
+        );
 
         const legacySnapshot = await fetchConfiguredProviderShips().catch((error: Error) => {
             console.warn("[Ships API] Legacy AIS provider unavailable:", error.message);
             return null;
         });
 
-        if (legacySnapshot) {
-            const response = buildResponseFromSnapshot(legacySnapshot);
+        const mergedSnapshot = mergeShipSnapshots([
+            liveSnapshot,
+            legacySnapshot,
+            vesselFinderSnapshot,
+        ]);
+
+        if (mergedSnapshot) {
+            const response = await buildResponseFromSnapshot(mergedSnapshot);
             cache = { response, timestamp: Date.now() };
 
             return NextResponse.json(response, {
@@ -712,7 +1201,7 @@ export async function GET() {
             demo: true,
             source: "Demo traffic model",
             notice:
-                "Configure AISTREAM_API_KEY to switch the world monitor from demo vessel traffic to a live AISStream websocket snapshot. Optionally set AISTREAM_BOUNDING_BOXES and AISTREAM_SAMPLE_MS to tune coverage and snapshot depth.",
+                "Configure AISTREAM_API_KEY for regional AISStream coverage and optionally VESSELFINDER_API_KEY to merge denser commercial traffic snapshots. Vessel history persists once the VesselTrack table is migrated.",
         };
 
         cache = { response, timestamp: Date.now() };

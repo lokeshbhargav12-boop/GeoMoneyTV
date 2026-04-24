@@ -2255,17 +2255,17 @@ export default function WorldMonitorPage() {
 
           {!apertureActive && !isCompactLayout && (
             <div className="pointer-events-none absolute right-4 top-4 z-10">
-              <div className="pointer-events-auto flex w-[min(21rem,calc(100vw-8rem))] flex-col gap-3">
+              <div className="pointer-events-auto flex w-[min(24rem,calc(100vw-8rem))] flex-col gap-3">
                 <div className="rounded-[26px] border border-white/[0.08] bg-black/58 p-4 shadow-xl shadow-black/20 backdrop-blur-2xl">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-mono tracking-[0.22em] text-geo-gold">
-                        DESKTOP COMMAND SURFACE
+                        TOPSIDE AI NAVIGATOR
                       </div>
-                      <p className="mt-1 text-xs text-gray-400">
-                        Desktop keeps the globe primary. Open panels only when
-                        needed.
-                      </p>
+                      <h2 className="mt-1 text-sm font-semibold text-white">
+                        Ask live questions about aircraft, vessels, and
+                        chokepoints directly from the monitor.
+                      </h2>
                     </div>
                     <div
                       className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-mono ${shipDataLive ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"}`}
@@ -2275,36 +2275,97 @@ export default function WorldMonitorPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActivePanel("feed");
-                        setDesktopHudOpen(true);
-                      }}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
-                    >
-                      Feed
-                    </button>
+                  <div className="mt-4 flex flex-col gap-2">
+                    <input
+                      type="text"
+                      value={aiQuery}
+                      onChange={(e) => setAiQuery(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && fetchAiBrief(aiQuery)
+                      }
+                      placeholder="Ask about Hormuz, vessel congestion, aircraft posture, or chokepoints..."
+                      className="h-11 rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white placeholder:text-gray-500 focus:border-geo-gold/40 focus:outline-none"
+                    />
+                    <div className="grid grid-cols-[1fr_auto] gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fetchAiBrief(aiQuery)}
+                        disabled={aiLoading}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-geo-gold/30 bg-geo-gold/10 px-4 text-sm font-semibold text-geo-gold transition-colors hover:bg-geo-gold/20 disabled:opacity-50"
+                      >
+                        <Cpu className="h-4 w-4" />
+                        {aiLoading ? "Analyzing..." : "Run AI query"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActivePanel("feed");
+                          setDesktopHudOpen(true);
+                        }}
+                        className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-[11px] font-medium text-white transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+                      >
+                        Open feed
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {AI_QUICK_QUERIES.slice(0, 3).map((question) => (
+                      <button
+                        key={question}
+                        type="button"
+                        onClick={() => {
+                          setAiQuery(question);
+                          fetchAiBrief(question);
+                        }}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-gray-300 transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+
+                  {aiBrief && (
+                    <div className="mt-4 rounded-2xl border border-purple-500/20 bg-purple-500/8 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-purple-300">
+                          {aiBrief.threatLevel || "MONITOR"}
+                        </div>
+                        <div className="text-[10px] text-gray-500">
+                          {new Date(
+                            aiBrief.timestamp || Date.now(),
+                          ).toLocaleTimeString()}
+                        </div>
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-white">
+                        {aiBrief.headline}
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-gray-300">
+                        {aiBrief.summary}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-[26px] border border-white/[0.08] bg-black/58 p-4 shadow-xl shadow-black/20 backdrop-blur-2xl">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-mono tracking-[0.22em] text-gray-500">
+                        LIVE ASSET COVERAGE
+                      </div>
+                      <p className="mt-1 text-xs text-gray-400">
+                        Keep counts visible while leaving the globe clear.
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
                         setActivePanel("ships");
                         setDesktopHudOpen(true);
                       }}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-[11px] font-medium text-white transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
                     >
-                      Vessels
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActivePanel("aircraft");
-                        setDesktopHudOpen(true);
-                      }}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white transition-colors hover:border-geo-gold/30 hover:text-geo-gold"
-                    >
-                      Aircraft
+                      Open drawer
                     </button>
                   </div>
 
