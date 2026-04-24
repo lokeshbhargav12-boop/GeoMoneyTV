@@ -231,6 +231,13 @@ export const OPENROUTER_INFOGRAPHIC_MODELS = [
     ...OPENROUTER_FREE_MODELS.filter((model) => model !== 'meta-llama/llama-3.3-70b-instruct:free'),
 ]
 
+function resolveOpenRouterInfographicModel(imageModel: string): string {
+    const normalized = imageModel.trim()
+    return OPENROUTER_INFOGRAPHIC_MODELS.includes(normalized)
+        ? normalized
+        : OPENROUTER_INFOGRAPHIC_MODELS[0]
+}
+
 const INFOGRAPHIC_WIDTH = 1080
 const INFOGRAPHIC_HEIGHT = 1350
 
@@ -292,7 +299,11 @@ function mergeGeneratorSettings(
                 || raw?.imageProvider === 'huggingface'
                 ? raw.imageProvider
                 : DEFAULT_GENERATOR_SETTINGS.imageProvider,
-        imageModel: raw?.imageModel?.trim() || DEFAULT_GENERATOR_SETTINGS.imageModel,
+        imageModel:
+            (raw?.imageProvider === 'openrouter-svg'
+                ? resolveOpenRouterInfographicModel(raw?.imageModel || '')
+                : raw?.imageModel?.trim())
+            || DEFAULT_GENERATOR_SETTINGS.imageModel,
         activeTemplateId,
         templates,
     }
@@ -877,7 +888,7 @@ async function generateInfographicWithOpenRouter(
     text: { shortText: string; longText: string },
 ): Promise<string> {
     const preferredInfographicModels = [
-        settings.imageModel,
+        resolveOpenRouterInfographicModel(settings.imageModel),
         ...OPENROUTER_INFOGRAPHIC_MODELS,
     ].filter((model, index, list) => Boolean(model) && list.indexOf(model) === index)
 
