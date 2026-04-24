@@ -57,7 +57,7 @@ interface SocialPostTemplate {
 interface SocialPostGeneratorSettings {
   provider: "openrouter" | "huggingface";
   textModel: string;
-  imageProvider: "openrouter-svg" | "huggingface" | "webhook" | "none";
+  imageProvider: "openrouter-svg" | "openrouter-image" | "huggingface" | "webhook" | "none";
   imageModel: string;
   activeTemplateId: string;
   templates: SocialPostTemplate[];
@@ -66,6 +66,7 @@ interface SocialPostGeneratorSettings {
 interface ModelOptions {
   openrouter: string[];
   openrouterImage: string[];
+  openrouterImageGen: string[];
   huggingfaceText: string[];
   huggingfaceImage: string[];
 }
@@ -368,9 +369,11 @@ export default function SocialPostsAdmin() {
   const currentImageModels =
     settings?.imageProvider === "openrouter-svg"
       ? modelOptions?.openrouterImage || []
-      : settings?.imageProvider === "huggingface"
-        ? modelOptions?.huggingfaceImage || []
-        : [];
+      : settings?.imageProvider === "openrouter-image"
+        ? modelOptions?.openrouterImageGen || []
+        : settings?.imageProvider === "huggingface"
+          ? modelOptions?.huggingfaceImage || []
+          : [];
 
   return (
     <div className="mx-auto max-w-7xl p-8 space-y-8">
@@ -507,10 +510,13 @@ export default function SocialPostsAdmin() {
                         nextProvider === "openrouter-svg"
                           ? modelOptions?.openrouterImage?.[0] ||
                             settings.imageModel
-                          : nextProvider === "huggingface"
-                            ? modelOptions?.huggingfaceImage?.[0] ||
+                          : nextProvider === "openrouter-image"
+                            ? modelOptions?.openrouterImageGen?.[0] ||
                               settings.imageModel
-                            : settings.imageModel;
+                            : nextProvider === "huggingface"
+                              ? modelOptions?.huggingfaceImage?.[0] ||
+                                settings.imageModel
+                              : settings.imageModel;
 
                       setSettings((current) =>
                         current
@@ -526,6 +532,9 @@ export default function SocialPostsAdmin() {
                   >
                     <option value="openrouter-svg">
                       OpenRouter SVG infographic renderer
+                    </option>
+                    <option value="openrouter-image">
+                      OpenRouter image generation (recommended)
                     </option>
                     <option value="huggingface">
                       Hugging Face image generation
@@ -554,7 +563,8 @@ export default function SocialPostsAdmin() {
                     }
                     disabled={
                       settings.imageProvider !== "huggingface" &&
-                      settings.imageProvider !== "openrouter-svg"
+                      settings.imageProvider !== "openrouter-svg" &&
+                      settings.imageProvider !== "openrouter-image"
                     }
                     className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none disabled:opacity-50"
                   />
@@ -566,9 +576,11 @@ export default function SocialPostsAdmin() {
                   <p className="text-xs text-gray-500">
                     {settings.imageProvider === "huggingface"
                       ? "Paste a Hugging Face image model ID, a full hf.co model URL, or provider:model. Example: hf-inference:black-forest-labs/FLUX.1-schnell. The model still needs an active inference provider."
-                      : settings.imageProvider === "openrouter-svg"
-                        ? "Paste an OpenRouter model ID or use one of the recommended infographic models."
-                        : "Image model selection is only used for Hugging Face and OpenRouter SVG rendering."}
+                      : settings.imageProvider === "openrouter-image"
+                        ? "Paste an OpenRouter image generation model ID, e.g. openai/gpt-image-1 or bytedance/seedream-3.5. The model returns a real PNG — no SVG involved."
+                        : settings.imageProvider === "openrouter-svg"
+                          ? "Paste an OpenRouter model ID or use one of the recommended infographic models."
+                          : "Image model selection is only used for Hugging Face and OpenRouter providers."}
                   </p>
                 </label>
               </div>
@@ -676,10 +688,7 @@ export default function SocialPostsAdmin() {
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-100">
                 <div className="font-medium">Free setup notes</div>
                 <div className="mt-2 text-emerald-200/90">
-                  OpenRouter free models can now render SVG infographics
-                  directly into PNG files with an OpenRouter API key. Hugging
-                  Face remains available if you want more illustrative image
-                  output instead of structured infographics.
+                  Use <strong>OpenRouter image generation</strong> for the best results — a real image model (e.g. <code>openai/gpt-image-1</code>, <code>bytedance/seedream-3.5</code>) generates the background PNG directly, then your headline and text are composited on top. No SVG required. Hugging Face works the same way if you prefer it.
                 </div>
               </div>
             </>

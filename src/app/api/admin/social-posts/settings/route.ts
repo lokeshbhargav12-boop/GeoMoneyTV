@@ -5,6 +5,7 @@ import {
     getSocialPostGeneratorSettings,
     HUGGINGFACE_FREE_IMAGE_MODELS,
     HUGGINGFACE_FREE_TEXT_MODELS,
+    OPENROUTER_IMAGE_MODELS,
     OPENROUTER_INFOGRAPHIC_MODELS,
     OPENROUTER_FREE_MODELS,
     saveSocialPostGeneratorSettings,
@@ -29,6 +30,7 @@ export async function GET() {
             modelOptions: {
                 openrouter: OPENROUTER_FREE_MODELS,
                 openrouterImage: OPENROUTER_INFOGRAPHIC_MODELS,
+                openrouterImageGen: OPENROUTER_IMAGE_MODELS,
                 huggingfaceText: HUGGINGFACE_FREE_TEXT_MODELS,
                 huggingfaceImage: HUGGINGFACE_FREE_IMAGE_MODELS,
             },

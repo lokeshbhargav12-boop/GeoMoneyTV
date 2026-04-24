@@ -5,7 +5,7 @@ import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 
 export type SocialTextProvider = 'openrouter' | 'huggingface'
-export type SocialImageProvider = 'openrouter-svg' | 'huggingface' | 'webhook' | 'none'
+export type SocialImageProvider = 'openrouter-svg' | 'openrouter-image' | 'huggingface' | 'webhook' | 'none'
 
 export interface SocialPostTemplate {
     id: string
@@ -226,6 +226,14 @@ async function pollBlackForestLabsImage(pollingUrl: string): Promise<Buffer> {
     throw new Error('Black Forest Labs image generation timed out before a sample image was ready.')
 }
 
+export const OPENROUTER_IMAGE_MODELS = [
+    'openai/gpt-image-1',
+    'google/imagen-4',
+    'bytedance/seedream-3.5',
+    'black-forest-labs/flux-1-schnell',
+    'stabilityai/stable-diffusion-3-5-large',
+]
+
 export const OPENROUTER_INFOGRAPHIC_MODELS = [
     'meta-llama/llama-3.3-70b-instruct:free',
     ...OPENROUTER_FREE_MODELS.filter((model) => model !== 'meta-llama/llama-3.3-70b-instruct:free'),
@@ -236,6 +244,96 @@ function resolveOpenRouterInfographicModel(imageModel: string): string {
     return OPENROUTER_INFOGRAPHIC_MODELS.includes(normalized)
         ? normalized
         : OPENROUTER_INFOGRAPHIC_MODELS[0]
+}
+
+function getOpenRouterApiKey(): string | undefined {
+    return process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY
+}
+
+function extractImageUrl(content: unknown): string | null {
+    if (Array.isArray(content)) {
+        for (const part of content) {
+            if (part?.type === 'image_url' && part?.image_url?.url) {
+                return part.image_url.url as string
+            }
+        }
+    }
+
+    if (typeof content === 'string') {
+        const trimmed = content.trim()
+        if (trimmed.startsWith('data:image/')) {
+            return trimmed
+        }
+        if (/^https?:\/\//i.test(trimmed)) {
+            return trimmed
+        }
+    }
+
+    return null
+}
+
+async function generateImageWithOpenRouterImageModel(prompt: string, model: string): Promise<Buffer> {
+    const apiKey = getOpenRouterApiKey()
+    if (!apiKey) {
+        throw new Error('OPENROUTER_API_KEY is not configured.')
+    }
+
+    const imageModel = model.trim() || OPENROUTER_IMAGE_MODELS[0]
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 90_000)
+
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://geomoney.tv',
+            'X-Title': 'GeoMoney Intelligence',
+        },
+        body: JSON.stringify({
+            model: imageModel,
+            messages: [{ role: 'user', content: prompt }],
+        }),
+    }).finally(() => clearTimeout(timeoutId))
+
+    if (!res.ok) {
+        const body = await res.text()
+        throw new Error(`OpenRouter image model ${imageModel} failed (${res.status}): ${body.slice(0, 300)}`)
+    }
+
+    const data = await res.json()
+    const content: unknown = data.choices?.[0]?.message?.content
+
+    const imageUrl = extractImageUrl(content)
+    if (!imageUrl) {
+        throw new Error(
+            `OpenRouter image model ${imageModel} did not return image data. `
+            + `Response content: ${JSON.stringify(content).slice(0, 200)}`,
+        )
+    }
+
+    if (imageUrl.startsWith('data:')) {
+        const base64Match = imageUrl.match(/^data:[^;]+;base64,(.+)$/s)
+        if (!base64Match) {
+            throw new Error('Could not parse base64 image data from OpenRouter response')
+        }
+        return Buffer.from(base64Match[1], 'base64')
+    }
+
+    return downloadRemoteImage(imageUrl)
+}
+
+function buildImageGenerationPrompt(
+    imagePrompt: string,
+    template: SocialPostTemplate,
+): string {
+    return [
+        template.imageStyle,
+        imagePrompt,
+        'Premium editorial composition, cinematic but minimal, high information clarity, realistic lighting, polished and credible intelligence aesthetic, social-media-ready editorial design. Portrait format 1080x1350.',
+    ].filter(Boolean).join(' ')
 }
 
 const INFOGRAPHIC_WIDTH = 1080
@@ -294,6 +392,7 @@ function mergeGeneratorSettings(
         textModel: raw?.textModel?.trim() || DEFAULT_GENERATOR_SETTINGS.textModel,
         imageProvider:
             raw?.imageProvider === 'openrouter-svg'
+                || raw?.imageProvider === 'openrouter-image'
                 || raw?.imageProvider === 'webhook'
                 || raw?.imageProvider === 'none'
                 || raw?.imageProvider === 'huggingface'
@@ -303,7 +402,10 @@ function mergeGeneratorSettings(
             (raw?.imageProvider === 'openrouter-svg'
                 ? resolveOpenRouterInfographicModel(raw?.imageModel || '')
                 : raw?.imageModel?.trim())
-            || DEFAULT_GENERATOR_SETTINGS.imageModel,
+            || (raw?.imageProvider === 'openrouter-image'
+                ? OPENROUTER_IMAGE_MODELS[0]
+                : DEFAULT_GENERATOR_SETTINGS.imageModel),
+
         activeTemplateId,
         templates,
     }
@@ -1126,6 +1228,12 @@ async function generateImage(
 
     if (settings.imageProvider === 'openrouter-svg') {
         return generateInfographicWithOpenRouter(prompt, template, settings, text)
+    }
+
+    if (settings.imageProvider === 'openrouter-image') {
+        const imageGenPrompt = buildImageGenerationPrompt(prompt, template)
+        const backgroundBytes = await generateImageWithOpenRouterImageModel(imageGenPrompt, settings.imageModel)
+        return composeIllustrativeSocialCard(backgroundBytes, template, text)
     }
 
     if (settings.imageProvider === 'huggingface') {
