@@ -279,11 +279,11 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
     }
 
     const imageModel = model.trim() || OPENROUTER_IMAGE_MODELS[0]
-
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 90_000)
 
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // Primary: use the dedicated images/generations endpoint
+    const res = await fetch('https://openrouter.ai/api/v1/images/generations', {
         method: 'POST',
         signal: controller.signal,
         headers: {
@@ -294,7 +294,10 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
         },
         body: JSON.stringify({
             model: imageModel,
-            messages: [{ role: 'user', content: prompt }],
+            prompt,
+            n: 1,
+            size: `${INFOGRAPHIC_WIDTH}x${INFOGRAPHIC_HEIGHT}`,
+            response_format: 'b64_json',
         }),
     }).finally(() => clearTimeout(timeoutId))
 
@@ -303,26 +306,37 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
         throw new Error(`OpenRouter image model ${imageModel} failed (${res.status}): ${body.slice(0, 300)}`)
     }
 
-    const data = await res.json()
-    const content: unknown = data.choices?.[0]?.message?.content
+    const data = await res.json() as Record<string, unknown>
 
-    const imageUrl = extractImageUrl(content)
-    if (!imageUrl) {
-        throw new Error(
-            `OpenRouter image model ${imageModel} did not return image data. `
-            + `Response content: ${JSON.stringify(content).slice(0, 200)}`,
-        )
-    }
-
-    if (imageUrl.startsWith('data:')) {
-        const base64Match = imageUrl.match(/^data:[^;]+;base64,([\s\S]+)$/)
-        if (!base64Match) {
-            throw new Error('Could not parse base64 image data from OpenRouter response')
+    // b64_json inline — best case
+    if (Array.isArray(data.data) && data.data.length) {
+        const first = data.data[0] as Record<string, unknown>
+        if (typeof first.b64_json === 'string' && first.b64_json) {
+            return Buffer.from(first.b64_json, 'base64')
         }
-        return Buffer.from(base64Match[1], 'base64')
+        if (typeof first.url === 'string' && first.url) {
+            return downloadRemoteImage(first.url)
+        }
     }
 
-    return downloadRemoteImage(imageUrl)
+    // Fallback: some models route through chat completions and embed the image in content
+    const content: unknown = (data.choices as any)?.[0]?.message?.content
+    const imageUrl = extractImageUrl(content)
+    if (imageUrl) {
+        if (imageUrl.startsWith('data:')) {
+            const base64Match = imageUrl.match(/^data:[^;]+;base64,([\s\S]+)$/)
+            if (!base64Match) {
+                throw new Error('Could not parse base64 image data from OpenRouter response')
+            }
+            return Buffer.from(base64Match[1], 'base64')
+        }
+        return downloadRemoteImage(imageUrl)
+    }
+
+    throw new Error(
+        `OpenRouter image model ${imageModel} did not return image data. `
+        + `Response preview: ${JSON.stringify(data).slice(0, 300)}`,
+    )
 }
 
 function buildImageGenerationPrompt(
