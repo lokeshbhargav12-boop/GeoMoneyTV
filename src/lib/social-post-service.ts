@@ -226,12 +226,12 @@ async function pollBlackForestLabsImage(pollingUrl: string): Promise<Buffer> {
     throw new Error('Black Forest Labs image generation timed out before a sample image was ready.')
 }
 
+// These are confirmed available on OpenRouter's API (via chat/completions).
+// All return images as base64 data URIs in choices[0].message.content.
 export const OPENROUTER_IMAGE_MODELS = [
-    'openai/gpt-image-1',
-    'google/imagen-4',
-    'bytedance/seedream-3.5',
-    'black-forest-labs/flux-1-schnell',
-    'stabilityai/stable-diffusion-3-5-large',
+    'openai/gpt-5.4-image-2',
+    'openai/gpt-5-image',
+    'openai/gpt-5-image-mini',
 ]
 
 export const OPENROUTER_INFOGRAPHIC_MODELS = [
@@ -278,12 +278,15 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
         throw new Error('OPENROUTER_API_KEY is not configured.')
     }
 
-    const imageModel = model.trim() || OPENROUTER_IMAGE_MODELS[0]
+    // Only allow confirmed image generation models — text-only models return null content.
+    const trimmed = model.trim()
+    const imageModel = OPENROUTER_IMAGE_MODELS.includes(trimmed) ? trimmed : OPENROUTER_IMAGE_MODELS[0]
+
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 90_000)
 
-    // Primary: use the dedicated images/generations endpoint
-    const res = await fetch('https://openrouter.ai/api/v1/images/generations', {
+    // OpenRouter has no /images/generations endpoint — all image generation uses chat/completions.
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         signal: controller.signal,
         headers: {
@@ -294,10 +297,7 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
         },
         body: JSON.stringify({
             model: imageModel,
-            prompt,
-            n: 1,
-            size: `${INFOGRAPHIC_WIDTH}x${INFOGRAPHIC_HEIGHT}`,
-            response_format: 'b64_json',
+            messages: [{ role: 'user', content: prompt }],
         }),
     }).finally(() => clearTimeout(timeoutId))
 
@@ -307,36 +307,25 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
     }
 
     const data = await res.json() as Record<string, unknown>
-
-    // b64_json inline — best case
-    if (Array.isArray(data.data) && data.data.length) {
-        const first = data.data[0] as Record<string, unknown>
-        if (typeof first.b64_json === 'string' && first.b64_json) {
-            return Buffer.from(first.b64_json, 'base64')
-        }
-        if (typeof first.url === 'string' && first.url) {
-            return downloadRemoteImage(first.url)
-        }
-    }
-
-    // Fallback: some models route through chat completions and embed the image in content
     const content: unknown = (data.choices as any)?.[0]?.message?.content
+
     const imageUrl = extractImageUrl(content)
-    if (imageUrl) {
-        if (imageUrl.startsWith('data:')) {
-            const base64Match = imageUrl.match(/^data:[^;]+;base64,([\s\S]+)$/)
-            if (!base64Match) {
-                throw new Error('Could not parse base64 image data from OpenRouter response')
-            }
-            return Buffer.from(base64Match[1], 'base64')
-        }
-        return downloadRemoteImage(imageUrl)
+    if (!imageUrl) {
+        throw new Error(
+            `OpenRouter image model ${imageModel} did not return image data. `
+            + `Response preview: ${JSON.stringify(data).slice(0, 300)}`,
+        )
     }
 
-    throw new Error(
-        `OpenRouter image model ${imageModel} did not return image data. `
-        + `Response preview: ${JSON.stringify(data).slice(0, 300)}`,
-    )
+    if (imageUrl.startsWith('data:')) {
+        const base64Match = imageUrl.match(/^data:[^;]+;base64,([\s\S]+)$/)
+        if (!base64Match) {
+            throw new Error('Could not parse base64 image data from OpenRouter response')
+        }
+        return Buffer.from(base64Match[1], 'base64')
+    }
+
+    return downloadRemoteImage(imageUrl)
 }
 
 function buildImageGenerationPrompt(
