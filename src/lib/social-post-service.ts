@@ -278,6 +278,23 @@ function extractImageUrl(content: unknown): string | null {
         if (/^https?:\/\//i.test(trimmed)) return trimmed
     }
 
+    if (content && typeof content === 'object') {
+        const record = content as Record<string, unknown>
+
+        if (Array.isArray(record.images)) {
+            const imageUrl = extractImageUrl(record.images)
+            if (imageUrl) return imageUrl
+        }
+
+        if (typeof record.url === 'string') return record.url
+        if (typeof record.b64_json === 'string') return `data:image/png;base64,${record.b64_json}`
+
+        if (record.image_url && typeof record.image_url === 'object') {
+            const imageUrlRecord = record.image_url as Record<string, unknown>
+            if (typeof imageUrlRecord.url === 'string') return imageUrlRecord.url
+        }
+    }
+
     return null
 }
 
@@ -316,9 +333,10 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
     }
 
     const data = await res.json() as Record<string, unknown>
-    const content: unknown = (data.choices as any)?.[0]?.message?.content
+    const message = (data.choices as any)?.[0]?.message
+    const content: unknown = message?.content
 
-    const imageUrl = extractImageUrl(content)
+    const imageUrl = extractImageUrl(message?.images) || extractImageUrl(content) || extractImageUrl(message)
     if (!imageUrl) {
         const contentPreview = typeof content === 'string'
             ? content.slice(0, 400)
@@ -326,6 +344,7 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
         throw new Error(
             `OpenRouter image model ${imageModel} did not return image data. `
             + `Content type: ${typeof content}, Array: ${Array.isArray(content)}, `
+            + `Images preview: ${JSON.stringify(message?.images).slice(0, 400)} | `
             + `Content preview: ${contentPreview} | `
             + `Full response preview: ${JSON.stringify(data).slice(0, 1000)}`,
         )
