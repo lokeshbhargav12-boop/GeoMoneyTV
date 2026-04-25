@@ -57,7 +57,12 @@ interface SocialPostTemplate {
 interface SocialPostGeneratorSettings {
   provider: "openrouter" | "huggingface";
   textModel: string;
-  imageProvider: "openrouter-svg" | "openrouter-image" | "huggingface" | "webhook" | "none";
+  imageProvider:
+    | "openrouter-svg"
+    | "openrouter-image"
+    | "huggingface"
+    | "webhook"
+    | "none";
   imageModel: string;
   activeTemplateId: string;
   templates: SocialPostTemplate[];
@@ -86,6 +91,28 @@ function parsePostText(text: string): ParsedText {
     };
   } catch {
     return { shortText: text.slice(0, 280), longText: text };
+  }
+}
+
+async function parseApiResponse<T>(res: Response): Promise<T> {
+  const raw = await res.text();
+  const contentType = res.headers.get("content-type") || "";
+
+  if (!raw.trim()) {
+    return {} as T;
+  }
+
+  if (contentType.includes("application/json")) {
+    return JSON.parse(raw) as T;
+  }
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    const preview = raw.replace(/\s+/g, " ").slice(0, 180);
+    throw new Error(
+      `HTTP ${res.status} ${res.statusText}: non-JSON response (${contentType || "unknown content-type"}). ${preview}`,
+    );
   }
 }
 
@@ -155,7 +182,9 @@ export default function SocialPostsAdmin() {
       if (filterStatus) params.set("status", filterStatus);
       const res = await fetch(`/api/admin/social-posts?${params}`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await parseApiResponse<{ posts: SocialPost[]; total: number }>(
+          res,
+        );
         setPosts(data.posts);
         setTotal(data.total);
       }
@@ -171,7 +200,10 @@ export default function SocialPostsAdmin() {
     try {
       const res = await fetch("/api/admin/social-posts/settings");
       if (!res.ok) throw new Error("Failed to load generator settings");
-      const data = await res.json();
+      const data = await parseApiResponse<{
+        settings: SocialPostGeneratorSettings;
+        modelOptions: ModelOptions;
+      }>(res);
       setSettings(data.settings);
       setModelOptions(data.modelOptions);
       setSelectedTemplateId(data.settings.activeTemplateId);
@@ -201,7 +233,10 @@ export default function SocialPostsAdmin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ settings: payload }),
       });
-      const data = await res.json();
+      const data = await parseApiResponse<{
+        error?: string;
+        settings: SocialPostGeneratorSettings;
+      }>(res);
       if (!res.ok) {
         alert(data.error || "Failed to save generator settings");
         return;
@@ -227,7 +262,7 @@ export default function SocialPostsAdmin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, postId, ...extra }),
       });
-      const data = await res.json();
+      const data = await parseApiResponse<{ error?: string }>(res);
       if (!res.ok) {
         alert(data.error || "Action failed");
         return;
@@ -688,7 +723,13 @@ export default function SocialPostsAdmin() {
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-100">
                 <div className="font-medium">Free setup notes</div>
                 <div className="mt-2 text-emerald-200/90">
-                  Use <strong>OpenRouter image generation</strong> for the best results — a real image model (e.g. <code>openai/gpt-image-1</code>, <code>bytedance/seedream-3.5</code>) generates the background PNG directly, then your headline and text are composited on top. No SVG required. Hugging Face works the same way if you prefer it.
+                  Use <strong>OpenRouter image generation</strong> for the best
+                  results — a real image model (e.g.{" "}
+                  <code>openai/gpt-image-1</code>,{" "}
+                  <code>bytedance/seedream-3.5</code>) generates the background
+                  PNG directly, then your headline and text are composited on
+                  top. No SVG required. Hugging Face works the same way if you
+                  prefer it.
                 </div>
               </div>
             </>
