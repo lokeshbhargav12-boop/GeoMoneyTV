@@ -253,20 +253,29 @@ function getOpenRouterApiKey(): string | undefined {
 function extractImageUrl(content: unknown): string | null {
     if (Array.isArray(content)) {
         for (const part of content) {
+            // type: "image_url" — standard OpenAI multimodal format
             if (part?.type === 'image_url' && part?.image_url?.url) {
                 return part.image_url.url as string
             }
+            // type: "image" — alternative format some OpenRouter models use
+            if (part?.type === 'image' && typeof part?.source === 'object') {
+                const src = part.source as Record<string, unknown>
+                if (typeof src?.data === 'string') {
+                    const mime = (src?.media_type as string) || 'image/png'
+                    return `data:${mime};base64,${src.data}`
+                }
+                if (typeof src?.url === 'string') return src.url as string
+            }
+            // Direct url/b64_json at part level
+            if (typeof part?.url === 'string') return part.url as string
+            if (typeof part?.b64_json === 'string') return `data:image/png;base64,${part.b64_json}`
         }
     }
 
     if (typeof content === 'string') {
         const trimmed = content.trim()
-        if (trimmed.startsWith('data:image/')) {
-            return trimmed
-        }
-        if (/^https?:\/\//i.test(trimmed)) {
-            return trimmed
-        }
+        if (trimmed.startsWith('data:image/')) return trimmed
+        if (/^https?:\/\//i.test(trimmed)) return trimmed
     }
 
     return null
@@ -311,9 +320,14 @@ async function generateImageWithOpenRouterImageModel(prompt: string, model: stri
 
     const imageUrl = extractImageUrl(content)
     if (!imageUrl) {
+        const contentPreview = typeof content === 'string'
+            ? content.slice(0, 400)
+            : JSON.stringify(content).slice(0, 400)
         throw new Error(
             `OpenRouter image model ${imageModel} did not return image data. `
-            + `Response preview: ${JSON.stringify(data).slice(0, 300)}`,
+            + `Content type: ${typeof content}, Array: ${Array.isArray(content)}, `
+            + `Content preview: ${contentPreview} | `
+            + `Full response preview: ${JSON.stringify(data).slice(0, 1000)}`,
         )
     }
 
