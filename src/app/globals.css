@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 5, 5, 5;
+  --background-end-rgb: 10, 25, 47;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  min-height: 100vh;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Google Translate UI fixes */
+.goog-te-banner-frame.skiptranslate,
+.skiptranslate.goog-te-gadget {
+  display: none !important;
+}
+body {
+  top: 0px !important;
+}
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+font {
+  background-color: transparent !important;
+}
+
+/* ── Hide TradingView attribution / copyright ───────────────────────────── */
+.tradingview-widget-copyright,
+.tv-embed-widget-wrapper__footer,
+.tv-embed-widget-powered-by {
+  display: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+/* Ensure chart containers clip any overflowing widget content */
+.tradingview-widget-container {
+  overflow: hidden !important;
+}

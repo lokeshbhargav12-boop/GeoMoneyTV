@@ -1,0 +1,9 @@
+node_modules
+
+.next
+public/_next
+dist
+.env*
+*.zip
+*.rar
+.DS_Store
