@@ -52,6 +52,9 @@ import {
   Map,
   Camera,
   Video,
+  Thermometer,
+  Bug,
+  ShieldAlert,
 } from "lucide-react";
 import OsintFeed from "@/components/OsintFeed";
 import type { Webcam } from "@/lib/world-monitor-geo";
@@ -663,6 +666,9 @@ export default function WorldMonitorPage() {
     | "countries"
     | "sanctions"
     | "nuclear"
+    | "climate"
+    | "disease"
+    | "cyber"
     | "aircraft"
     | "ships"
     | "ai-brief"
@@ -703,6 +709,11 @@ export default function WorldMonitorPage() {
   const [mobileHudTab, setMobileHudTab] = useState<
     "overview" | "ai" | "selection"
   >("overview");
+
+  // ─── NEW: Climate, Disease, Cyber state ────────────────
+  const [climateData, setClimateData] = useState<any[]>([]);
+  const [diseaseData, setDiseaseData] = useState<any[]>([]);
+  const [cyberData, setCyberData] = useState<any[]>([]);
 
   // Real-time clock
   useEffect(() => {
@@ -820,6 +831,60 @@ export default function WorldMonitorPage() {
     const id = setInterval(fetchShips, 15_000); // every 15s
     return () => clearInterval(id);
   }, [fetchShips]);
+
+  // ─── CLIMATE DATA ────────────────────────────────────────
+  const fetchClimate = useCallback(async () => {
+    try {
+      const res = await fetch("/api/world-monitor/climate");
+      if (!res.ok) return;
+      const data = await res.json();
+      setClimateData(data.events || []);
+    } catch (e) {
+      console.warn("[Climate]", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchClimate();
+    const id = setInterval(fetchClimate, 120_000);
+    return () => clearInterval(id);
+  }, [fetchClimate]);
+
+  // ─── DISEASE DATA ────────────────────────────────────────
+  const fetchDisease = useCallback(async () => {
+    try {
+      const res = await fetch("/api/world-monitor/disease");
+      if (!res.ok) return;
+      const data = await res.json();
+      setDiseaseData(data.events || []);
+    } catch (e) {
+      console.warn("[Disease]", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDisease();
+    const id = setInterval(fetchDisease, 300_000);
+    return () => clearInterval(id);
+  }, [fetchDisease]);
+
+  // ─── CYBER DATA ──────────────────────────────────────────
+  const fetchCyber = useCallback(async () => {
+    try {
+      const res = await fetch("/api/world-monitor/cyber");
+      if (!res.ok) return;
+      const data = await res.json();
+      setCyberData(data.events || []);
+    } catch (e) {
+      console.warn("[Cyber]", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCyber();
+    const id = setInterval(fetchCyber, 300_000);
+    return () => clearInterval(id);
+  }, [fetchCyber]);
 
   // ─── AI INTELLIGENCE BRIEF ──────────────────────────────
   const chokepointMetrics = useMemo(
@@ -1283,6 +1348,9 @@ export default function WorldMonitorPage() {
             },
             { key: "sanctions" as const, icon: Ban, label: "Sanctions" },
             { key: "nuclear" as const, icon: Atom, label: "Nuclear" },
+            { key: "climate" as const, icon: Thermometer, label: "Climate" },
+            { key: "disease" as const, icon: Bug, label: "Disease" },
+            { key: "cyber" as const, icon: ShieldAlert, label: "Cyber" },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -1910,6 +1978,254 @@ export default function WorldMonitorPage() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ═══ CLIMATE HEAT MAP ═══════════════════════════ */}
+              {activePanel === "climate" && (
+                <motion.div
+                  key="climate"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Thermometer className="w-4 h-4 text-orange-400" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        CLIMATE HEAT MAP
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      NASA EONET • Open-Meteo • GDACS — {climateData.length} active events
+                    </p>
+                  </div>
+                  <div className="px-4 py-3 border-b border-white/5">
+                    <div className="grid grid-cols-4 gap-2">
+                      {["wildfire", "storm", "heat", "flood"].map((t) => {
+                        const count = climateData.filter((e: any) => e.type === t).length;
+                        const colors: Record<string, string> = { wildfire: "text-red-400", storm: "text-purple-400", heat: "text-orange-400", flood: "text-blue-400" };
+                        return (
+                          <div key={t} className="text-center">
+                            <div className={`text-lg font-bold font-mono ${colors[t] || "text-gray-400"}`}>{count}</div>
+                            <div className="text-[8px] uppercase text-gray-500">{t}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {climateData.length === 0 && (
+                      <div className="px-4 py-8 text-center text-gray-600 text-xs">Loading climate data...</div>
+                    )}
+                    {climateData.map((event: any) => {
+                      const typeColors: Record<string, string> = {
+                        wildfire: "border-red-500/30 bg-red-500/10 text-red-400",
+                        storm: "border-purple-500/30 bg-purple-500/10 text-purple-400",
+                        heat: "border-orange-500/30 bg-orange-500/10 text-orange-400",
+                        drought: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
+                        flood: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+                        volcano: "border-red-500/30 bg-red-500/10 text-red-300",
+                        earthquake: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+                        ice: "border-cyan-500/30 bg-cyan-500/10 text-cyan-400",
+                      };
+                      return (
+                        <div key={event.id} className="px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${typeColors[event.type] || "border-gray-500/30 bg-gray-500/10 text-gray-400"}`}>
+                              {event.type.toUpperCase()}
+                            </span>
+                            <span className={`text-[9px] font-mono ${event.severity >= 70 ? "text-red-400" : event.severity >= 50 ? "text-yellow-400" : "text-emerald-400"}`}>
+                              SEV {event.severity}
+                            </span>
+                          </div>
+                          <div className="text-xs font-semibold text-white mt-1 line-clamp-2">{event.title}</div>
+                          <div className="text-[10px] text-gray-500 mt-1">{event.region} • {event.source}</div>
+                          <div className="w-full bg-white/5 rounded-full h-1 mt-2">
+                            <div className={`h-1 rounded-full ${event.severity >= 70 ? "bg-red-500" : event.severity >= 50 ? "bg-yellow-500" : "bg-emerald-500"}`} style={{ width: `${event.severity}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ═══ DISEASE OUTBREAK MAP ═══════════════════════ */}
+              {activePanel === "disease" && (
+                <motion.div
+                  key="disease"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Bug className="w-4 h-4 text-green-400" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        DISEASE OUTBREAK MAP
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      WHO DON • ProMED • disease.sh — {diseaseData.length} tracked outbreaks
+                    </p>
+                  </div>
+                  <div className="px-4 py-3 border-b border-white/5">
+                    <div className="grid grid-cols-3 gap-2">
+                      {["outbreak", "epidemic", "alert"].map((t) => {
+                        const count = diseaseData.filter((e: any) => e.type === t).length;
+                        const colors: Record<string, string> = { outbreak: "text-red-400", epidemic: "text-orange-400", alert: "text-yellow-400" };
+                        return (
+                          <div key={t} className="text-center">
+                            <div className={`text-lg font-bold font-mono ${colors[t] || "text-gray-400"}`}>{count}</div>
+                            <div className="text-[8px] uppercase text-gray-500">{t}s</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {diseaseData.length === 0 && (
+                      <div className="px-4 py-8 text-center text-gray-600 text-xs">Loading disease data...</div>
+                    )}
+                    {diseaseData.map((event: any) => {
+                      const typeColors: Record<string, string> = {
+                        pandemic: "border-red-500/30 bg-red-500/15 text-red-400",
+                        epidemic: "border-orange-500/30 bg-orange-500/10 text-orange-400",
+                        outbreak: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
+                        alert: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+                        update: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+                      };
+                      return (
+                        <div key={event.id} className="px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${typeColors[event.type] || "border-gray-500/30 bg-gray-500/10 text-gray-400"}`}>
+                              {event.type.toUpperCase()}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[9px] font-mono text-green-400">{event.pathogen}</span>
+                              <span className={`text-[9px] font-mono ${event.severity >= 70 ? "text-red-400" : event.severity >= 50 ? "text-yellow-400" : "text-emerald-400"}`}>
+                                SEV {event.severity}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-xs font-semibold text-white mt-1 line-clamp-2">{event.title}</div>
+                          <div className="text-[10px] text-gray-500 mt-1">
+                            {event.country} • {event.region} • {event.source}
+                          </div>
+                          {(event.cases || event.deaths) && (
+                            <div className="flex gap-3 mt-2">
+                              {event.cases && (
+                                <span className="text-[9px] text-orange-400 font-mono">
+                                  {event.cases.toLocaleString()} cases
+                                </span>
+                              )}
+                              {event.deaths && (
+                                <span className="text-[9px] text-red-400 font-mono">
+                                  {event.deaths.toLocaleString()} deaths
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          <div className="w-full bg-white/5 rounded-full h-1 mt-2">
+                            <div className={`h-1 rounded-full ${event.severity >= 70 ? "bg-red-500" : event.severity >= 50 ? "bg-yellow-500" : "bg-emerald-500"}`} style={{ width: `${event.severity}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ═══ CYBER WARFARE GRID ═════════════════════════ */}
+              {activePanel === "cyber" && (
+                <motion.div
+                  key="cyber"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/5"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-purple-400" />
+                      <h2 className="text-sm font-bold tracking-wide">
+                        CYBER WARFARE GRID
+                      </h2>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      CVE/CIRCL • CISA KEV • Threat OSINT — {cyberData.length} threats
+                    </p>
+                  </div>
+                  <div className="px-4 py-3 border-b border-white/5">
+                    <div className="grid grid-cols-4 gap-2">
+                      {["exploit", "ransomware", "vulnerability", "breach"].map((t) => {
+                        const count = cyberData.filter((e: any) => e.type === t).length;
+                        const colors: Record<string, string> = { exploit: "text-red-400", ransomware: "text-orange-400", vulnerability: "text-yellow-400", breach: "text-purple-400" };
+                        return (
+                          <div key={t} className="text-center">
+                            <div className={`text-lg font-bold font-mono ${colors[t] || "text-gray-400"}`}>{count}</div>
+                            <div className="text-[8px] uppercase text-gray-500">{t}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+                    {cyberData.length === 0 && (
+                      <div className="px-4 py-8 text-center text-gray-600 text-xs">Loading cyber threat data...</div>
+                    )}
+                    {cyberData.map((event: any) => {
+                      const typeColors: Record<string, string> = {
+                        exploit: "border-red-500/30 bg-red-500/10 text-red-400",
+                        ransomware: "border-orange-500/30 bg-orange-500/10 text-orange-400",
+                        vulnerability: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
+                        apt: "border-purple-500/30 bg-purple-500/10 text-purple-400",
+                        ddos: "border-cyan-500/30 bg-cyan-500/10 text-cyan-400",
+                        breach: "border-pink-500/30 bg-pink-500/10 text-pink-400",
+                        phishing: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+                        infrastructure: "border-red-500/30 bg-red-500/15 text-red-300",
+                      };
+                      return (
+                        <a
+                          key={event.id}
+                          href={event.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${typeColors[event.type] || "border-gray-500/30 bg-gray-500/10 text-gray-400"}`}>
+                              {event.type.toUpperCase()}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {event.cveId && (
+                                <span className="text-[9px] font-mono text-cyan-400">{event.cveId}</span>
+                              )}
+                              <span className={`text-[9px] font-mono ${event.severity >= 75 ? "text-red-400" : event.severity >= 50 ? "text-yellow-400" : "text-emerald-400"}`}>
+                                SEV {event.severity}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-xs font-semibold text-white mt-1 line-clamp-2">{event.title}</div>
+                          <div className="text-[10px] text-gray-500 mt-1 line-clamp-2">
+                            {event.description}
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-[9px] text-gray-600">{event.source}</span>
+                            {event.targetSector && (
+                              <span className="text-[9px] font-mono text-purple-400/70">TARGET: {event.targetSector}</span>
+                            )}
+                          </div>
+                          <div className="w-full bg-white/5 rounded-full h-1 mt-2">
+                            <div className={`h-1 rounded-full ${event.severity >= 75 ? "bg-red-500" : event.severity >= 50 ? "bg-yellow-500" : "bg-emerald-500"}`} style={{ width: `${event.severity}%` }} />
+                          </div>
+                        </a>
+                      );
+                    })}
                   </div>
                 </motion.div>
               )}

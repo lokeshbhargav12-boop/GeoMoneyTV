@@ -33,8 +33,12 @@ export async function POST(request: Request) {
             ? `\nCURRENT INTELLIGENCE FEED:\n${events.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
             : "";
 
+        const isDemo = assetContext?.vessels?.live === false;
+        const dataModeCaveat = isDemo
+            ? `\nIMPORTANT: Vessel data is currently in DEMO/SIMULATION mode. The vessel positions shown on the globe are simulated and may not match chokepoint counts. When answering about vessel counts, state that data is from demo simulation and actual live counts may differ. Do NOT say "0 ships" as a definitive answer — instead say the demo simulation shows X vessels in the area.`
+            : "";
         const assetBlock = assetContext
-            ? `\nLIVE ASSET SNAPSHOT (use these exact numbers when answering about counts):\n${JSON.stringify(assetContext, null, 2)}`
+            ? `\nASSET SNAPSHOT (${isDemo ? "DEMO MODE — simulated positions" : "LIVE AIS DATA"}):\n${JSON.stringify(assetContext, null, 2)}${dataModeCaveat}`
             : "";
 
         // Build a different prompt depending on whether the user asked a question
