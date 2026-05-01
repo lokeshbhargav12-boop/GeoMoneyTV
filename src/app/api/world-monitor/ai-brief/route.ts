@@ -49,7 +49,14 @@ export async function POST(request: Request) {
 
 A human analyst has asked this question: "${query}"
 
-Answer the question directly and precisely using the data below. When asked about counts, use the EXACT numbers from the live asset snapshot. Do not guess or estimate — use the data provided.
+Answer the question directly and precisely using the data below.
+
+IMPORTANT RULES FOR VESSEL COUNTS:
+- The chokepoint vessel counts represent ships detected IN AND NEAR the chokepoint area (within several hundred km radius).
+- If a chokepoint shows 0 vessels, say "No vessels currently detected in the immediate vicinity" but ALWAYS mention the total vessels visible globally (from globalSummary) for context.
+- Never just say "0" without context — always provide the broader picture.
+- Reference the globalSummary field for overall vessel activity.
+- When answering "how many ships are stranded", look at the strandedShips field which counts vessels with speed ≤1 knot, anchored, or moored in the area.
 ${eventsBlock}${assetBlock}
 
 You MUST respond with ONLY a valid JSON object — no markdown, no code fences, no explanation text outside the JSON. The JSON must match this schema exactly:
@@ -57,7 +64,7 @@ You MUST respond with ONLY a valid JSON object — no markdown, no code fences, 
   "headline": "Short headline summarizing your answer (max 15 words)",
   "threatLevel": "NOMINAL|GUARDED|ELEVATED|HIGH|CRITICAL",
   "summary": "Direct, concise answer to the analyst's question in 2-3 sentences",
-  "queryAnswer": "A detailed answer to the specific question asked, referencing exact data",
+  "queryAnswer": "A detailed answer to the specific question asked, referencing exact data and providing global context",
   "hotspots": [
     {"region": "Region name", "status": "brief status", "severity": "low|medium|high|critical"}
   ],

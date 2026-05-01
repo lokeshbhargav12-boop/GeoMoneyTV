@@ -157,7 +157,7 @@ const CHOKEPOINTS = [
     risk: 72,
     lat: 26.5,
     lng: 56.2,
-    radiusKm: 220,
+    radiusKm: 450,
   },
   {
     name: "Strait of Malacca",
@@ -167,7 +167,7 @@ const CHOKEPOINTS = [
     risk: 45,
     lat: 2.5,
     lng: 101.5,
-    radiusKm: 240,
+    radiusKm: 500,
   },
   {
     name: "Suez Canal",
@@ -177,7 +177,7 @@ const CHOKEPOINTS = [
     risk: 68,
     lat: 30.4,
     lng: 32.3,
-    radiusKm: 180,
+    radiusKm: 400,
   },
   {
     name: "Bab el-Mandeb",
@@ -187,7 +187,7 @@ const CHOKEPOINTS = [
     risk: 85,
     lat: 12.5,
     lng: 43.3,
-    radiusKm: 160,
+    radiusKm: 400,
   },
   {
     name: "Panama Canal",
@@ -197,7 +197,7 @@ const CHOKEPOINTS = [
     risk: 55,
     lat: 9,
     lng: -79.6,
-    radiusKm: 180,
+    radiusKm: 350,
   },
   {
     name: "Taiwan Strait",
@@ -207,7 +207,7 @@ const CHOKEPOINTS = [
     risk: 62,
     lat: 24,
     lng: 119.5,
-    radiusKm: 260,
+    radiusKm: 500,
   },
   {
     name: "GIUK Gap",
@@ -217,7 +217,7 @@ const CHOKEPOINTS = [
     risk: 38,
     lat: 63,
     lng: -15,
-    radiusKm: 420,
+    radiusKm: 600,
   },
   {
     name: "Bosporus Strait",
@@ -227,7 +227,7 @@ const CHOKEPOINTS = [
     risk: 30,
     lat: 41.1,
     lng: 29,
-    radiusKm: 110,
+    radiusKm: 300,
   },
 ];
 
@@ -944,19 +944,21 @@ export default function WorldMonitorPage() {
         totalTracked: shipTotal,
         source: shipSource,
         live: shipDataLive,
+        totalOnGlobe: shipData.length,
       },
-      chokepoints: chokepointMetrics.slice(0, 6).map((chokepoint) => ({
+      chokepoints: chokepointMetrics.slice(0, 8).map((chokepoint) => ({
         name: chokepoint.name,
         vessels: chokepoint.vessels,
         strandedShips: chokepoint.strandedShips,
         aircraft: chokepoint.aircraft,
       })),
+      globalSummary: `${shipData.length} vessels visible on globe, ${aircraftData.length} aircraft tracked. Vessels in/near chokepoints: ${chokepointMetrics.reduce((s, c) => s + c.vessels, 0)}. Vessels currently slow/stopped: ${shipData.filter(s => s.speed <= 1).length}.`,
     }),
     [
       aircraftData.length,
       aircraftTotal,
       chokepointMetrics,
-      shipData.length,
+      shipData,
       shipDataLive,
       shipSource,
       shipTotal,
