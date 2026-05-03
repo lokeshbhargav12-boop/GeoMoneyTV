@@ -57,6 +57,17 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import OsintFeed from "@/components/OsintFeed";
+import WorldMonitorTutorial, {
+  useWorldMonitorTutorial,
+} from "@/components/WorldMonitorTutorial";
+import ShipClusterPanel, {
+  findNearbyShips,
+} from "@/components/ShipClusterPanel";
+import {
+  ShipDetailPopup,
+  AircraftDetailPopup,
+  EventDetailPopup,
+} from "@/components/AssetDetailPopup";
 import type { Webcam } from "@/lib/world-monitor-geo";
 import {
   buildAircraftReportHref,
@@ -715,6 +726,19 @@ export default function WorldMonitorPage() {
   const [diseaseData, setDiseaseData] = useState<any[]>([]);
   const [cyberData, setCyberData] = useState<any[]>([]);
 
+  // Tutorial state
+  const [showTutorial, dismissTutorial] = useWorldMonitorTutorial();
+  const [tutorialForced, setTutorialForced] = useState(false);
+
+  // Ship cluster state
+  const [clusterShips, setClusterShips] = useState<ShipData[] | null>(null);
+  const [clusterCenter, setClusterCenter] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Popup state for detail overlays
+  const [popupShip, setPopupShip] = useState<ShipData | null>(null);
+  const [popupAircraft, setPopupAircraft] = useState<AircraftData | null>(null);
+  const [popupEvent, setPopupEvent] = useState<GlobeEvent | null>(null);
+
   // Real-time clock
   useEffect(() => {
     const tick = () =>
@@ -1032,6 +1056,9 @@ export default function WorldMonitorPage() {
       setSelectedEvent(event);
       setShowDetail(true);
       setActivePanel("feed");
+      setPopupEvent(event);
+      setPopupAircraft(null);
+      setPopupShip(null);
 
       const primaryLocation = event.locations[0];
       if (primaryLocation) {
@@ -1054,6 +1081,9 @@ export default function WorldMonitorPage() {
       setSelectedShip(null);
       setSelectedAircraft(aircraft);
       setActivePanel("aircraft");
+      setPopupAircraft(aircraft);
+      setPopupShip(null);
+      setPopupEvent(null);
       focusGlobeLocation({
         key: `aircraft-${aircraft.icao24}`,
         lat: aircraft.latitude,
@@ -1067,11 +1097,31 @@ export default function WorldMonitorPage() {
 
   const handleShipClick = useCallback(
     (ship: ShipData) => {
+      // Check if there are 4+ ships nearby — show cluster panel instead
+      const nearby = findNearbyShips(ship, shipData, 50);
+      if (nearby.length >= 4) {
+        setClusterShips(nearby);
+        setClusterCenter({ lat: ship.latitude, lng: ship.longitude });
+        // Still zoom to the area
+        focusGlobeLocation({
+          key: `cluster-${ship.latitude}-${ship.longitude}`,
+          lat: ship.latitude,
+          lng: ship.longitude,
+          distance: 2.68,
+          targetDepth: 0.85,
+        });
+        return;
+      }
+
+      // Single ship — normal behavior
       setShowDetail(false);
       setSelectedEvent(null);
       setSelectedAircraft(null);
       setSelectedShip(ship);
       setActivePanel("ships");
+      setPopupShip(ship);
+      setPopupAircraft(null);
+      setPopupEvent(null);
       focusGlobeLocation({
         key: `ship-${ship.mmsi}`,
         lat: ship.latitude,
@@ -1080,7 +1130,7 @@ export default function WorldMonitorPage() {
         targetDepth: 0.85,
       });
     },
-    [focusGlobeLocation],
+    [focusGlobeLocation, shipData],
   );
 
   const handleChokepointClick = useCallback(
@@ -1158,6 +1208,70 @@ export default function WorldMonitorPage() {
   // ──────────────────────────────────────────────────────────
   return (
     <main className="relative flex h-dvh flex-col overflow-hidden pt-[104px] text-white sm:pt-[128px]">
+      {/* Tutorial overlay */}
+      {(showTutorial || tutorialForced) && (
+        <WorldMonitorTutorial
+          onClose={() => {
+            dismissTutorial();
+            setTutorialForced(false);
+          }}
+        />
+      )}
+
+      {/* Ship cluster overlay */}
+      {clusterShips && clusterShips.length > 0 && clusterCenter && (
+        <ShipClusterPanel
+          ships={clusterShips}
+          center={clusterCenter}
+          onSelectShip={(ship) => {
+            setClusterShips(null);
+            setClusterCenter(null);
+            setShowDetail(false);
+            setSelectedEvent(null);
+            setSelectedAircraft(null);
+            setSelectedShip(ship);
+            setActivePanel("ships");
+            setPopupShip(ship);
+            setPopupAircraft(null);
+            setPopupEvent(null);
+            focusGlobeLocation({
+              key: `ship-${ship.mmsi}`,
+              lat: ship.latitude,
+              lng: ship.longitude,
+              distance: 2.68,
+              targetDepth: 0.85,
+            });
+          }}
+          onClose={() => {
+            setClusterShips(null);
+            setClusterCenter(null);
+          }}
+        />
+      )}
+
+      {/* Detail popups for individual assets */}
+      {popupShip && (
+        <ShipDetailPopup
+          ship={popupShip}
+          reportHref={buildShipReportHref(popupShip)}
+          onClose={() => setPopupShip(null)}
+        />
+      )}
+      {popupAircraft && (
+        <AircraftDetailPopup
+          aircraft={popupAircraft}
+          reportHref={buildAircraftReportHref(popupAircraft)}
+          onClose={() => setPopupAircraft(null)}
+        />
+      )}
+      {popupEvent && (
+        <EventDetailPopup
+          event={popupEvent}
+          reportHref={buildEventReportHref(popupEvent)}
+          onClose={() => setPopupEvent(null)}
+        />
+      )}
+
       {/* BG */}
       <div className="fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0d1b2a] via-[#060d18] to-[#030812]" />
 
@@ -1214,6 +1328,13 @@ export default function WorldMonitorPage() {
               <span className="hidden sm:inline">
                 {isRefreshing ? "SCANNING" : "SCAN"}
               </span>
+            </button>
+            <button
+              onClick={() => setTutorialForced(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-geo-gold text-xs font-bold transition-all"
+              title="How to use World Monitor"
+            >
+              ?
             </button>
           </div>
         </div>

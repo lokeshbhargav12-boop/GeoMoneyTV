@@ -1470,7 +1470,7 @@ function PulsePoint({
       </mesh>
       {/* Tooltip */}
       {hovered && label && (
-        <Html distanceFactor={8} center style={{ pointerEvents: "none" }}>
+        <Html distanceFactor={8} center occlude="blending" style={{ pointerEvents: "none" }}>
           <div className="bg-black/90 border border-geo-gold/40 rounded-lg px-3 py-2 min-w-[220px] backdrop-blur-xl shadow-lg shadow-geo-gold/10">
             <div className="text-[10px] font-mono text-geo-gold mb-1">
               {label}
@@ -1563,7 +1563,7 @@ function ChokepointMarker({
         />
       </mesh>
       {hovered && (
-        <Html distanceFactor={8} center style={{ pointerEvents: "none" }}>
+        <Html distanceFactor={8} center occlude="blending" style={{ pointerEvents: "none" }}>
           <div className="bg-black/90 border border-white/20 rounded-lg px-3 py-2 backdrop-blur-xl whitespace-nowrap">
             <div className="text-[10px] font-mono text-geo-gold">{name}</div>
             <div className="text-[9px] text-gray-400 uppercase">
@@ -1618,7 +1618,7 @@ function InfrastructureMarker({ site }: { site: InfrastructureSite }) {
         <meshBasicMaterial color={color} transparent opacity={0.92} />
       </mesh>
       {hovered && (
-        <Html distanceFactor={8} center style={{ pointerEvents: "none" }}>
+        <Html distanceFactor={8} center occlude="blending" style={{ pointerEvents: "none" }}>
           <div className="min-w-[220px] rounded-lg border border-white/15 bg-black/90 px-3 py-2 backdrop-blur-xl">
             <div className="text-[10px] font-mono text-white">{site.name}</div>
             <div className="text-[9px] uppercase tracking-wide text-gray-400">
@@ -1680,7 +1680,7 @@ function ClimateOverlayPoint({ hotspot }: { hotspot: ClimateHotspot }) {
         />
       </mesh>
       {hovered && (
-        <Html distanceFactor={8} center style={{ pointerEvents: "none" }}>
+        <Html distanceFactor={8} center occlude="blending" style={{ pointerEvents: "none" }}>
           <div className="min-w-[220px] rounded-lg border border-white/15 bg-black/90 px-3 py-2 backdrop-blur-xl">
             <div className="text-[10px] font-mono text-white">
               {hotspot.label}
@@ -1834,12 +1834,15 @@ function DataFlowParticles() {
 function RealAircraftLayer({
   aircraft,
   onAircraftClick,
+  globeGroupRef,
+  wasDrag,
 }: {
   aircraft: AircraftData[];
   onAircraftClick?: (aircraft: AircraftData) => void;
+  globeGroupRef?: THREE.Group | null;
+  wasDrag: () => boolean;
 }) {
   const pointsRef = useRef<THREE.Points>(null);
-  const [hovered, setHovered] = useState<AircraftData | null>(null);
 
   const trailAircraft = useMemo(
     () =>
@@ -1924,19 +1927,20 @@ function RealAircraftLayer({
       <points
         ref={pointsRef}
         geometry={geometry}
-        onPointerMove={(event) => {
-          if (event.index === undefined) return;
-          event.stopPropagation();
-          setHovered(aircraft[event.index] || null);
-        }}
-        onPointerOut={() => setHovered(null)}
         onClick={(event) => {
+          if (wasDrag()) return; // Ignore drags
           if (event.index === undefined) return;
+          const ac = aircraft[event.index];
+          if (!ac) return;
+          // Occlusion: skip if point is on far side of globe
+          const pt = latLngToVector3(ac.latitude, ac.longitude, GLOBE_RADIUS + 0.02);
+          const worldPt = pt.clone();
+          if (globeGroupRef) worldPt.applyMatrix4(globeGroupRef.matrixWorld);
+          const camToPoint = worldPt.clone().sub(event.camera.position);
+          const camToCenter = new THREE.Vector3(0,0,0).sub(event.camera.position);
+          if (camToPoint.length() > camToCenter.length() + GLOBE_RADIUS * 0.5) return;
           event.stopPropagation();
-          const selectedAircraft = aircraft[event.index];
-          if (selectedAircraft) {
-            onAircraftClick?.(selectedAircraft);
-          }
+          onAircraftClick?.(ac);
         }}
       >
         <pointsMaterial
@@ -1949,28 +1953,6 @@ function RealAircraftLayer({
           depthWrite={false}
         />
       </points>
-      {hovered && (
-        <Html
-          position={latLngToVector3(
-            hovered.latitude,
-            hovered.longitude,
-            GLOBE_RADIUS + 0.08,
-          )}
-          center
-          style={{ pointerEvents: "none" }}
-        >
-          <div className="bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg px-3 py-2 text-[10px] font-mono whitespace-nowrap shadow-lg shadow-cyan-500/10">
-            <div className="text-cyan-400 font-bold">
-              {hovered.callsign || hovered.icao24}
-            </div>
-            <div className="text-gray-400">{hovered.origin_country}</div>
-            <div className="text-gray-500">
-              ALT: {Math.round(hovered.altitude)}m | SPD:{" "}
-              {Math.round(hovered.velocity)}m/s
-            </div>
-          </div>
-        </Html>
-      )}
     </>
   );
 }
@@ -1979,11 +1961,14 @@ function RealAircraftLayer({
 function RealShipLayer({
   ships,
   onShipClick,
+  globeGroupRef,
+  wasDrag,
 }: {
   ships: ShipData[];
   onShipClick?: (ship: ShipData) => void;
+  globeGroupRef?: THREE.Group | null;
+  wasDrag: () => boolean;
 }) {
-  const [hovered, setHovered] = useState<ShipData | null>(null);
 
   const trailShips = useMemo(
     () =>
@@ -2076,23 +2061,24 @@ function RealShipLayer({
       ))}
       <points
         geometry={shipGeometry}
-        onPointerMove={(event) => {
-          if (event.index === undefined) return;
-          event.stopPropagation();
-          setHovered(ships[event.index] || null);
-        }}
-        onPointerOut={() => setHovered(null)}
         onClick={(event) => {
+          if (wasDrag()) return; // Ignore drags
           if (event.index === undefined) return;
+          const ship = ships[event.index];
+          if (!ship) return;
+          // Occlusion: skip if point is on far side of globe
+          const pt = latLngToVector3(ship.latitude, ship.longitude, GLOBE_RADIUS + 0.02);
+          const worldPt = pt.clone();
+          if (globeGroupRef) worldPt.applyMatrix4(globeGroupRef.matrixWorld);
+          const camToPoint = worldPt.clone().sub(event.camera.position);
+          const camToCenter = new THREE.Vector3(0,0,0).sub(event.camera.position);
+          if (camToPoint.length() > camToCenter.length() + GLOBE_RADIUS * 0.5) return;
           event.stopPropagation();
-          const selectedShip = ships[event.index];
-          if (selectedShip) {
-            onShipClick?.(selectedShip);
-          }
+          onShipClick?.(ship);
         }}
       >
         <pointsMaterial
-          size={0.03}
+          size={0.04}
           sizeAttenuation
           transparent
           opacity={0.95}
@@ -2104,49 +2090,15 @@ function RealShipLayer({
       {stalledPositions.length > 0 && (
         <points geometry={stalledGeometry}>
           <pointsMaterial
-            size={0.05}
+            size={0.08}
             sizeAttenuation
             transparent
-            opacity={0.7}
+            opacity={0.85}
             color="#FDE047"
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />
         </points>
-      )}
-      {hovered && (
-        <Html
-          position={latLngToVector3(
-            hovered.latitude,
-            hovered.longitude,
-            GLOBE_RADIUS + 0.06,
-          )}
-          center
-          style={{ pointerEvents: "none" }}
-        >
-          <div className="bg-black/90 backdrop-blur-md border border-orange-500/40 rounded-lg px-3 py-2 text-[10px] font-mono whitespace-nowrap shadow-lg shadow-orange-500/10">
-            <div className="text-orange-400 font-bold">{hovered.name}</div>
-            <div className="flex items-center gap-2 text-gray-400">
-              <span>
-                {hovered.flagEmoji} {hovered.flag}
-              </span>
-              <span className="text-gray-600">•</span>
-              <span className="uppercase">{hovered.type}</span>
-            </div>
-            <div className="text-gray-500">
-              SPD: {hovered.speed.toFixed(1)}kn | → {hovered.destination}
-            </div>
-            <div className="text-gray-600">L: {hovered.length}m</div>
-            {hovered.zone && (
-              <div className="text-gray-600">ZONE: {hovered.zone}</div>
-            )}
-            {isShipStalled(hovered) && (
-              <div className="text-[9px] font-semibold text-yellow-300">
-                STALLED / CONSTRAINED
-              </div>
-            )}
-          </div>
-        </Html>
       )}
     </>
   );
@@ -2182,7 +2134,6 @@ function FocusController({
 }) {
   const { camera } = useThree();
   const desiredPosition = useRef(new THREE.Vector3());
-  const desiredTarget = useRef(new THREE.Vector3());
   const animationActive = useRef(false);
 
   useEffect(() => {
@@ -2193,6 +2144,11 @@ function FocusController({
 
     const stopFocusAnimation = () => {
       animationActive.current = false;
+      // Always reset target to origin so orbiting stays circular
+      if (controls.target) {
+        controls.target.set(0, 0, 0);
+        controls.update?.();
+      }
     };
 
     controls.addEventListener("start", stopFocusAnimation);
@@ -2212,11 +2168,8 @@ function FocusController({
       GLOBE_RADIUS + 0.04,
     );
     const cameraDistance = focusTarget.distance ?? 2.85;
-    const targetDepth = focusTarget.targetDepth ?? 0.7;
 
-    desiredTarget.current.copy(
-      surfacePoint.clone().multiplyScalar(targetDepth),
-    );
+    // Only move camera toward the focus point, keep target at origin
     desiredPosition.current.copy(
       surfacePoint.clone().normalize().multiplyScalar(cameraDistance),
     );
@@ -2230,24 +2183,16 @@ function FocusController({
 
     camera.position.lerp(desiredPosition.current, 0.18);
 
+    // Keep controls target locked at origin for circular orbit
     if (controlsRef.current?.target) {
-      controlsRef.current.target.lerp(desiredTarget.current, 0.2);
+      controlsRef.current.target.set(0, 0, 0);
       controlsRef.current.update?.();
-    } else {
-      camera.lookAt(desiredTarget.current);
     }
 
     const targetDistance = camera.position.distanceTo(desiredPosition.current);
-    const controlsTargetDistance = controlsRef.current?.target
-      ? controlsRef.current.target.distanceTo(desiredTarget.current)
-      : 0;
 
-    if (targetDistance < 0.02 && controlsTargetDistance < 0.02) {
+    if (targetDistance < 0.02) {
       camera.position.copy(desiredPosition.current);
-      if (controlsRef.current?.target) {
-        controlsRef.current.target.copy(desiredTarget.current);
-        controlsRef.current.update?.();
-      }
       animationActive.current = false;
     }
   });
@@ -2271,6 +2216,13 @@ function GlobeScene({
   const globeRef = useRef<THREE.Group>(null);
   const controlsRef = useRef<any>(null);
   const userInteractingRef = useRef(false);
+
+  // ─── Drag detection: prevent accidental clicks while rotating ──
+  const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
+  const pointerDownTime = useRef(0);
+  const wasDragRef = useRef(false);
+
+  const wasDrag = useCallback(() => wasDragRef.current, []);
 
   const filteredEvents = useMemo(
     () =>
@@ -2349,12 +2301,6 @@ function GlobeScene({
     };
   }, []);
 
-  useFrame(({ clock }) => {
-    if (globeRef.current && !focusTarget && !userInteractingRef.current) {
-      globeRef.current.rotation.y = clock.getElapsedTime() * 0.02;
-    }
-  });
-
   const gridLines = useMemo(() => {
     const lines: THREE.Vector3[][] = [];
     for (let lat = -60; lat <= 60; lat += 30) {
@@ -2376,6 +2322,26 @@ function GlobeScene({
 
   return (
     <>
+      {/* Invisible sphere to capture pointer events for drag detection */}
+      <mesh
+        onPointerDown={(e) => {
+          pointerDownPos.current = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
+          pointerDownTime.current = Date.now();
+          wasDragRef.current = false;
+        }}
+        onPointerUp={(e) => {
+          if (!pointerDownPos.current) return;
+          const dx = e.nativeEvent.clientX - pointerDownPos.current.x;
+          const dy = e.nativeEvent.clientY - pointerDownPos.current.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const elapsed = Date.now() - pointerDownTime.current;
+          wasDragRef.current = dist > 6 || elapsed > 250;
+        }}
+      >
+        <sphereGeometry args={[GLOBE_RADIUS + 0.5, 32, 32]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
       {/* Lighting — subtle, Earth uses meshBasicMaterial so unaffected */}
       <ambientLight intensity={1.0} />
       <directionalLight position={[5, 3, 5]} intensity={0.4} color="#FFFFFF" />
@@ -2476,12 +2442,14 @@ function GlobeScene({
           <RealAircraftLayer
             aircraft={aircraft}
             onAircraftClick={onAircraftClick}
+            globeGroupRef={globeRef.current}
+            wasDrag={wasDrag}
           />
         )}
 
         {/* REAL-TIME SHIP TRACKING */}
         {filteredShips.length > 0 && (
-          <RealShipLayer ships={filteredShips} onShipClick={onShipClick} />
+          <RealShipLayer ships={filteredShips} onShipClick={onShipClick} globeGroupRef={globeRef.current} wasDrag={wasDrag} />
         )}
 
         {/* Enhanced satellites with solar panels & trails */}
@@ -2499,13 +2467,15 @@ function GlobeScene({
         ref={controlsRef}
         enableZoom
         enablePan={false}
-        minDistance={2.5}
+        minDistance={2.08}
         maxDistance={8}
-        autoRotate={false}
+        autoRotate
+        autoRotateSpeed={0.4}
         enableDamping
         dampingFactor={0.08}
         rotateSpeed={1.1}
         zoomSpeed={0.9}
+        target={[0, 0, 0]}
         touches={{
           ONE: THREE.TOUCH.ROTATE,
           TWO: THREE.TOUCH.DOLLY_ROTATE,
