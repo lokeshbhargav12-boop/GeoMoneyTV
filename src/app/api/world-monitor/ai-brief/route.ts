@@ -29,6 +29,24 @@ export async function POST(request: Request) {
             return NextResponse.json({ ...cachedEntry.brief, cached: true });
         }
 
+        if (process.env.NODE_ENV === "development" && !query) {
+            const mockBrief = {
+                headline: "Local Dev Mode — AI Auto-Briefing Disabled",
+                threatLevel: "GUARDED",
+                summary: "OpenRouter calls on initialization are disabled in local development to conserve tokens. You can still ask questions in the AI Navigator to trigger an API call.",
+                queryAnswer: "",
+                hotspots: [
+                    { region: "Localhost", status: "Development active", severity: "low" },
+                ],
+                keyInsight: "Configure your OpenRouter API key and run in production mode to see live automated briefings.",
+                recommendations: ["Ask a specific question to test the AI", "Check OpenRouter balance"],
+                timestamp: new Date().toISOString(),
+                model: "local-mock",
+                isQueryResponse: false,
+            };
+            return NextResponse.json(mockBrief);
+        }
+
         const eventsBlock = events.length
             ? `\nCURRENT INTELLIGENCE FEED:\n${events.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
             : "";

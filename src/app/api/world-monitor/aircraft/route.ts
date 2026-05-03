@@ -149,10 +149,11 @@ async function persistAircraftTracks(aircraft: AircraftState[]): Promise<void> {
             });
         }
     } catch (error) {
-        console.warn(
-            "[Aircraft API] Flight track persistence unavailable:",
-            error instanceof Error ? error.message : String(error),
-        );
+        // Silently catch missing table error to prevent console spam
+        // console.warn(
+        //     "[Aircraft API] Flight track persistence unavailable:",
+        //     error instanceof Error ? error.message : String(error),
+        // );
     }
 }
 

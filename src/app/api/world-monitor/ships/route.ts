@@ -1032,10 +1032,11 @@ async function persistShipTracks(ships: ShipState[]): Promise<void> {
             });
         }
     } catch (error) {
-        console.warn(
-            "[Ships API] Vessel track persistence unavailable:",
-            error instanceof Error ? error.message : String(error),
-        );
+        // Silently catch missing table error to prevent console spam
+        // console.warn(
+        //     "[Ships API] Vessel track persistence unavailable:",
+        //     error instanceof Error ? error.message : String(error),
+        // );
     }
 }
 
