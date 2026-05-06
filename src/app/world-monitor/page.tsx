@@ -1258,7 +1258,7 @@ export default function WorldMonitorPage() {
 
   // ──────────────────────────────────────────────────────────
   return (
-    <main className="relative flex h-dvh flex-col overflow-hidden pt-[104px] text-white sm:pt-[128px]">
+    <main className="relative flex min-h-dvh flex-col overflow-y-auto pt-[104px] text-white sm:pt-[128px]">
       {/* Tutorial overlay */}
       {(showTutorial || tutorialForced) && (
         <WorldMonitorTutorial
@@ -2454,4 +2454,5 @@ export default function WorldMonitorPage() {
     </main>
   );
 }
+
 
