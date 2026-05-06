@@ -346,61 +346,94 @@ export default function OilAndGasIntelligence() {
           {/* --- RIGHT COL: WIDGETS --- */}
           <div className="flex flex-col gap-6">
             {/* Corridor Volatility Card */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-              <h3 className="font-bold flex items-center gap-2 mb-4 text-white">
-                <Route className="w-5 h-5 text-purple-400" /> Corridor
-                Volatility
-              </h3>
-              <p className="text-sm text-gray-400 mb-6">
-                Real-time Last-Mile delivery risk for regional arbitrage
-                calculations.
-              </p>
+              {(() => {
+                // Dynamically calculate corridor congestion using live shipData
+                const getRegionScore = (minLat: number, maxLat: number, minLon: number, maxLon: number, baseRisk: number) => {
+                  const shipsInRegion = shipData.filter(s => s.latitude >= minLat && s.latitude <= maxLat && s.longitude >= minLon && s.longitude <= maxLon).length;
+                  // Dynamic score = base risk + (5 points per ship in the zone, max 99)
+                  const dynamicScore = Math.min(99, baseRisk + (shipsInRegion * 5));
+                  let status = "Normal";
+                  let bg = "bg-emerald-500";
+                  let text = "text-emerald-500";
+                  let textLight = "text-emerald-100";
+                  if (dynamicScore > 75) {
+                    status = "Critical"; bg = "bg-red-500"; text = "text-red-500"; textLight = "text-red-100";
+                  } else if (dynamicScore > 50) {
+                    status = "Elevated"; bg = "bg-orange-500"; text = "text-orange-500"; textLight = "text-orange-100";
+                  }
+                  return { score: Math.round(dynamicScore), status, bg, text, textLight, ships: shipsInRegion };
+                };
 
-              <div className="space-y-4">
-                <div className="bg-black/30 rounded-xl p-4 border border-white/5 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-1 h-full bg-red-500" />
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-medium text-red-100">
-                      NE India Corridor
-                    </span>
-                    <span className="text-2xl font-black text-red-500">84</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Anchor className="w-3 h-3" /> Congestion: Critical
-                  </div>
-                </div>
-                <div className="bg-black/30 rounded-xl p-4 border border-white/5 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-1 h-full bg-orange-500" />
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-medium text-orange-100">
-                      Euro ARA Hubs
-                    </span>
-                    <span className="text-2xl font-black text-orange-500">
-                      62
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Anchor className="w-3 h-3" /> Congestion: Elevated
-                  </div>
-                </div>
-                <div className="bg-black/30 rounded-xl p-4 border border-white/5 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-1 h-full bg-emerald-500" />
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-medium text-emerald-100">
-                      US Gulf Coast
-                    </span>
-                    <span className="text-2xl font-black text-emerald-500">
-                      21
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Anchor className="w-3 h-3" /> Congestion: Normal
-                  </div>
-                </div>
-              </div>
-            </div>
+                // Bounding boxes for major hubs
+                const hormuz = getRegionScore(24, 28, 54, 58, 65); // Naturally higher risk baseline
+                const ara = getRegionScore(49, 54, 1, 6, 45); // Euro ARA
+                const usgc = getRegionScore(25, 31, -98, -88, 15); // US Gulf Coast
 
-            {/* Oil & Gas Conversion Calculator Tool */}
+                const regions = [
+                  { 
+                    name: "Strait of Hormuz", 
+                    data: hormuz, 
+                    desc: "The world's most critical oil chokepoint. High congestion or blockages here immediately spike global Brent crude prices, as 20% of global consumption passes through here."
+                  },
+                  { 
+                    name: "Euro ARA Hubs", 
+                    data: ara, 
+                    desc: "Amsterdam, Rotterdam, and Antwerp. This is Europe's primary oil storage and refining hub. High congestion means European demand is booming or storage is overflowing."
+                  },
+                  { 
+                    name: "US Gulf Coast", 
+                    data: usgc, 
+                    desc: "The epicenter of US oil refining and WTI crude exports. Elevated congestion often occurs before major hurricanes or during heavy export seasons."
+                  }
+                ];
+
+                return (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <h3 className="font-bold flex items-center gap-2 mb-4 text-white">
+                      <Route className="w-5 h-5 text-purple-400" /> Corridor Volatility
+                    </h3>
+                    <p className="text-sm text-gray-400 mb-6">
+                      Real-time delivery risk tracking based on live tanker AIS data in crucial global chokepoints.
+                    </p>
+
+                    <div className="space-y-4">
+                      {regions.map((region, idx) => (
+                        <div key={idx} className="bg-black/30 rounded-xl p-4 border border-white/5 relative overflow-hidden group">
+                          <div className={`absolute top-0 right-0 w-1 h-full ${region.data.bg}`} />
+                          
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <span className={`font-medium ${region.data.textLight}`}>
+                                {region.name}
+                              </span>
+                              <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                <Anchor className="w-3 h-3" /> {region.data.ships} tankers detected
+                              </div>
+                            </div>
+                            <span className={`text-2xl font-black ${region.data.text}`}>
+                              {region.data.score}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 ${region.data.text}`}>
+                              {region.data.status}
+                            </span>
+                          </div>
+
+                          {/* Layman Explainer Box - reveals on group hover */}
+                          <div className="text-[10px] text-gray-400 bg-white/5 p-2 rounded border border-white/5 hidden group-hover:block transition-all">
+                            <strong className="text-gray-300 block mb-1">Why it matters:</strong>
+                            {region.desc}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Oil & Gas Conversion Calculator Tool */}
             <div className="bg-gradient-to-br from-gray-900 to-black border border-white/10 rounded-2xl p-6">
               <h3 className="font-bold flex items-center gap-2 mb-4 text-white">
                 <Calculator className="w-5 h-5 text-geo-gold" /> Industry
