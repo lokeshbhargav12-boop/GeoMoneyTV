@@ -21,6 +21,11 @@ import {
   Calculator,
   BrainCircuit,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const IntelligenceMap = dynamic(() => import("@/components/IntelligenceMap"), {
+  ssr: false,
+});
 
 // --- MOCK DATA ---
 const INTELLIGENCE_LAYERS = [
@@ -129,67 +134,42 @@ export default function OilAndGasIntelligence() {
             <div
               className={`relative h-[500px] rounded-2xl overflow-hidden border ${simulationMode ? "border-amber-500/50" : "border-white/10"} bg-black/50 p-1`}
             >
-              {/* Fake Map Background */}
-              <div className="absolute inset-0 opacity-20 bg-[url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg')] bg-cover bg-center" />
+              
+              {/* REAL LEAFLET MAP BACKGROUND */}
+              <div className="absolute inset-0 z-0">
+                <IntelligenceMap activeLayer={activeLayer} />
+              </div>
 
-              {/* Layer Toggles */}
+              {/* Layer Toggles overlay */}
               <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-2 flex flex-col gap-2">
-                <span className="text-xs font-semibold text-gray-400 px-2 pb-1 border-b border-white/10">
-                  INTELLIGENCE LAYERS
-                </span>
-                {INTELLIGENCE_LAYERS.map((layer) => (
-                  <button
+                <span className="text-xs font-semibold text-gray-400 px-2 pb-1 border-b border-white/10">INTELLIGENCE LAYERS</span>
+                {INTELLIGENCE_LAYERS.map(layer => (
+                  <button 
                     key={layer.id}
                     onClick={() => setActiveLayer(layer.id)}
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${activeLayer === layer.id ? "bg-white/10" : "hover:bg-white/5"}`}
                   >
-                    <layer.icon
-                      className={`w-4 h-4 ${layer.color} ${activeLayer === layer.id ? "opacity-100" : "opacity-40"}`}
-                    />
-                    <span
-                      className={`text-sm ${activeLayer === layer.id ? "text-white" : "text-gray-500"}`}
-                    >
-                      {layer.name}
-                    </span>
+                    <layer.icon className={`w-4 h-4 ${layer.color} ${activeLayer === layer.id ? "opacity-100" : "opacity-40"}`} />
+                    <span className={`text-sm ${activeLayer === layer.id ? "text-white" : "text-gray-500"}`}>{layer.name}</span>
                   </button>
                 ))}
               </div>
 
-              {/* "What-If" Sandbox Drag Info */}
+              {/* "What-If" Sandbox Drag Info overlay */}
               <AnimatePresence>
                 {simulationMode && (
-                  <motion.div
+                  <motion.div 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-amber-500/20 backdrop-blur-md border border-amber-500/50 text-amber-100 px-6 py-3 rounded-full text-sm font-medium flex items-center gap-3 shadow-2xl"
+                    className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-amber-500/20 backdrop-blur-md border border-amber-500/50 text-amber-100 px-6 py-3 rounded-full text-sm font-medium flex items-center gap-3 shadow-2xl z-20"
                   >
                     <ShieldAlert className="w-5 h-5 text-amber-500 animate-pulse" />
                     Drag blockade markers onto Strait of Hormuz or Malacca
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* Visualizer based on active layer */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                {activeLayer === "shadow" && (
-                  <div className="flex flex-col items-center">
-                    <Crosshair className="w-16 h-16 text-purple-500/50 animate-spin-slow" />
-                    <div className="mt-4 bg-purple-900/60 border border-purple-500/30 text-purple-200 px-4 py-2 rounded-lg text-xs tracking-wider">
-                      SHADOW FLEET DETECTED: 14 VESSELS
-                    </div>
-                  </div>
-                )}
-                {activeLayer === "thermal" && (
-                  <div className="flex flex-col items-center">
-                    <div className="w-32 h-32 bg-red-600/20 rounded-full blur-3xl absolute animate-pulse"></div>
-                    <Thermometer className="w-12 h-12 text-red-500/80 z-10" />
-                    <div className="mt-4 bg-red-900/60 border border-red-500/30 text-red-200 px-4 py-2 rounded-lg text-xs tracking-wider z-10">
-                      REFINERY COOLING DETECTED (RAS TANURA)
-                    </div>
-                  </div>
-                )}
-              </div>
+              
             </div>
 
             {/* Predictive Price Engine */}
@@ -394,4 +374,6 @@ export default function OilAndGasIntelligence() {
     </main>
   );
 }
+
+
 
