@@ -245,6 +245,24 @@ export default function OilAndGasIntelligence() {
                 ))}
               </div>
 
+              {/* Layman Summarizer Widget */}
+              {(() => {
+                const activeLayerInfo = INTELLIGENCE_LAYERS.find(l => l.id === activeLayer);
+                if (!activeLayerInfo?.layman) return null;
+                
+                return (
+                  <div className="absolute bottom-4 left-4 z-10 w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-4 shadow-2xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <BrainCircuit className="w-4 h-4 text-emerald-400" />
+                      <h3 className="text-xs font-bold text-emerald-400 tracking-wider">AI SUMMARIZER</h3>
+                    </div>
+                    <p className="text-xs text-gray-300 leading-relaxed">
+                      {activeLayerInfo.layman}
+                    </p>
+                  </div>
+                );
+              })()}
+
               {/* "What-If" Sandbox Drag Info overlay */}
               <AnimatePresence>
                 {simulationMode && (
@@ -463,6 +481,9 @@ export default function OilAndGasIntelligence() {
     </main>
   );
 }
+
+
+
 
 
 
