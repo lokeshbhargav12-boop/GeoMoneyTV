@@ -57,13 +57,24 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import OsintFeed from "@/components/OsintFeed";
-import { ChokepointsWidget, AssetTrackingWidget, RiskIndicesWidget, SigintWidget, CountryBriefsWidget, SanctionsWidget, NuclearMonitorWidget } from "@/components/WorldMonitorWidgets";
+import {
+  ChokepointsWidget,
+  AssetTrackingWidget,
+  RiskIndicesWidget,
+  SigintWidget,
+  CountryBriefsWidget,
+  SanctionsWidget,
+  NuclearMonitorWidget,
+} from "@/components/WorldMonitorWidgets";
 import WorldMonitorTutorial, {
   useWorldMonitorTutorial,
 } from "@/components/WorldMonitorTutorial";
 import ShipClusterPanel, {
   findNearbyShips,
 } from "@/components/ShipClusterPanel";
+import EventClusterPanel, {
+  findNearbyEvents,
+} from "@/components/EventClusterPanel";
 import {
   ShipDetailPopup,
   AircraftDetailPopup,
@@ -733,7 +744,17 @@ export default function WorldMonitorPage() {
 
   // Ship cluster state
   const [clusterShips, setClusterShips] = useState<ShipData[] | null>(null);
-  const [clusterCenter, setClusterCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [clusterCenter, setClusterCenter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+
+  // Event cluster state
+  const [clusterEvents, setClusterEvents] = useState<GlobeEvent[] | null>(null);
+  const [clusterEventCenter, setClusterEventCenter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   // Popup state for detail overlays
   const [popupShip, setPopupShip] = useState<ShipData | null>(null);
@@ -977,7 +998,7 @@ export default function WorldMonitorPage() {
         strandedShips: chokepoint.strandedShips,
         aircraft: chokepoint.aircraft,
       })),
-      globalSummary: `${shipData.length} vessels visible on globe, ${aircraftData.length} aircraft tracked. Vessels in/near chokepoints: ${chokepointMetrics.reduce((s, c) => s + c.vessels, 0)}. Vessels currently slow/stopped: ${shipData.filter(s => s.speed <= 1).length}.`,
+      globalSummary: `${shipData.length} vessels visible on globe, ${aircraftData.length} aircraft tracked. Vessels in/near chokepoints: ${chokepointMetrics.reduce((s, c) => s + c.vessels, 0)}. Vessels currently slow/stopped: ${shipData.filter((s) => s.speed <= 1).length}.`,
     }),
     [
       aircraftData.length,
@@ -1052,6 +1073,34 @@ export default function WorldMonitorPage() {
 
   const handleEventClick = useCallback(
     (event: GlobeEvent) => {
+      const primaryLocation = event.locations[0];
+      if (primaryLocation) {
+        // Check if there are 2+ events nearby (including this one) — show cluster panel instead
+        const nearby = findNearbyEvents(
+          primaryLocation.lat,
+          primaryLocation.lng,
+          allEvents,
+          100,
+        );
+        if (nearby.length > 1) {
+          setClusterEvents(nearby);
+          setClusterEventCenter({
+            lat: primaryLocation.lat,
+            lng: primaryLocation.lng,
+          });
+
+          focusGlobeLocation({
+            key: `event-cluster-${primaryLocation.lat}-${primaryLocation.lng}`,
+            lat: primaryLocation.lat,
+            lng: primaryLocation.lng,
+            distance: 3.05,
+            targetDepth: 0.78,
+          });
+          return;
+        }
+      }
+
+      // Single event normal behavior
       setSelectedAircraft(null);
       setSelectedShip(null);
       setSelectedEvent(event);
@@ -1060,8 +1109,9 @@ export default function WorldMonitorPage() {
       setPopupEvent(event);
       setPopupAircraft(null);
       setPopupShip(null);
+      setClusterEvents(null);
+      setClusterEventCenter(null);
 
-      const primaryLocation = event.locations[0];
       if (primaryLocation) {
         focusGlobeLocation({
           key: `event-${event.id}-${primaryLocation.name}`,
@@ -1072,7 +1122,7 @@ export default function WorldMonitorPage() {
         });
       }
     },
-    [focusGlobeLocation],
+    [allEvents, focusGlobeLocation],
   );
 
   const handleAircraftClick = useCallback(
@@ -1215,6 +1265,41 @@ export default function WorldMonitorPage() {
           onClose={() => {
             dismissTutorial();
             setTutorialForced(false);
+          }}
+        />
+      )}
+
+      {/* Event cluster overlay */}
+      {clusterEvents && clusterEvents.length > 0 && clusterEventCenter && (
+        <EventClusterPanel
+          events={clusterEvents}
+          center={clusterEventCenter}
+          onSelectEvent={(event) => {
+            setClusterEvents(null);
+            setClusterEventCenter(null);
+            setShowDetail(true);
+            setSelectedEvent(event);
+            setSelectedAircraft(null);
+            setSelectedShip(null);
+            setActivePanel("feed");
+            setPopupEvent(event);
+            setPopupAircraft(null);
+            setPopupShip(null);
+
+            const primaryLocation = event.locations[0];
+            if (primaryLocation) {
+              focusGlobeLocation({
+                key: `event-${event.id}-${primaryLocation.name}`,
+                lat: primaryLocation.lat,
+                lng: primaryLocation.lng,
+                distance: 3.05,
+                targetDepth: 0.78,
+              });
+            }
+          }}
+          onClose={() => {
+            setClusterEvents(null);
+            setClusterEventCenter(null);
           }}
         />
       )}
@@ -1414,60 +1499,64 @@ export default function WorldMonitorPage() {
       {/* ═══ HERO FRAME (GLOBE + HUD) ════════════════════════════════════ */}
       <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 pb-0">
         <div className="flex flex-col xl:flex-row gap-4 md:gap-6 relative">
-          <div 
+          <div
             className="relative z-10 flex-1 w-full h-[55vh] min-h-[450px] max-h-[700px] flex overflow-hidden rounded-[32px] border border-white/[0.08] shadow-2xl shadow-black/50"
-            onMouseEnter={() => { document.body.style.overflow = 'hidden'; }}
-            onMouseLeave={() => { document.body.style.overflow = 'auto'; }}
+            onMouseEnter={() => {
+              document.body.style.overflow = "hidden";
+            }}
+            onMouseLeave={() => {
+              document.body.style.overflow = "auto";
+            }}
           >
-        <div className="flex-1 relative">
-          {!isCompactLayout && (
-            <div className="pointer-events-none absolute left-4 top-4 z-20 hidden lg:block">
-              <button
-                type="button"
-                onClick={() => setApertureActive(!apertureActive)}
-                title="GeoMoney Aperture Street Map (2D)"
-                className={`pointer-events-auto flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] font-bold tracking-[0.1em] transition-all shadow-lg backdrop-blur-xl ${
-                  apertureActive
-                    ? "bg-cyan-400 text-black border-cyan-300 shadow-cyan-500/30"
-                    : "bg-black/65 text-cyan-300 border-white/10 hover:border-cyan-400/40 hover:bg-cyan-500/20"
-                }`}
-              >
-                <Map className="h-3.5 w-3.5" />
-                APERTURE 2D MAP
-              </button>
+            <div className="flex-1 relative">
+              {!isCompactLayout && (
+                <div className="pointer-events-none absolute left-4 top-4 z-20 hidden lg:block">
+                  <button
+                    type="button"
+                    onClick={() => setApertureActive(!apertureActive)}
+                    title="GeoMoney Aperture Street Map (2D)"
+                    className={`pointer-events-auto flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] font-bold tracking-[0.1em] transition-all shadow-lg backdrop-blur-xl ${
+                      apertureActive
+                        ? "bg-cyan-400 text-black border-cyan-300 shadow-cyan-500/30"
+                        : "bg-black/65 text-cyan-300 border-white/10 hover:border-cyan-400/40 hover:bg-cyan-500/20"
+                    }`}
+                  >
+                    <Map className="h-3.5 w-3.5" />
+                    APERTURE 2D MAP
+                  </button>
+                </div>
+              )}
+              <div className="absolute inset-0">
+                <WorldGlobe
+                  events={allEvents}
+                  onEventClick={handleEventClick}
+                  onAircraftClick={handleAircraftClick}
+                  onShipClick={handleShipClick}
+                  selectedEvent={selectedEvent}
+                  aircraft={aircraftData}
+                  ships={shipData}
+                  focusTarget={globeFocusTarget}
+                  onZoomChange={setZoomLevel}
+                />
+              </div>
+
+              {/* GEOMONEY APERTURE 2D MAP OVERLAY */}
+              {apertureActive && (
+                <GodsEyeMap
+                  aircraft={aircraftData}
+                  ships={shipData}
+                  visible={apertureActive}
+                  onClose={() => setApertureActive(false)}
+                  selectedWebcam={selectedWebcam}
+                  onSelectWebcam={setSelectedWebcam}
+                />
+              )}
             </div>
-          )}
-          <div className="absolute inset-0">
-            <WorldGlobe
-              events={allEvents}
-              onEventClick={handleEventClick}
-              onAircraftClick={handleAircraftClick}
-              onShipClick={handleShipClick}
-              selectedEvent={selectedEvent}
-              aircraft={aircraftData}
-              ships={shipData}
-              focusTarget={globeFocusTarget}
-              onZoomChange={setZoomLevel}
-            />
           </div>
 
-          {/* GEOMONEY APERTURE 2D MAP OVERLAY */}
-          {apertureActive && (
-            <GodsEyeMap
-              aircraft={aircraftData}
-              ships={shipData}
-              visible={apertureActive}
-              onClose={() => setApertureActive(false)}
-              selectedWebcam={selectedWebcam}
-              onSelectWebcam={setSelectedWebcam}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* ═══ RIGHT PANEL: TOPSIDE AI NAVIGATOR ════════════ */}
-      {!apertureActive && !isCompactLayout && (
-        <div className="w-full xl:w-[400px] shrink-0 h-[55vh] min-h-[450px] max-h-[700px] overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 z-20">
+          {/* ═══ RIGHT PANEL: TOPSIDE AI NAVIGATOR ════════════ */}
+          {!apertureActive && !isCompactLayout && (
+            <div className="w-full xl:w-[400px] shrink-0 h-[55vh] min-h-[450px] max-h-[700px] overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 z-20">
               <div className="flex flex-col gap-3 pb-4 pr-2">
                 <div className="rounded-[26px] border border-white/[0.08] bg-black/58 p-4 shadow-xl shadow-black/20 backdrop-blur-2xl">
                   <div className="flex items-start justify-between gap-3">
@@ -1555,7 +1644,9 @@ export default function WorldMonitorPage() {
                       </div>
                       {aiBrief.queryAnswer && aiBrief.isQueryResponse && (
                         <div className="mt-2 rounded-xl border border-geo-gold/20 bg-geo-gold/5 p-2.5">
-                          <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-geo-gold/70 mb-1">ANSWER</div>
+                          <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-geo-gold/70 mb-1">
+                            ANSWER
+                          </div>
                           <p className="text-xs leading-relaxed text-white">
                             {aiBrief.queryAnswer}
                           </p>
@@ -1566,22 +1657,24 @@ export default function WorldMonitorPage() {
                       </p>
                       {aiBrief.hotspots && aiBrief.hotspots.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          {aiBrief.hotspots.slice(0, 3).map((hs: any, i: number) => (
-                            <span
-                              key={i}
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-mono ${
-                                hs.severity === "critical"
-                                  ? "bg-red-500/15 text-red-400 border border-red-500/20"
-                                  : hs.severity === "high"
-                                  ? "bg-orange-500/15 text-orange-400 border border-orange-500/20"
-                                  : hs.severity === "medium"
-                                  ? "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
-                                  : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                              }`}
-                            >
-                              {hs.region}: {hs.status}
-                            </span>
-                          ))}
+                          {aiBrief.hotspots
+                            .slice(0, 3)
+                            .map((hs: any, i: number) => (
+                              <span
+                                key={i}
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-mono ${
+                                  hs.severity === "critical"
+                                    ? "bg-red-500/15 text-red-400 border border-red-500/20"
+                                    : hs.severity === "high"
+                                      ? "bg-orange-500/15 text-orange-400 border border-orange-500/20"
+                                      : hs.severity === "medium"
+                                        ? "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
+                                        : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                                }`}
+                              >
+                                {hs.region}: {hs.status}
+                              </span>
+                            ))}
                         </div>
                       )}
                       {aiBrief.keyInsight && (
@@ -1860,7 +1953,9 @@ export default function WorldMonitorPage() {
                             </div>
                             {aiBrief.queryAnswer && aiBrief.isQueryResponse && (
                               <div className="mt-2 rounded-xl border border-geo-gold/20 bg-geo-gold/5 p-2.5">
-                                <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-geo-gold/70 mb-1">ANSWER</div>
+                                <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-geo-gold/70 mb-1">
+                                  ANSWER
+                                </div>
                                 <p className="text-xs leading-relaxed text-white">
                                   {aiBrief.queryAnswer}
                                 </p>
@@ -1869,26 +1964,29 @@ export default function WorldMonitorPage() {
                             <p className="mt-2 text-xs leading-relaxed text-gray-300">
                               {aiBrief.summary}
                             </p>
-                            {aiBrief.hotspots && aiBrief.hotspots.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {aiBrief.hotspots.slice(0, 3).map((hs: any, i: number) => (
-                                  <span
-                                    key={i}
-                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-mono ${
-                                      hs.severity === "critical"
-                                        ? "bg-red-500/15 text-red-400 border border-red-500/20"
-                                        : hs.severity === "high"
-                                        ? "bg-orange-500/15 text-orange-400 border border-orange-500/20"
-                                        : hs.severity === "medium"
-                                        ? "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
-                                        : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                                    }`}
-                                  >
-                                    {hs.region}: {hs.status}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
+                            {aiBrief.hotspots &&
+                              aiBrief.hotspots.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {aiBrief.hotspots
+                                    .slice(0, 3)
+                                    .map((hs: any, i: number) => (
+                                      <span
+                                        key={i}
+                                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-mono ${
+                                          hs.severity === "critical"
+                                            ? "bg-red-500/15 text-red-400 border border-red-500/20"
+                                            : hs.severity === "high"
+                                              ? "bg-orange-500/15 text-orange-400 border border-orange-500/20"
+                                              : hs.severity === "medium"
+                                                ? "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
+                                                : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                                        }`}
+                                      >
+                                        {hs.region}: {hs.status}
+                                      </span>
+                                    ))}
+                                </div>
+                              )}
                             {aiBrief.keyInsight && (
                               <p className="mt-2 text-[11px] leading-relaxed text-gray-400 italic">
                                 {aiBrief.keyInsight}
@@ -2072,6 +2170,46 @@ export default function WorldMonitorPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* ═══ DASHBOARD GRID LAYER ═════════════════════════ */}
+        <div className="mt-6 flex flex-col gap-6 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <RiskIndicesWidget data={RISK_INDICES} />
+            <ChokepointsWidget
+              data={CHOKEPOINTS}
+              onChokepointClick={handleChokepointClick}
+            />
+            <AssetTrackingWidget data={trackedAssets} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <NuclearMonitorWidget data={NUCLEAR_STATUS} />
+            <SanctionsWidget data={SANCTIONS_DATA} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <SigintWidget data={SIGINT_FEEDS} />
+            <CountryBriefsWidget data={COUNTRY_BRIEFS} />
+          </div>
+        </div>
+
+        {/* ═══ DASHBOARD GRID LAYER ═════════════════════════ */}
+        <div className="mt-6 flex flex-col gap-6 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <RiskIndicesWidget data={RISK_INDICES} />
+            <ChokepointsWidget
+              data={CHOKEPOINTS}
+              onChokepointClick={handleChokepointClick}
+            />
+            <AssetTrackingWidget data={trackedAssets} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <NuclearMonitorWidget data={NUCLEAR_STATUS} />
+            <SanctionsWidget data={SANCTIONS_DATA} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <SigintWidget data={SIGINT_FEEDS} />
+            <CountryBriefsWidget data={COUNTRY_BRIEFS} />
+          </div>
         </div>
 
         {/* ═══ RIGHT: EVENT DETAIL PANEL ════════════════════ */}
@@ -2316,3 +2454,4 @@ export default function WorldMonitorPage() {
     </main>
   );
 }
+
