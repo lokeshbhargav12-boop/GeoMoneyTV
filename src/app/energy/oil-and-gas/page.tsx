@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -20,6 +20,10 @@ import {
   Radio,
   Calculator,
   BrainCircuit,
+  Wind,
+  CloudRain,
+  CloudLightning,
+    Sun,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -35,6 +39,7 @@ const INTELLIGENCE_LAYERS = [
     desc: "Regular ship tracking",
     icon: Ship,
     color: "text-blue-400",
+    layman: "Shows standard tracking transponders (AIS) for oil tankers and cargo ships. Green means normal operations. This tells us where legal, publicly visible oil is flowing."
   },
   {
     id: "shadow",
@@ -42,6 +47,7 @@ const INTELLIGENCE_LAYERS = [
     desc: "AI-detected Dark Ships",
     icon: Crosshair,
     color: "text-purple-400",
+    layman: "Highlights vessels moving suspiciously (e.g., speeding cargo ships or ships claiming to be stopped but moving). This reveals 'dark fleets' often used to evade oil sanctions."
   },
   {
     id: "thermal",
@@ -49,12 +55,67 @@ const INTELLIGENCE_LAYERS = [
     desc: "Refinery heat signatures",
     icon: Thermometer,
     color: "text-red-400",
+    layman: "Plots major global oil refineries and shows their current output deviations. If a refinery's output drops, local fuel prices might spike."
+  },
+  {
+    id: "temp",
+    name: "Temperature",
+    desc: "Global Heatmap",
+    icon: Sun,
+    color: "text-orange-500",
+    layman: "Visualizes extreme heat or cold waves globally. Severe temperatures drive up energy demand for heating or cooling, which directly impacts natural gas and oil prices."
+  },
+  {
+    id: "wind",
+    name: "Wind Surface",
+    desc: "Global wind patterns",
+    icon: Wind,
+    color: "text-cyan-400",
+    layman: "Displays wind speed. Strong winds can delay offshore oil drilling, disrupt tanker shipments, or boost renewable wind energy generation, affecting crude demand."
+  },
+  {
+    id: "rain",
+    name: "Precipitation",
+    desc: "Rainfall forecasting",
+    icon: CloudRain,
+    color: "text-blue-300",
+    layman: "Shows rainfall mapping. Heavy precipitation can flood out regional supply chains or impact energy infrastructure like open-pit coal mines."
+  },
+  {
+    id: "storm",
+    name: "Storm Prediction",
+    desc: "Weather & Clouds",
+    icon: CloudLightning,
+    color: "text-gray-400",
+    layman: "Tracks dense cloud cover and storm cells. Cyclones and hurricanes in regions like the Gulf of Mexico regularly force oil rigs to shut down, causing supply shocks."
   },
 ];
 
 export default function OilAndGasIntelligence() {
   const [simulationMode, setSimulationMode] = useState(false);
   const [activeLayer, setActiveLayer] = useState("shadow");
+  const [shipData, setShipData] = useState<any[]>([]);
+
+  const fetchShips = async () => {
+    try {
+      const res = await fetch("/api/world-monitor/ships");
+      if (!res.ok) return;
+      const data = await res.json();
+      // Only keep relevant oil & gas supply chain vessels (tankers, lng, bulk)
+      const relevantShips = (data.ships || []).filter((s: any) =>
+        ["tanker", "lng", "bulk"].includes(s.type?.toLowerCase() || ""),
+      );
+      setShipData(relevantShips);
+    } catch (e) {
+      console.warn("[Ships fetch failed]", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchShips();
+    const id = setInterval(fetchShips, 15000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <main
@@ -105,24 +166,46 @@ export default function OilAndGasIntelligence() {
         {/* --- FAST TRACK WALKTHROUGH --- */}
         <div className="mb-6 border-2 border-dashed border-white/20 bg-geo-dark/50 backdrop-blur-sm rounded-2xl p-6 text-gray-300">
           <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-             <span className="text-geo-gold">Terminal Walkthrough:</span> How to use this section
+            <span className="text-geo-gold">Terminal Walkthrough:</span> How to
+            use this section
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div className="flex items-start gap-3">
               <div className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-amber-500" />
-              <p><strong className="text-amber-400">Simulation Dock:</strong> Click STANDBY at the top right to activate sandbox mode. Simulates geopolitical blockades to stress-test your analytics.</p>
+              <p>
+                <strong className="text-amber-400">Simulation Dock:</strong>{" "}
+                Click STANDBY at the top right to activate sandbox mode.
+                Simulates geopolitical blockades to stress-test your analytics.
+              </p>
             </div>
             <div className="flex items-start gap-3">
               <div className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-purple-500" />
-              <p><strong className="text-purple-400">Intelligence Layers:</strong> Use the map overlay toggles to reveal hidden datasets like "Dark Ships" (Shadow Fleet) escaping standard AIS trackers, or refinery heat signatures.</p>
+              <p>
+                <strong className="text-purple-400">
+                  Intelligence Layers:
+                </strong>{" "}
+                Use the map overlay toggles to reveal hidden datasets like "Dark
+                Ships" (Shadow Fleet) escaping standard AIS trackers, or
+                refinery heat signatures.
+              </p>
             </div>
             <div className="flex items-start gap-3">
               <div className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-blue-500" />
-              <p><strong className="text-blue-400">Predictive Engine:</strong> Watch the 7-day forecast react in real-time to your simulated blockade scenarios (via the orange dashed line on the chart).</p>
+              <p>
+                <strong className="text-blue-400">Predictive Engine:</strong>{" "}
+                Watch the 7-day forecast react in real-time to your simulated
+                blockade scenarios (via the orange dashed line on the chart).
+              </p>
             </div>
             <div className="flex items-start gap-3">
               <div className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-emerald-500" />
-              <p><strong className="text-emerald-400">Corridor Volatility:</strong> Monitor last-mile delivery risks across key global routes to assess physical market bottlenecks.</p>
+              <p>
+                <strong className="text-emerald-400">
+                  Corridor Volatility:
+                </strong>{" "}
+                Monitor last-mile delivery risks across key global routes to
+                assess physical market bottlenecks.
+              </p>
             </div>
           </div>
         </div>
@@ -134,23 +217,30 @@ export default function OilAndGasIntelligence() {
             <div
               className={`relative h-[500px] rounded-2xl overflow-hidden border ${simulationMode ? "border-amber-500/50" : "border-white/10"} bg-black/50 p-1`}
             >
-              
               {/* REAL LEAFLET MAP BACKGROUND */}
               <div className="absolute inset-0 z-0">
-                <IntelligenceMap activeLayer={activeLayer} />
+                <IntelligenceMap activeLayer={activeLayer} ships={shipData} />
               </div>
 
               {/* Layer Toggles overlay */}
               <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-2 flex flex-col gap-2">
-                <span className="text-xs font-semibold text-gray-400 px-2 pb-1 border-b border-white/10">INTELLIGENCE LAYERS</span>
-                {INTELLIGENCE_LAYERS.map(layer => (
-                  <button 
+                <span className="text-xs font-semibold text-gray-400 px-2 pb-1 border-b border-white/10">
+                  INTELLIGENCE LAYERS
+                </span>
+                {INTELLIGENCE_LAYERS.map((layer) => (
+                  <button
                     key={layer.id}
                     onClick={() => setActiveLayer(layer.id)}
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${activeLayer === layer.id ? "bg-white/10" : "hover:bg-white/5"}`}
                   >
-                    <layer.icon className={`w-4 h-4 ${layer.color} ${activeLayer === layer.id ? "opacity-100" : "opacity-40"}`} />
-                    <span className={`text-sm ${activeLayer === layer.id ? "text-white" : "text-gray-500"}`}>{layer.name}</span>
+                    <layer.icon
+                      className={`w-4 h-4 ${layer.color} ${activeLayer === layer.id ? "opacity-100" : "opacity-40"}`}
+                    />
+                    <span
+                      className={`text-sm ${activeLayer === layer.id ? "text-white" : "text-gray-500"}`}
+                    >
+                      {layer.name}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -158,7 +248,7 @@ export default function OilAndGasIntelligence() {
               {/* "What-If" Sandbox Drag Info overlay */}
               <AnimatePresence>
                 {simulationMode && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
@@ -169,7 +259,6 @@ export default function OilAndGasIntelligence() {
                   </motion.div>
                 )}
               </AnimatePresence>
-              
             </div>
 
             {/* Predictive Price Engine */}
@@ -374,6 +463,7 @@ export default function OilAndGasIntelligence() {
     </main>
   );
 }
+
 
 
 

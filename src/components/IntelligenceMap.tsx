@@ -1,116 +1,263 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import { Ship, Crosshair, Thermometer } from 'lucide-react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { useEffect } from "react";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  CircleMarker,
+  Polyline,
+} from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { Ship, Crosshair, Thermometer } from "lucide-react";
+import { renderToStaticMarkup } from "react-dom/server";
 
-// --- MOCK DATA ---
-const AIS_VESSELS = [
-    { id: 1, pos: [24.5, -80.0] as [number, number], name: 'Tanker A' },
-    { id: 2, pos: [23.1, -78.5] as [number, number], name: 'Cargo B' },
-    { id: 3, pos: [45.2, -10.5] as [number, number], name: 'Tanker C' },
-    { id: 4, pos: [34.0, 15.0] as [number, number], name: 'Vessel D' },
-    { id: 5, pos: [12.0, 48.0] as [number, number], name: 'Tanker E' },
-    { id: 6, pos: [-34.5, 18.0] as [number, number], name: 'Cargo F' },
-    { id: 7, pos: [1.2, 103.5] as [number, number], name: 'Tanker G (Malacca)' },
-];
-
-const SHADOW_FLEETS = [
-    { id: 1, pos: [0.5, 5.0] as [number, number], name: 'Gulf of Guinea Anomaly', count: 14 },
-    { id: 2, pos: [26.0, 56.0] as [number, number], name: 'Hormuz Ghost Group', count: 6 },
-    { id: 3, pos: [12.0, -68.0] as [number, number], name: 'Caribbean Dark Transfer', count: 9 },
-];
-
+// --- MOCK DATA FOR REFINERIES & CHOKEPOINTS ---
 const THERMAL_REFINERIES = [
-    { id: 1, pos: [26.7, 50.0] as [number, number], name: 'Ras Tanura', status: 'COOLING DETECTED' },
-    { id: 2, pos: [29.7, -95.2] as [number, number], name: 'Houston Complex', status: 'HIGH THERMAL' },
-    { id: 3, pos: [51.9, 4.1] as [number, number], name: 'Rotterdam Port', status: 'NORMAL' },
-    { id: 4, pos: [22.0, 71.0] as [number, number], name: 'Jamnagar', status: 'HIGH THERMAL' },
+  {
+    id: 1,
+    pos: [26.65, 50.0] as [number, number],
+    name: "Ras Tanura",
+    output: "Highest",
+    diff: "+4%",
+  },
+  {
+    id: 2,
+    pos: [22.4, 69.8] as [number, number],
+    name: "Jamnagar",
+    output: "Stable",
+    diff: "-1%",
+  },
+  {
+    id: 3,
+    pos: [51.9, 4.1] as [number, number],
+    name: "Rotterdam Comb.",
+    output: "Low",
+    diff: "-12%",
+  },
+  {
+    id: 4,
+    pos: [29.7, -95.2] as [number, number],
+    name: "Houston Ship Ch.",
+    output: "Elevated",
+    diff: "+8%",
+  },
+  {
+    id: 5,
+    pos: [35.5, 129.3] as [number, number],
+    name: "Ulsan",
+    output: "Stable",
+    diff: "0%",
+  },
 ];
 
-const createCustomIcon = (iconElement: JSX.Element, className: string) => {
-    return L.divIcon({
-        html: renderToStaticMarkup(
-            <div className={`p-1 rounded-full bg-black/60 border ${className} backdrop-blur-sm flex items-center justify-center`}>
-                {iconElement}
-            </div>
-        ),
-        className: 'custom-leaflet-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-        popupAnchor: [0, -16]
+const MAJOR_ROUTES = [
+  {
+    id: "hormuz",
+    path: [
+      [26.5, 56.2],
+      [24.0, 58.0],
+    ] as [number, number][],
+    name: "Strait of Hormuz",
+  },
+  {
+    id: "malacca",
+    path: [
+      [5.5, 98.0],
+      [1.2, 103.5],
+    ] as [number, number][],
+    name: "Strait of Malacca",
+  },
+  {
+    id: "suez",
+    path: [
+      [29.9, 32.5],
+      [27.7, 34.0],
+      [25.0, 35.0],
+    ] as [number, number][],
+    name: "Suez Canal Corridor",
+  },
+];
+
+export default function IntelligenceMap({
+  activeLayer,
+  ships = [],
+}: {
+  activeLayer: string;
+  ships?: any[];
+}) {
+  useEffect(() => {
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+  }, []);
+
+  const createIcon = (iconMarkup: React.ReactNode, addClass: string = "") =>
+    L.divIcon({
+      html: renderToStaticMarkup(iconMarkup),
+      className: `bg-transparent ${addClass}`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
     });
-};
 
-export default function IntelligenceMap({ activeLayer }: { activeLayer: string }) {
-    // Leaflet icons
-    const shipIcon = createCustomIcon(<Ship className="w-4 h-4 text-blue-400" />, 'border-blue-500/50');
-    const shadowIcon = createCustomIcon(<Crosshair className="w-5 h-5 text-purple-400 animate-spin-slow" />, 'border-purple-500/50 ring-2 ring-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.5)]');
+  const shipIcon = createIcon(
+    <div className="relative group">
+      <div className="absolute inset-0 bg-blue-500 rounded-full opacity-20 group-hover:scale-150 transition-transform duration-500" />
+      <Ship className="text-blue-500 w-5 h-5 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+    </div>,
+  );
 
-    return (
-        <MapContainer
-            center={[20, 0]}
-            zoom={3}
-            scrollWheelZoom={true}
-            className="w-full h-full bg-black/90 font-sans z-0"
-            zoomControl={false}
-        >
-            <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-            />
+  const shadowIcon = createIcon(
+    <div className="relative">
+      <div className="absolute inset-0 bg-purple-600 rounded-full animate-ping opacity-30" />
+      <Crosshair className="text-purple-400 w-6 h-6 animate-pulse" />
+    </div>,
+  );
 
-            {/* AIS LAYER */}
-            {activeLayer === 'ais' && AIS_VESSELS.map(vessel => (
-                <Marker key={`ais-${vessel.id}`} position={vessel.pos} icon={shipIcon}>
-                    <Popup className="geo-popup">
-                        <div className="bg-black/90 border border-blue-500/30 p-2 rounded-lg text-white text-xs">
-                            <span className="text-blue-400 font-bold">{vessel.name}</span>
-                            <br />
-                            STATUS: EN ROUTE
-                        </div>
-                    </Popup>
-                </Marker>
-            ))}
+  const thermalIcon = createIcon(
+    <Thermometer className="text-orange-500 w-6 h-6 drop-shadow-[0_0_10px_rgba(249,115,22,1)]" />,
+  );
 
-            {/* SHADOW MODE LAYER */}
-            {activeLayer === 'shadow' && SHADOW_FLEETS.map(fleet => (
-                <Marker key={`shadow-${fleet.id}`} position={fleet.pos} icon={shadowIcon}>
-                    <Popup className="geo-popup" autoPan={false}>
-                        <div className="bg-purple-900/60 border border-purple-500/30 p-2 rounded-lg text-purple-200 text-xs font-bold tracking-wider">
-                            SHADOW FLEET DETECTED: {fleet.count} VESSELS<br/>
-                            <span className="text-[10px] text-purple-400">{fleet.name}</span>
-                        </div>
-                    </Popup>
-                </Marker>
-            ))}
+  // Real-time anomalies logic for shadow fleets
+  const anomalousShips = ships.filter(
+    (s) =>
+      (s.speed === 0 && s.status === "underway") ||
+      (s.type === "cargo" && s.speed > 25),
+  );
 
-            {/* THERMAL PULSE LAYER */}
-            {activeLayer === 'thermal' && THERMAL_REFINERIES.map(refinery => (
-                <CircleMarker
-                    key={`thermal-${refinery.id}`}
-                    center={refinery.pos}
-                    radius={15}
-                    pathOptions={{
-                        color: refinery.status.includes('COOLING') ? '#f87171' : '#ef4444',
-                        fillColor: refinery.status.includes('COOLING') ? '#ef4444' : '#b91c1c',
-                        fillOpacity: 0.6,
-                        weight: 2
-                    }}
-                >
-                    <Popup className="geo-popup">
-                        <div className="bg-red-900/60 border border-red-500/30 p-2 rounded-lg text-red-200 text-xs font-bold tracking-wider flex items-center gap-2">
-                            <Thermometer className="w-4 h-4 text-red-400" />
-                            {refinery.name}<br/>
-                            {refinery.status}
-                        </div>
-                    </Popup>
-                </CircleMarker>
-            ))}
+  const owmKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
 
-        </MapContainer>
-    );
+  return (
+    <MapContainer
+      center={[25, 0]}
+      zoom={3}
+      zoomControl={true}
+      scrollWheelZoom={true}
+      dragging={true}
+      className="h-full w-full bg-black/90"
+      attributionControl={false}
+    >
+      <TileLayer
+        url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+        attribution=""
+      />
+
+      {/* WEATHER LAYERS FROM OPENWEATHERMAP */}
+      {activeLayer === "temp" && owmKey && (
+        <TileLayer
+          url={`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${owmKey}`}
+          opacity={0.6}
+        />
+      )}
+      {activeLayer === "wind" && owmKey && (
+        <TileLayer
+          url={`https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=${owmKey}`}
+          opacity={0.6}
+        />
+      )}
+      {activeLayer === "rain" && owmKey && (
+        <TileLayer
+          url={`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${owmKey}`}
+          opacity={0.6}
+        />
+      )}
+      {activeLayer === "storm" && owmKey && (
+        <TileLayer
+          url={`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${owmKey}`}
+          opacity={0.6}
+        />
+      )}
+
+      {/* AIS LAYER USING REAL SHIP DATA */}
+      {activeLayer === "ais" &&
+        ships.map((vessel: any, idx) => (
+          <Marker
+            key={`ais-${vessel.mmsi || idx}`}
+            position={[vessel.latitude, vessel.longitude]}
+            icon={shipIcon}
+          >
+            <Popup className="geo-popup">
+              <div className="bg-black/90 border border-blue-500/30 p-2 rounded-lg text-white text-xs">
+                <span className="text-blue-400 font-bold">
+                  {vessel.name} ({vessel.type})
+                </span>
+                <br />
+                SPD: {vessel.speed} kn | DST: {vessel.destination || "N/A"}
+                <br />
+                <span className="text-[10px] text-zinc-500 mt-1 inline-block">
+                  MMSI: {vessel.mmsi}
+                </span>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+      {/* SHADOW MODE LAYER */}
+      {activeLayer === "shadow" &&
+        anomalousShips.map((vessel: any, idx) => (
+          <Marker
+            key={`shadow-${vessel.mmsi || idx}`}
+            position={[vessel.latitude, vessel.longitude]}
+            icon={shadowIcon}
+          >
+            <Popup className="geo-popup" autoPan={false}>
+              <div className="bg-purple-900/60 border border-purple-500/30 p-2 rounded-lg text-purple-200 text-xs font-bold tracking-wider">
+                [CLASSIFIED TARGET]
+                <br />
+                <span className="text-red-400/80 font-normal">
+                  ANOMALY DETECTED
+                </span>
+                <br />
+                MMSI: {vessel.mmsi} | SPD: {vessel.speed} kn
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+      {/* THERMAL / INFRASTRUCTURE LAYER */}
+      {activeLayer === "thermal" &&
+        THERMAL_REFINERIES.map((ref) => (
+          <Marker
+            key={`thermal-${ref.id}`}
+            position={ref.pos}
+            icon={thermalIcon}
+          >
+            <Popup className="geo-popup" autoPan={false}>
+              <div className="bg-orange-950/80 border border-orange-500/40 p-2 rounded-lg text-orange-200 text-xs">
+                <span className="font-bold border-b border-orange-500/30 pb-1 mb-1 block">
+                  {ref.name}
+                </span>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <span>Sign:</span>
+                  <span
+                    className={
+                      ref.diff.startsWith("+")
+                        ? "text-red-400"
+                        : "text-blue-400"
+                    }
+                  >
+                    {ref.output}
+                  </span>
+                  <span>Var:</span>
+                  <span>{ref.diff}</span>
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+      {/* SHIP TRAILS / ROUTES (Lines) */}
+      {(activeLayer === "ais" || activeLayer === "shadow") &&
+        MAJOR_ROUTES.map((route) => (
+          <Polyline
+            key={route.id}
+            positions={route.path}
+            color="#3b82f6"
+            weight={2}
+            dashArray="5, 10"
+            opacity={0.5}
+          />
+        ))}
+    </MapContainer>
+  );
 }
