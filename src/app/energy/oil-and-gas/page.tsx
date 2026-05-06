@@ -23,7 +23,8 @@ import {
   Wind,
   CloudRain,
   CloudLightning,
-    Sun,
+  Sun,
+    Database,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -39,7 +40,8 @@ const INTELLIGENCE_LAYERS = [
     desc: "Regular ship tracking",
     icon: Ship,
     color: "text-blue-400",
-    layman: "Shows standard tracking transponders (AIS) for oil tankers and cargo ships. Green means normal operations. This tells us where legal, publicly visible oil is flowing."
+    layman:
+      "Shows standard tracking transponders (AIS) for oil tankers and cargo ships. Green means normal operations. This tells us where legal, publicly visible oil is flowing.",
   },
   {
     id: "shadow",
@@ -47,7 +49,8 @@ const INTELLIGENCE_LAYERS = [
     desc: "AI-detected Dark Ships",
     icon: Crosshair,
     color: "text-purple-400",
-    layman: "Highlights vessels moving suspiciously (e.g., speeding cargo ships or ships claiming to be stopped but moving). This reveals 'dark fleets' often used to evade oil sanctions."
+    layman:
+      "Highlights vessels moving suspiciously (e.g., speeding cargo ships or ships claiming to be stopped but moving). This reveals 'dark fleets' often used to evade oil sanctions.",
   },
   {
     id: "thermal",
@@ -55,7 +58,8 @@ const INTELLIGENCE_LAYERS = [
     desc: "Refinery heat signatures",
     icon: Thermometer,
     color: "text-red-400",
-    layman: "Plots major global oil refineries and shows their current output deviations. If a refinery's output drops, local fuel prices might spike."
+    layman:
+      "Plots major global oil refineries and shows their current output deviations. If a refinery's output drops, local fuel prices might spike.",
   },
   {
     id: "temp",
@@ -63,7 +67,8 @@ const INTELLIGENCE_LAYERS = [
     desc: "Global Heatmap",
     icon: Sun,
     color: "text-orange-500",
-    layman: "Visualizes extreme heat or cold waves globally. Severe temperatures drive up energy demand for heating or cooling, which directly impacts natural gas and oil prices."
+    layman:
+      "Visualizes extreme heat or cold waves globally. Severe temperatures drive up energy demand for heating or cooling, which directly impacts natural gas and oil prices.",
   },
   {
     id: "wind",
@@ -71,7 +76,8 @@ const INTELLIGENCE_LAYERS = [
     desc: "Global wind patterns",
     icon: Wind,
     color: "text-cyan-400",
-    layman: "Displays wind speed. Strong winds can delay offshore oil drilling, disrupt tanker shipments, or boost renewable wind energy generation, affecting crude demand."
+    layman:
+      "Displays wind speed. Strong winds can delay offshore oil drilling, disrupt tanker shipments, or boost renewable wind energy generation, affecting crude demand.",
   },
   {
     id: "rain",
@@ -79,7 +85,8 @@ const INTELLIGENCE_LAYERS = [
     desc: "Rainfall forecasting",
     icon: CloudRain,
     color: "text-blue-300",
-    layman: "Shows rainfall mapping. Heavy precipitation can flood out regional supply chains or impact energy infrastructure like open-pit coal mines."
+    layman:
+      "Shows rainfall mapping. Heavy precipitation can flood out regional supply chains or impact energy infrastructure like open-pit coal mines.",
   },
   {
     id: "storm",
@@ -87,7 +94,8 @@ const INTELLIGENCE_LAYERS = [
     desc: "Weather & Clouds",
     icon: CloudLightning,
     color: "text-gray-400",
-    layman: "Tracks dense cloud cover and storm cells. Cyclones and hurricanes in regions like the Gulf of Mexico regularly force oil rigs to shut down, causing supply shocks."
+    layman:
+      "Tracks dense cloud cover and storm cells. Cyclones and hurricanes in regions like the Gulf of Mexico regularly force oil rigs to shut down, causing supply shocks.",
   },
 ];
 
@@ -247,14 +255,18 @@ export default function OilAndGasIntelligence() {
 
               {/* Layman Summarizer Widget */}
               {(() => {
-                const activeLayerInfo = INTELLIGENCE_LAYERS.find(l => l.id === activeLayer);
+                const activeLayerInfo = INTELLIGENCE_LAYERS.find(
+                  (l) => l.id === activeLayer,
+                );
                 if (!activeLayerInfo?.layman) return null;
-                
+
                 return (
                   <div className="absolute bottom-4 left-4 z-10 w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-4 shadow-2xl">
                     <div className="flex items-center gap-2 mb-2">
                       <BrainCircuit className="w-4 h-4 text-emerald-400" />
-                      <h3 className="text-xs font-bold text-emerald-400 tracking-wider">AI SUMMARIZER</h3>
+                      <h3 className="text-xs font-bold text-emerald-400 tracking-wider">
+                        AI SUMMARIZER
+                      </h3>
                     </div>
                     <p className="text-xs text-gray-300 leading-relaxed">
                       {activeLayerInfo.layman}
@@ -346,94 +358,135 @@ export default function OilAndGasIntelligence() {
           {/* --- RIGHT COL: WIDGETS --- */}
           <div className="flex flex-col gap-6">
             {/* Corridor Volatility Card */}
-              {(() => {
-                // Dynamically calculate corridor congestion using live shipData
-                const getRegionScore = (minLat: number, maxLat: number, minLon: number, maxLon: number, baseRisk: number) => {
-                  const shipsInRegion = shipData.filter(s => s.latitude >= minLat && s.latitude <= maxLat && s.longitude >= minLon && s.longitude <= maxLon).length;
-                  // Dynamic score = base risk + (5 points per ship in the zone, max 99)
-                  const dynamicScore = Math.min(99, baseRisk + (shipsInRegion * 5));
-                  let status = "Normal";
-                  let bg = "bg-emerald-500";
-                  let text = "text-emerald-500";
-                  let textLight = "text-emerald-100";
-                  if (dynamicScore > 75) {
-                    status = "Critical"; bg = "bg-red-500"; text = "text-red-500"; textLight = "text-red-100";
-                  } else if (dynamicScore > 50) {
-                    status = "Elevated"; bg = "bg-orange-500"; text = "text-orange-500"; textLight = "text-orange-100";
-                  }
-                  return { score: Math.round(dynamicScore), status, bg, text, textLight, ships: shipsInRegion };
+            {(() => {
+              // Dynamically calculate corridor congestion using live shipData
+              const getRegionScore = (
+                minLat: number,
+                maxLat: number,
+                minLon: number,
+                maxLon: number,
+                baseRisk: number,
+              ) => {
+                const shipsInRegion = shipData.filter(
+                  (s) =>
+                    s.latitude >= minLat &&
+                    s.latitude <= maxLat &&
+                    s.longitude >= minLon &&
+                    s.longitude <= maxLon,
+                ).length;
+                // Dynamic score = base risk + (5 points per ship in the zone, max 99)
+                const dynamicScore = Math.min(99, baseRisk + shipsInRegion * 5);
+                let status = "Normal";
+                let bg = "bg-emerald-500";
+                let text = "text-emerald-500";
+                let textLight = "text-emerald-100";
+                if (dynamicScore > 75) {
+                  status = "Critical";
+                  bg = "bg-red-500";
+                  text = "text-red-500";
+                  textLight = "text-red-100";
+                } else if (dynamicScore > 50) {
+                  status = "Elevated";
+                  bg = "bg-orange-500";
+                  text = "text-orange-500";
+                  textLight = "text-orange-100";
+                }
+                return {
+                  score: Math.round(dynamicScore),
+                  status,
+                  bg,
+                  text,
+                  textLight,
+                  ships: shipsInRegion,
                 };
+              };
 
-                // Bounding boxes for major hubs
-                const hormuz = getRegionScore(24, 28, 54, 58, 65); // Naturally higher risk baseline
-                const ara = getRegionScore(49, 54, 1, 6, 45); // Euro ARA
-                const usgc = getRegionScore(25, 31, -98, -88, 15); // US Gulf Coast
+              // Bounding boxes for major hubs
+              const hormuz = getRegionScore(24, 28, 54, 58, 65); // Naturally higher risk baseline
+              const ara = getRegionScore(49, 54, 1, 6, 45); // Euro ARA
+              const usgc = getRegionScore(25, 31, -98, -88, 15); // US Gulf Coast
 
-                const regions = [
-                  { 
-                    name: "Strait of Hormuz", 
-                    data: hormuz, 
-                    desc: "The world's most critical oil chokepoint. High congestion or blockages here immediately spike global Brent crude prices, as 20% of global consumption passes through here."
-                  },
-                  { 
-                    name: "Euro ARA Hubs", 
-                    data: ara, 
-                    desc: "Amsterdam, Rotterdam, and Antwerp. This is Europe's primary oil storage and refining hub. High congestion means European demand is booming or storage is overflowing."
-                  },
-                  { 
-                    name: "US Gulf Coast", 
-                    data: usgc, 
-                    desc: "The epicenter of US oil refining and WTI crude exports. Elevated congestion often occurs before major hurricanes or during heavy export seasons."
-                  }
-                ];
+              const regions = [
+                {
+                  name: "Strait of Hormuz",
+                  data: hormuz,
+                  desc: "The world's most critical oil chokepoint. High congestion or blockages here immediately spike global Brent crude prices, as 20% of global consumption passes through here.",
+                },
+                {
+                  name: "Euro ARA Hubs",
+                  data: ara,
+                  desc: "Amsterdam, Rotterdam, and Antwerp. This is Europe's primary oil storage and refining hub. High congestion means European demand is booming or storage is overflowing.",
+                },
+                {
+                  name: "US Gulf Coast",
+                  data: usgc,
+                  desc: "The epicenter of US oil refining and WTI crude exports. Elevated congestion often occurs before major hurricanes or during heavy export seasons.",
+                },
+              ];
 
-                return (
-                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                    <h3 className="font-bold flex items-center gap-2 mb-4 text-white">
-                      <Route className="w-5 h-5 text-purple-400" /> Corridor Volatility
-                    </h3>
-                    <p className="text-sm text-gray-400 mb-6">
-                      Real-time delivery risk tracking based on live tanker AIS data in crucial global chokepoints.
-                    </p>
+              return (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                  <h3 className="font-bold flex items-center gap-2 mb-4 text-white">
+                    <Route className="w-5 h-5 text-purple-400" /> Corridor
+                    Volatility
+                  </h3>
+                  <p className="text-sm text-gray-400 mb-6">
+                    Real-time delivery risk tracking based on live tanker AIS
+                    data in crucial global chokepoints.
+                  </p>
 
-                    <div className="space-y-4">
-                      {regions.map((region, idx) => (
-                        <div key={idx} className="bg-black/30 rounded-xl p-4 border border-white/5 relative overflow-hidden group">
-                          <div className={`absolute top-0 right-0 w-1 h-full ${region.data.bg}`} />
-                          
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <span className={`font-medium ${region.data.textLight}`}>
-                                {region.name}
-                              </span>
-                              <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                                <Anchor className="w-3 h-3" /> {region.data.ships} tankers detected
-                              </div>
+                  <div className="space-y-4">
+                    {regions.map((region, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-black/30 rounded-xl p-4 border border-white/5 relative overflow-hidden group"
+                      >
+                        <div
+                          className={`absolute top-0 right-0 w-1 h-full ${region.data.bg}`}
+                        />
+
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span
+                              className={`font-medium ${region.data.textLight}`}
+                            >
+                              {region.name}
+                            </span>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                              <Anchor className="w-3 h-3" /> {region.data.ships}{" "}
+                              tankers detected
                             </div>
-                            <span className={`text-2xl font-black ${region.data.text}`}>
-                              {region.data.score}
-                            </span>
                           </div>
-                          
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 ${region.data.text}`}>
-                              {region.data.status}
-                            </span>
-                          </div>
-
-                          {/* Layman Explainer Box - reveals on group hover */}
-                          <div className="text-[10px] text-gray-400 bg-white/5 p-2 rounded border border-white/5 hidden group-hover:block transition-all">
-                            <strong className="text-gray-300 block mb-1">Why it matters:</strong>
-                            {region.desc}
-                          </div>
+                          <span
+                            className={`text-2xl font-black ${region.data.text}`}
+                          >
+                            {region.data.score}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
 
-              {/* Oil & Gas Conversion Calculator Tool */}
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 ${region.data.text}`}
+                          >
+                            {region.data.status}
+                          </span>
+                        </div>
+
+                        {/* Layman Explainer Box - reveals on group hover */}
+                        <div className="text-[10px] text-gray-400 bg-white/5 p-2 rounded border border-white/5 hidden group-hover:block transition-all">
+                          <strong className="text-gray-300 block mb-1">
+                            Why it matters:
+                          </strong>
+                          {region.desc}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Oil & Gas Conversion Calculator Tool */}
             <div className="bg-gradient-to-br from-gray-900 to-black border border-white/10 rounded-2xl p-6">
               <h3 className="font-bold flex items-center gap-2 mb-4 text-white">
                 <Calculator className="w-5 h-5 text-geo-gold" /> Industry
@@ -480,44 +533,85 @@ export default function OilAndGasIntelligence() {
             </div>
 
             {/* Analyzer for Latest Insights */}
-            <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-colors" />
-              <h3 className="font-bold flex items-center gap-2 mb-4 text-white relative z-10">
-                <BrainCircuit className="w-5 h-5 text-blue-400" /> AI OSINT
-                Analyzer
-              </h3>
-              <div className="space-y-3 relative z-10">
-                <div className="border border-white/5 bg-black/40 rounded-lg p-3">
-                  <p className="text-xs text-blue-200 font-medium mb-1">
-                    OPEC+ Quota Compliance
-                  </p>
-                  <p className="text-[11px] text-gray-400 line-clamp-2">
-                    Satellite detection shows 4 member states exceeding agreed
-                    export limits, likely triggering a response from Riyadh next
-                    week.
-                  </p>
-                </div>
-                <div className="border border-white/5 bg-black/40 rounded-lg p-3">
-                  <p className="text-xs text-blue-200 font-medium mb-1">
-                    Strategic Petroleum Reserve
-                  </p>
-                  <p className="text-[11px] text-gray-400 line-clamp-2">
-                    US repurchases slowing due to target price misses; arbitrage
-                    windows for Gulf refiners widening.
-                  </p>
-                </div>
-              </div>
+              {(() => {
+                const numVal = parseFloat((shipData.length * 2.1).toFixed(1)) || 1450.0;
+                const inTransitMBarrels = shipData.length > 0 ? (shipData.length * 2.1).toFixed(1) : "1,450.0";
+                const globalStorage = 4120.5; // Baseline mock
+                const totalSupply = numVal + globalStorage;
+                const transitPercent = ((numVal / totalSupply) * 100).toFixed(1);
+
+                return (
+                  <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-colors" />
+                    <h3 className="font-bold flex items-center gap-2 mb-4 text-white relative z-10">
+                      <BrainCircuit className="w-5 h-5 text-blue-400" /> AI OSINT Analyzer
+                    </h3>
+                    <div className="space-y-4 relative z-10">
+                      
+                      {/* Satellite Imagery */}
+                      <div className="border border-white/5 bg-black/40 rounded-lg p-3">
+                        <div className="flex justify-between items-center mb-2">
+                          <p className="text-xs text-blue-200 font-medium">OPEC+ Storage Satellite Feed</p>
+                          <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            LIVE
+                          </span>
+                        </div>
+                        <div className="relative w-full h-32 rounded border border-white/10 overflow-hidden mb-2">
+                          <img 
+                            src="https://images.unsplash.com/photo-1605206385411-18e381018596?q=80&w=600&auto=format&fit=crop" 
+                            alt="Satellite Oil Tanks" 
+                            className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-luminosity hover:mix-blend-normal transition-all"
+                          />
+                          {/* UI overlay on satellite */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 pointer-events-none">
+                            <span className="text-[10px] text-white font-mono bg-black/60 px-1 inline-block w-max border border-white/10">LOC: 26�16'18"N 50�08'19"E</span>
+                            <span className="text-[10px] text-emerald-400 font-mono bg-black/60 px-1 inline-block w-max mt-0.5 border border-white/10">EST. VOL: +4.2% CAPACITY</span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-gray-400 leading-relaxed">
+                          AI detection shows major facility clusters exceeding exported tank limits, highly correlated with localized shadow fleet anomalies.
+                        </p>
+                      </div>
+
+                      {/* Fuel Tracker */}
+                      <div className="border border-white/5 bg-black/40 rounded-lg p-4">
+                        <p className="text-xs text-blue-300 font-medium mb-3 flex items-center gap-2">
+                          <Database className="w-3 h-3 text-blue-400" /> Global Crude Logistics
+                        </p>
+                        
+                        <div className="space-y-3">
+                          <div>
+                            <div className="flex justify-between text-[11px] mb-1">
+                              <span className="text-gray-400">At Sea (In Transit)</span>
+                              <span className="text-white font-bold">{inTransitMBarrels} MBBL</span>
+                            </div>
+                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                              <div className="bg-blue-500 h-1.5 rounded-full relative" style={{ width: `${transitPercent}%` }}>
+                                <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <div className="flex justify-between text-[11px] mb-1">
+                              <span className="text-gray-400">Onshore Storage (SPR + Comm)</span>
+                              <span className="text-white font-bold">{globalStorage.toLocaleString()} MBBL</span>
+                            </div>
+                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                              <div className="bg-orange-500 h-1.5 rounded-full w-[82%]" ></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
-      </div>
-    </main>
-  );
-}
-
-
-
-
-
-
-
+      </main>
+    );
+  }
