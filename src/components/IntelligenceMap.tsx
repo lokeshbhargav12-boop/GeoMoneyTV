@@ -12,6 +12,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Ship, Crosshair, Thermometer } from "lucide-react";
+// @ts-ignore: Suppress remote build type error for react-dom/server
 import { renderToStaticMarkup } from "react-dom/server";
 
 // --- MOCK DATA FOR REFINERIES & CHOKEPOINTS ---
