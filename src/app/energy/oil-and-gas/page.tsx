@@ -97,6 +97,30 @@ export default function OilAndGasIntelligence() {
             </div>
           </button>
         </div>
+        {/* --- FAST TRACK WALKTHROUGH --- */}
+        <div className="mb-6 border-2 border-dashed border-white/20 bg-geo-dark/50 backdrop-blur-sm rounded-2xl p-6 text-gray-300">
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+             <span className="text-geo-gold">Terminal Walkthrough:</span> How to use this section
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="flex items-start gap-3">
+              <div className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-amber-500" />
+              <p><strong className="text-amber-400">Simulation Dock:</strong> Click STANDBY at the top right to activate sandbox mode. Simulates geopolitical blockades to stress-test your analytics.</p>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-purple-500" />
+              <p><strong className="text-purple-400">Intelligence Layers:</strong> Use the map overlay toggles to reveal hidden datasets like "Dark Ships" (Shadow Fleet) escaping standard AIS trackers, or refinery heat signatures.</p>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-blue-500" />
+              <p><strong className="text-blue-400">Predictive Engine:</strong> Watch the 7-day forecast react in real-time to your simulated blockade scenarios (via the orange dashed line on the chart).</p>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-emerald-500" />
+              <p><strong className="text-emerald-400">Corridor Volatility:</strong> Monitor last-mile delivery risks across key global routes to assess physical market bottlenecks.</p>
+            </div>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* --- LEFT COL: MAIN MAP & FORECAST --- */}
@@ -370,3 +394,4 @@ export default function OilAndGasIntelligence() {
     </main>
   );
 }
+
