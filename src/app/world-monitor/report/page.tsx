@@ -207,7 +207,7 @@ export default async function WorldMonitorReportPage({
             className="inline-flex items-center gap-2 rounded-full border border-geo-gold/30 bg-geo-gold/10 px-5 py-2 text-sm text-geo-gold transition hover:bg-geo-gold/20"
           >
             <ArrowLeft className="h-4 w-4" />
-            Return to World Monitor
+            Return to GeoMoney Aperture
           </Link>
         </div>
       </main>
@@ -226,7 +226,7 @@ export default async function WorldMonitorReportPage({
               className="mb-3 inline-flex items-center gap-2 text-sm text-gray-400 transition hover:text-geo-gold"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to World Monitor
+              Back to GeoMoney Aperture
             </Link>
             <div className="mb-2 text-[11px] font-mono uppercase tracking-[0.24em] text-geo-gold">
               {kind === "event"
@@ -521,3 +521,4 @@ function FileSectionIcon({ kind }: { kind: ReportKind }) {
 
   return <Shield className="h-4 w-4 text-geo-gold" />;
 }
+

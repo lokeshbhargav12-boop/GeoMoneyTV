@@ -33,7 +33,7 @@ interface TutorialStep {
 const STEPS: TutorialStep[] = [
   {
     icon: <Globe2 className="w-7 h-7" />,
-    title: "Welcome to World Monitor",
+    title: "Welcome to GeoMoney Aperture",
     subtitle: "Global Intelligence at Your Fingertips",
     description:
       "The 3D globe displays real-time intelligence across geopolitics, energy, military movements, and global trade. Drag to explore any region of the world.",
@@ -491,3 +491,4 @@ export function useWorldMonitorTutorial(): [boolean, () => void] {
 
   return [show, dismiss];
 }
+

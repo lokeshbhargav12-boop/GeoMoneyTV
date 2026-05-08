@@ -1470,7 +1470,7 @@ function PulsePoint({
       </mesh>
       {/* Tooltip */}
       {hovered && label && (
-        <Html distanceFactor={8} center occlude="blending" style={{ pointerEvents: "none" }}>
+        <Html distanceFactor={8} center zIndexRange={[100, 0]} style={{ pointerEvents: "none", zIndex: 100 }}>
           <div className="bg-black/90 border border-geo-gold/40 rounded-lg px-3 py-2 min-w-[220px] backdrop-blur-xl shadow-lg shadow-geo-gold/10">
             <div className="text-[10px] font-mono text-geo-gold mb-1">
               {label}
@@ -1563,7 +1563,7 @@ function ChokepointMarker({
         />
       </mesh>
       {hovered && (
-        <Html distanceFactor={8} center occlude="blending" style={{ pointerEvents: "none" }}>
+        <Html distanceFactor={8} center zIndexRange={[100, 0]} style={{ pointerEvents: "none", zIndex: 100 }}>
           <div className="bg-black/90 border border-white/20 rounded-lg px-3 py-2 backdrop-blur-xl whitespace-nowrap">
             <div className="text-[10px] font-mono text-geo-gold">{name}</div>
             <div className="text-[9px] text-gray-400 uppercase">
@@ -1618,7 +1618,7 @@ function InfrastructureMarker({ site }: { site: InfrastructureSite }) {
         <meshBasicMaterial color={color} transparent opacity={0.92} />
       </mesh>
       {hovered && (
-        <Html distanceFactor={8} center occlude="blending" style={{ pointerEvents: "none" }}>
+        <Html distanceFactor={8} center zIndexRange={[100, 0]} style={{ pointerEvents: "none", zIndex: 100 }}>
           <div className="min-w-[220px] rounded-lg border border-white/15 bg-black/90 px-3 py-2 backdrop-blur-xl">
             <div className="text-[10px] font-mono text-white">{site.name}</div>
             <div className="text-[9px] uppercase tracking-wide text-gray-400">
@@ -1680,7 +1680,7 @@ function ClimateOverlayPoint({ hotspot }: { hotspot: ClimateHotspot }) {
         />
       </mesh>
       {hovered && (
-        <Html distanceFactor={8} center occlude="blending" style={{ pointerEvents: "none" }}>
+        <Html distanceFactor={8} center zIndexRange={[100, 0]} style={{ pointerEvents: "none", zIndex: 100 }}>
           <div className="min-w-[220px] rounded-lg border border-white/15 bg-black/90 px-3 py-2 backdrop-blur-xl">
             <div className="text-[10px] font-mono text-white">
               {hotspot.label}
@@ -2234,6 +2234,49 @@ function GlobeScene({
     [events, layerState],
   );
 
+
+  const clusteredEventPoints = useMemo(() => {
+    const points: Array<{
+      lat: number;
+      lng: number;
+      event: GlobeEvent;
+      count: number;
+      primaryKey: string;
+      groupThreat: number | undefined;
+    }> = [];
+    const threshold = 1.0; 
+
+    filteredEvents.forEach((event) => {
+      event.locations.forEach((loc, li) => {
+        const existing = points.find(
+          (p) =>
+            Math.abs(p.lat - loc.lat) < threshold &&
+            Math.abs(p.lng - loc.lng) < threshold
+        );
+        if (existing) {
+          existing.count += 1;
+          if (
+            event.threatScore &&
+            (!existing.groupThreat || event.threatScore > existing.groupThreat)
+          ) {
+            existing.event = event;
+            existing.groupThreat = event.threatScore;
+          }
+        } else {
+          points.push({
+            lat: loc.lat,
+            lng: loc.lng,
+            event,
+            count: 1,
+            primaryKey: `${event.id}-${li}`,
+            groupThreat: event.threatScore
+          });
+        }
+      });
+    });
+    return points;
+  }, [filteredEvents]);
+
   const filteredShips = useMemo(
     () =>
       (ships || []).filter((ship) => {
@@ -2411,28 +2454,26 @@ function GlobeScene({
           ))}
 
         {/* Event points from OSINT / articles */}
-        {filteredEvents.map((event) =>
-          event.locations.map((loc, li) => (
-            <PulsePoint
-              key={`${event.id}-${li}`}
-              lat={loc.lat}
-              lng={loc.lng}
-              color={
-                event.threatScore
-                  ? getThreatColor(event.threatScore)
-                  : getCategoryColor(event.category)
-              }
-              size={
-                event.threatScore
-                  ? Math.max(0.018, (event.threatScore / 100) * 0.045)
-                  : 0.022
-              }
-              onClick={() => onEventClick?.(event)}
-              label={event.title}
-              threatScore={event.threatScore}
-            />
-          )),
-        )}
+        {clusteredEventPoints.map((cluster) => (
+          <PulsePoint
+            key={cluster.primaryKey}
+            lat={cluster.lat}
+            lng={cluster.lng}
+            color={
+              cluster.groupThreat
+                ? getThreatColor(cluster.groupThreat)
+                : getCategoryColor(cluster.event.category)
+            }
+            size={
+              cluster.groupThreat
+                ? Math.max(0.018, (cluster.groupThreat / 100) * 0.045)
+                : 0.022
+            }
+            onClick={() => onEventClick?.(cluster.event)}
+            label={cluster.count > 1 ? `${cluster.count} Events in cluster` : cluster.event.title}
+            threatScore={cluster.groupThreat}
+          />
+        ))}
 
         {/* Connection arcs between related events */}
         {layerState.groups.events && <ConnectionArcs events={filteredEvents} />}
@@ -2918,3 +2959,7 @@ export default function WorldGlobe({
     </div>
   );
 }
+
+
+
+

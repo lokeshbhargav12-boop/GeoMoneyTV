@@ -818,7 +818,7 @@ export default function WorldMonitorPage() {
       setAllEvents([...osint, ...articles]);
       setDataTimestamp(new Date().toISOString());
     } catch (err) {
-      console.error("World Monitor data fetch error:", err);
+      console.error("GeoMoney Aperture data fetch error:", err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -1381,7 +1381,7 @@ export default function WorldMonitorPage() {
                 <h1 className="text-sm font-bold tracking-tight">
                   <span className="text-geo-gold">GEOMONEY APERTURE</span>
                   <span className="text-white/40 mx-2">|</span>
-                  <span className="text-white/80">World Monitor</span>
+                  <span className="text-white/80">GeoMoney Aperture</span>
                 </h1>
               </div>
             </div>
@@ -1418,7 +1418,7 @@ export default function WorldMonitorPage() {
             <button
               onClick={() => setTutorialForced(true)}
               className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-geo-gold text-xs font-bold transition-all"
-              title="How to use World Monitor"
+              title="How to use GeoMoney Aperture"
             >
               ?
             </button>
@@ -1526,7 +1526,8 @@ export default function WorldMonitorPage() {
                   </button>
                 </div>
               )}
-              <div className="absolute inset-0">
+              {/* Conditional rendering of 3D globe to prevent 2D map overlap */}
+              <div className={`absolute inset-0 ${apertureActive ? "hidden" : "block"}`}>
                 <WorldGlobe
                   events={allEvents}
                   onEventClick={handleEventClick}
@@ -2192,26 +2193,6 @@ export default function WorldMonitorPage() {
           </div>
         </div>
 
-        {/* ═══ DASHBOARD GRID LAYER ═════════════════════════ */}
-        <div className="mt-6 flex flex-col gap-6 w-full">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            <RiskIndicesWidget data={RISK_INDICES} />
-            <ChokepointsWidget
-              data={CHOKEPOINTS}
-              onChokepointClick={handleChokepointClick}
-            />
-            <AssetTrackingWidget data={trackedAssets} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <NuclearMonitorWidget data={NUCLEAR_STATUS} />
-            <SanctionsWidget data={SANCTIONS_DATA} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SigintWidget data={SIGINT_FEEDS} />
-            <CountryBriefsWidget data={COUNTRY_BRIEFS} />
-          </div>
-        </div>
-
         {/* ═══ RIGHT: EVENT DETAIL PANEL ════════════════════ */}
         <AnimatePresence>
           {!isCompactLayout && showDetail && selectedEvent && (
@@ -2454,5 +2435,6 @@ export default function WorldMonitorPage() {
     </main>
   );
 }
+
 
 

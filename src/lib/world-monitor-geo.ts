@@ -11,15 +11,13 @@ export interface Webcam {
 
 export const LIVE_WEBCAMS: Webcam[] = [
     {
-        id: "nyc-ts",
-        title: "Times Square, NYC",
-        lat: 40.758,
-        lng: -73.9855,
-        embedUrl:
-            "https://www.youtube.com/embed/AdUw5RdyZxI?autoplay=1&mute=1&controls=0&loop=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=300&h=200&fit=crop",
-        country: "US",
+        id: "aljazeera-live",
+        title: "Al Jazeera English Live",
+        lat: 25.2854,
+        lng: 51.5310,
+        embedUrl: "https://www.youtube.com/embed/-dpyN_PzFos?autoplay=1&mute=1&controls=0&loop=1",
+        thumbnail: "https://images.unsplash.com/photo-1546201382-72ab3e318cf1?w=300&h=200&fit=crop",
+        country: "QA",
         type: "live",
     },
     {
@@ -35,123 +33,39 @@ export const LIVE_WEBCAMS: Webcam[] = [
         type: "live",
     },
     {
-        id: "miami-beach",
-        title: "Miami Beach, Florida",
-        lat: 25.7907,
-        lng: -80.13,
+        id: "sky-news",
+        title: "Sky News Global Live",
+        lat: 51.5074,
+        lng: -0.1278,
         embedUrl:
-            "https://www.youtube.com/embed/aRBC3xjQHE4?autoplay=1&mute=1&controls=0&loop=1",
+            "https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1&controls=0&loop=1",
         thumbnail:
-            "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=300&h=200&fit=crop",
+            "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=300&h=200&fit=crop",
+        country: "GB",
+        type: "live",
+    },
+    {
+        id: "bloomberg-live",
+        title: "Bloomberg Financial News",
+        lat: 40.7128,
+        lng: -74.0060,
+        embedUrl:
+            "https://www.youtube.com/embed/dp8PhLsUcFE?autoplay=1&mute=1&controls=0&loop=1",
+        thumbnail:
+            "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=300&h=200&fit=crop",
         country: "US",
         type: "live",
     },
     {
-        id: "jackson-hole",
-        title: "Jackson Hole Town Square",
-        lat: 43.4799,
-        lng: -110.7624,
-        embedUrl:
-            "https://www.youtube.com/embed/DoMqMGHm1gY?autoplay=1&mute=1&controls=0&loop=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=300&h=200&fit=crop",
-        country: "US",
-        type: "live",
-    },
-    {
-        id: "iss-live",
-        title: "ISS - Earth from Space",
+        id: "nasa-live",
+        title: "NASA Earth Live",
         lat: 0,
         lng: 0,
         embedUrl:
-            "https://www.youtube.com/embed/P9C25Un7xaM?autoplay=1&mute=1&controls=0&loop=1",
+            "https://www.youtube.com/embed/21X5lGlDOfg?autoplay=1&mute=1&controls=0&loop=1",
         thumbnail:
             "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&h=200&fit=crop",
         country: "ISS",
-        type: "live",
-    },
-    {
-        id: "london-eye",
-        title: "London Eye, UK",
-        lat: 51.5033,
-        lng: -0.1196,
-        embedUrl:
-            "https://www.youtube.com/embed/FrZ3ZkpjKXE?autoplay=1&mute=1&controls=0&loop=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=300&h=200&fit=crop",
-        country: "UK",
-        type: "live",
-    },
-    {
-        id: "dubai-live",
-        title: "Dubai Skyline Live",
-        lat: 25.1972,
-        lng: 55.2744,
-        embedUrl:
-            "https://www.youtube.com/embed/JY8u-cf8Rnk?autoplay=1&mute=1&controls=0&loop=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=300&h=200&fit=crop",
-        country: "AE",
-        type: "live",
-    },
-    {
-        id: "rome-trevi",
-        title: "Trevi Fountain, Rome",
-        lat: 41.9009,
-        lng: 12.4833,
-        embedUrl:
-            "https://www.youtube.com/embed/Sknp56aERFI?autoplay=1&mute=1&controls=0&loop=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1529260830199-42c24126f198?w=300&h=200&fit=crop",
-        country: "IT",
-        type: "live",
-    },
-    {
-        id: "singapore-marina",
-        title: "Marina Bay, Singapore",
-        lat: 1.2816,
-        lng: 103.8636,
-        embedUrl:
-            "https://www.youtube.com/embed/Gti3fMsEPKI?autoplay=1&mute=1&controls=0&loop=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=300&h=200&fit=crop",
-        country: "SG",
-        type: "live",
-    },
-    {
-        id: "istanbul-bosphorus",
-        title: "Bosphorus, Istanbul",
-        lat: 41.0422,
-        lng: 29.0083,
-        embedUrl:
-            "https://www.youtube.com/embed/m3DXqPxdPC8?autoplay=1&mute=1&controls=0&loop=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=300&h=200&fit=crop",
-        country: "TR",
-        type: "live",
-    },
-    {
-        id: "sydney-harbour",
-        title: "Sydney Harbour",
-        lat: -33.8568,
-        lng: 151.2153,
-        embedUrl:
-            "https://www.youtube.com/embed/nXiOy0i6TsQ?autoplay=1&mute=1&controls=0&loop=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=300&h=200&fit=crop",
-        country: "AU",
-        type: "live",
-    },
-    {
-        id: "nairobi-live",
-        title: "Nairobi City, Kenya",
-        lat: -1.2921,
-        lng: 36.8219,
-        embedUrl:
-            "https://www.youtube.com/embed/N1Efx1t0JBo?autoplay=1&mute=1&controls=0&loop=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1611348586804-61bf6c080437?w=300&h=200&fit=crop",
-        country: "KE",
         type: "live",
     },
 ];
