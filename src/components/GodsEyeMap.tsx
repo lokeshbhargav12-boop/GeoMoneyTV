@@ -1,4 +1,7 @@
 ﻿"use client";
+
+import { Rectangle } from "react-leaflet";
+import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   MapContainer,
@@ -154,6 +157,62 @@ function PegmanCursor({ active }: { active: boolean }) {
 }
 
 // ─── PROPS ───────────────────────────────────────────────────
+
+// ─── BOUNDING BOX SELECTION TOOL ─────────────────────────────
+function BboxDrawer({
+  active,
+  currentBbox,
+  onBboxChange,
+}: {
+  active: boolean;
+  currentBbox: L.LatLngBounds | null;
+  onBboxChange: (bounds: L.LatLngBounds | null) => void;
+}) {
+  const map = useMap();
+  const [start, setStart] = useState<L.LatLng | null>(null);
+  const [end, setEnd] = useState<L.LatLng | null>(null);
+
+  useEffect(() => {
+    if (active) {
+      map.dragging.disable();
+    } else {
+      map.dragging.enable();
+      setStart(null);
+      setEnd(null);
+    }
+  }, [active, map]);
+
+  useMapEvents({
+    mousedown(e) {
+      if (!active) return;
+      setStart(e.latlng);
+      setEnd(e.latlng);
+      onBboxChange(null);
+    },
+    mousemove(e) {
+      if (!active || !start) return;
+      setEnd(e.latlng);
+    },
+    mouseup(e) {
+      if (!active || !start || !end) return;
+      const bounds = L.latLngBounds(start, end);
+      onBboxChange(bounds);
+      setStart(null);
+      setEnd(null);
+    },
+  });
+
+  if (start && end) {
+    return <Rectangle bounds={L.latLngBounds(start, end)} pathOptions={{ color: '#06b6d4', weight: 2, fillOpacity: 0.2 }} />;
+  }
+  
+  if (currentBbox) {
+    return <Rectangle bounds={currentBbox} pathOptions={{ color: '#06b6d4', weight: 2, fillOpacity: 0.1 }} />;
+  }
+
+  return null;
+}
+
 interface GodsEyeMapProps {
   aircraft: AircraftData[];
   ships: ShipData[];
@@ -191,7 +250,48 @@ export default function GodsEyeMap({
   const [streetViewFov, setStreetViewFov] = useState(90);
 
   // Sidebar tab
-  const [sidebarTab, setSidebarTab] = useState<"cameras" | "streetview">(
+  
+  const [bboxMode, setBboxMode] = useState(false);
+  const [selectedBbox, setSelectedBbox] = useState<L.LatLngBounds | null>(null);
+  const [isAnalyzingBbox, setIsAnalyzingBbox] = useState(false);
+  const [bboxAnalysis, setBboxAnalysis] = useState<string | null>(null);
+
+  const analyzeBbox = async () => {
+    if (!selectedBbox) return;
+    setIsAnalyzingBbox(true);
+    setBboxAnalysis(null);
+    try {
+      const bounds = {
+        north: selectedBbox.getNorth(),
+        south: selectedBbox.getSouth(),
+        east: selectedBbox.getEast(),
+        west: selectedBbox.getWest(),
+      };
+
+      const shipsInBox = ships.filter((s) => selectedBbox.contains([s.latitude, s.longitude]));
+      const aircraftInBox = aircraft.filter((a) => selectedBbox.contains([a.latitude, a.longitude]));
+
+      // Avoid passing too big arrays
+      const shipsData = shipsInBox.slice(0, 100);
+      const aircraftData = aircraftInBox.slice(0, 100);
+
+      const res = await fetch('/api/analyze-bbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ships: shipsData, aircraft: aircraftData, bounds }),
+      });
+      const data = await res.json();
+      setBboxAnalysis(data.summary || 'Failed to analyze region.');
+    } catch (e) {
+      console.error(e);
+      setBboxAnalysis('Analysis failed due to network error.');
+    } finally {
+      setIsAnalyzingBbox(false);
+      setBboxMode(false);
+    }
+  };
+
+  const [sidebarTab, setSidebarTab] = useState<"cameras" | "streetview" >(
     "cameras",
   );
 
@@ -285,6 +385,7 @@ export default function GodsEyeMap({
           style={{ background: "#0a0a0a" }}
         >
           <MapController center={mapCenter} zoom={mapZoom} />
+          <BboxDrawer active={bboxMode} currentBbox={selectedBbox} onBboxChange={setSelectedBbox} />
           <StreetViewClickHandler
             active={streetViewActive && !streetViewLocation}
             onDropPin={handleStreetViewDrop}
@@ -388,6 +489,36 @@ export default function GodsEyeMap({
         <ScanOverlay />
         <PegmanCursor active={streetViewActive && !streetViewLocation} />
 
+        
+        {/* ─── ANALYSIS RESULT PANEL ──────────────────── */}
+        <AnimatePresence>
+          {bboxAnalysis && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1002] w-full max-w-2xl px-4"
+            >
+              <div className="bg-black/90 backdrop-blur-2xl border border-cyan-500/30 rounded-2xl p-5 shadow-2xl">
+                <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-cyan-400">🤖</span>
+                    <span className="text-[11px] text-cyan-400 font-mono tracking-wider font-bold">
+                      STRATEGIC REGION AI REPORT
+                    </span>
+                  </div>
+                  <button onClick={() => {setBboxAnalysis(null); setSelectedBbox(null)}} className="text-gray-500 hover:text-white">
+                    ✕
+                  </button>
+                </div>
+                <div className="text-xs text-gray-300 font-mono leading-relaxed whitespace-pre-wrap max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
+                  {bboxAnalysis}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ─── STREET VIEW GUIDE (when pegman mode active) ── */}
         {streetViewActive && !streetViewLocation && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1001] pointer-events-none">
@@ -428,6 +559,31 @@ export default function GodsEyeMap({
           </div>
 
           <div className="flex items-center gap-2">
+            
+            {/* Analysis Box */}
+            <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-1 py-1 flex items-center gap-1">
+              <button
+                onClick={() => {
+                  setBboxMode(!bboxMode);
+                  if (bboxMode) setSelectedBbox(null); // Cancel selection
+                }}
+                className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold tracking-wider transition-all ${
+                  bboxMode ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" : "bg-transparent text-gray-400 hover:text-white"
+                }`}
+              >
+                {bboxMode ? 'CANCEL SELECT' : 'AI REGION SELECT'}
+              </button>
+              {selectedBbox && (
+                <button
+                  onClick={analyzeBbox}
+                  className="bg-cyan-500/30 text-cyan-300 hover:bg-cyan-500/40 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold tracking-wider transition-all border border-cyan-500/50"
+                  disabled={isAnalyzingBbox}
+                >
+                  {isAnalyzingBbox ? "ANALYZING..." : "ANALYZE AREA"}
+                </button>
+              )}
+            </div>
+
             {/* Layer toggles */}
             <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-1 py-1 flex items-center gap-1">
               {[
