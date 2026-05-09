@@ -24,7 +24,7 @@ import {
   CloudRain,
   CloudLightning,
   Sun,
-    Database,
+  Database,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -103,6 +103,40 @@ export default function OilAndGasIntelligence() {
   const [simulationMode, setSimulationMode] = useState(false);
   const [activeLayer, setActiveLayer] = useState("shadow");
   const [shipData, setShipData] = useState<any[]>([]);
+
+  const [bboxMode, setBboxMode] = useState(false);
+  const [selectedBbox, setSelectedBbox] = useState<any>(null);
+  const [isAnalyzingBbox, setIsAnalyzingBbox] = useState(false);
+  const [bboxAnalysis, setBboxAnalysis] = useState<string | null>(null);
+
+  const analyzeBbox = async () => {
+    if (!selectedBbox) return;
+    setIsAnalyzingBbox(true);
+    setBboxAnalysis(null);
+    try {
+      const bounds = {
+        north: selectedBbox.getNorth(),
+        south: selectedBbox.getSouth(),
+        east: selectedBbox.getEast(),
+        west: selectedBbox.getWest(),
+      };
+
+      const shipsInBox = shipData.filter((s:any) => selectedBbox.contains([s.latitude, s.longitude]));
+      
+      const res = await fetch('/api/analyze-bbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ships: shipsInBox, aircraft: [], bounds }),
+      });
+      const data = await res.json();
+      setBboxAnalysis(data.summary || 'Failed to analyze region.');
+    } catch (e) {
+      console.error(e);
+      setBboxAnalysis('Analysis failed due to network error.');
+    } finally {
+      setIsAnalyzingBbox(false);
+    }
+  };
 
   const fetchShips = async () => {
     try {
@@ -227,7 +261,33 @@ export default function OilAndGasIntelligence() {
             >
               {/* REAL LEAFLET MAP BACKGROUND */}
               <div className="absolute inset-0 z-0">
-                <IntelligenceMap activeLayer={activeLayer} ships={shipData} />
+                <IntelligenceMap activeLayer={activeLayer} ships={shipData} bboxMode={bboxMode} selectedBbox={selectedBbox} setSelectedBbox={setSelectedBbox} />
+              </div>
+
+              {/* AI Region Select Controls (Top Right) */}
+              <div className="absolute top-4 right-4 z-10 flex gap-2">
+                <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-1 py-1 flex items-center gap-1 shadow-2xl">
+                  <button
+                    onClick={() => {
+                      setBboxMode(!bboxMode);
+                      if (bboxMode) setSelectedBbox(null);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold tracking-wider transition-all ${
+                      bboxMode ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" : "bg-transparent text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {bboxMode ? 'CANCEL SELECT' : 'AI REGION SELECT'}
+                  </button>
+                  {selectedBbox && (
+                    <button
+                      onClick={analyzeBbox}
+                      className="bg-cyan-500/30 text-cyan-300 hover:bg-cyan-500/40 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold tracking-wider transition-all border border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                      disabled={isAnalyzingBbox}
+                    >
+                      {isAnalyzingBbox ? "ANALYZING..." : "ANALYZE AREA"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Layer Toggles overlay */}
@@ -252,6 +312,35 @@ export default function OilAndGasIntelligence() {
                   </button>
                 ))}
               </div>
+
+              {/* AI Region Report Overlay */}
+              <AnimatePresence>
+                {bboxAnalysis && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 50, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 50, scale: 0.95 }}
+                    className="absolute bottom-4 right-4 max-w-sm w-[350px] z-50 pointer-events-auto"
+                  >
+                    <div className="bg-black/90 backdrop-blur-2xl border border-cyan-500/40 rounded-xl p-4 shadow-[0_10px_40px_-10px_rgba(6,182,212,0.3)]">
+                      <div className="flex justify-between items-start mb-3 border-b border-white/10 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-cyan-400">🤖</span>
+                          <span className="text-[11px] text-cyan-400 font-mono tracking-wider font-bold">
+                            STRATEGIC REGION AI REPORT
+                          </span>
+                        </div>
+                        <button onClick={() => {setBboxAnalysis(null); setSelectedBbox(null)}} className="text-gray-500 hover:text-white">
+                          ✕
+                        </button>
+                      </div>
+                      <div className="text-xs text-gray-300 font-mono leading-relaxed whitespace-pre-wrap max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
+                        {bboxAnalysis}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Layman Summarizer Widget */}
               {(() => {
@@ -533,85 +622,108 @@ export default function OilAndGasIntelligence() {
             </div>
 
             {/* Analyzer for Latest Insights */}
-              {(() => {
-                const numVal = parseFloat((shipData.length * 2.1).toFixed(1)) || 1450.0;
-                const inTransitMBarrels = shipData.length > 0 ? (shipData.length * 2.1).toFixed(1) : "1,450.0";
-                const globalStorage = 4120.5; // Baseline mock
-                const totalSupply = numVal + globalStorage;
-                const transitPercent = ((numVal / totalSupply) * 100).toFixed(1);
+            {(() => {
+              const numVal =
+                parseFloat((shipData.length * 2.1).toFixed(1)) || 1450.0;
+              const inTransitMBarrels =
+                shipData.length > 0
+                  ? (shipData.length * 2.1).toFixed(1)
+                  : "1,450.0";
+              const globalStorage = 4120.5; // Baseline mock
+              const totalSupply = numVal + globalStorage;
+              const transitPercent = ((numVal / totalSupply) * 100).toFixed(1);
 
-                return (
-                  <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-colors" />
-                    <h3 className="font-bold flex items-center gap-2 mb-4 text-white relative z-10">
-                      <BrainCircuit className="w-5 h-5 text-blue-400" /> AI OSINT Analyzer
-                    </h3>
-                    <div className="space-y-4 relative z-10">
-                      
-                      {/* Satellite Imagery */}
-                      <div className="border border-white/5 bg-black/40 rounded-lg p-3">
-                        <div className="flex justify-between items-center mb-2">
-                          <p className="text-xs text-blue-200 font-medium">OPEC+ Storage Satellite Feed</p>
-                          <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            LIVE
+              return (
+                <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-colors" />
+                  <h3 className="font-bold flex items-center gap-2 mb-4 text-white relative z-10">
+                    <BrainCircuit className="w-5 h-5 text-blue-400" /> AI OSINT
+                    Analyzer
+                  </h3>
+                  <div className="space-y-4 relative z-10">
+                    {/* Satellite Imagery */}
+                    <div className="border border-white/5 bg-black/40 rounded-lg p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-xs text-blue-200 font-medium">
+                          OPEC+ Storage Satellite Feed
+                        </p>
+                        <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold tracking-wider">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          LIVE
+                        </span>
+                      </div>
+                      <div className="relative w-full h-32 rounded border border-white/10 overflow-hidden mb-2">
+                        <img
+                          src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop"
+                          alt="Satellite Oil Tanks"
+                          className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-luminosity hover:mix-blend-normal transition-all"
+                        />
+                        {/* UI overlay on satellite */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 pointer-events-none">
+                          <span className="text-[10px] text-white font-mono bg-black/60 px-1 inline-block w-max border border-white/10">
+                            LOC: 26�16'18"N 50�08'19"E
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-mono bg-black/60 px-1 inline-block w-max mt-0.5 border border-white/10">
+                            EST. VOL: +4.2% CAPACITY
                           </span>
                         </div>
-                        <div className="relative w-full h-32 rounded border border-white/10 overflow-hidden mb-2">
-                          <img 
-                            src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop" 
-                            alt="Satellite Oil Tanks" 
-                            className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-luminosity hover:mix-blend-normal transition-all"
-                          />
-                          {/* UI overlay on satellite */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 pointer-events-none">
-                            <span className="text-[10px] text-white font-mono bg-black/60 px-1 inline-block w-max border border-white/10">LOC: 26�16'18"N 50�08'19"E</span>
-                            <span className="text-[10px] text-emerald-400 font-mono bg-black/60 px-1 inline-block w-max mt-0.5 border border-white/10">EST. VOL: +4.2% CAPACITY</span>
-                          </div>
-                        </div>
-                        <p className="text-[11px] text-gray-400 leading-relaxed">
-                          AI detection shows major facility clusters exceeding exported tank limits, highly correlated with localized shadow fleet anomalies.
-                        </p>
                       </div>
+                      <p className="text-[11px] text-gray-400 leading-relaxed">
+                        AI detection shows major facility clusters exceeding
+                        exported tank limits, highly correlated with localized
+                        shadow fleet anomalies.
+                      </p>
+                    </div>
 
-                      {/* Fuel Tracker */}
-                      <div className="border border-white/5 bg-black/40 rounded-lg p-4">
-                        <p className="text-xs text-blue-300 font-medium mb-3 flex items-center gap-2">
-                          <Database className="w-3 h-3 text-blue-400" /> Global Crude Logistics
-                        </p>
-                        
-                        <div className="space-y-3">
-                          <div>
-                            <div className="flex justify-between text-[11px] mb-1">
-                              <span className="text-gray-400">At Sea (In Transit)</span>
-                              <span className="text-white font-bold">{inTransitMBarrels} MBBL</span>
-                            </div>
-                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                              <div className="bg-blue-500 h-1.5 rounded-full relative" style={{ width: `${transitPercent}%` }}>
-                                <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                              </div>
-                            </div>
+                    {/* Fuel Tracker */}
+                    <div className="border border-white/5 bg-black/40 rounded-lg p-4">
+                      <p className="text-xs text-blue-300 font-medium mb-3 flex items-center gap-2">
+                        <Database className="w-3 h-3 text-blue-400" /> Global
+                        Crude Logistics
+                      </p>
+
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex justify-between text-[11px] mb-1">
+                            <span className="text-gray-400">
+                              At Sea (In Transit)
+                            </span>
+                            <span className="text-white font-bold">
+                              {inTransitMBarrels} MBBL
+                            </span>
                           </div>
-                          
-                          <div>
-                            <div className="flex justify-between text-[11px] mb-1">
-                              <span className="text-gray-400">Onshore Storage (SPR + Comm)</span>
-                              <span className="text-white font-bold">{globalStorage.toLocaleString()} MBBL</span>
-                            </div>
-                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                              <div className="bg-orange-500 h-1.5 rounded-full w-[82%]" ></div>
+                          <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="bg-blue-500 h-1.5 rounded-full relative"
+                              style={{ width: `${transitPercent}%` }}
+                            >
+                              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
                             </div>
                           </div>
                         </div>
-                      </div>
 
+                        <div>
+                          <div className="flex justify-between text-[11px] mb-1">
+                            <span className="text-gray-400">
+                              Onshore Storage (SPR + Comm)
+                            </span>
+                            <span className="text-white font-bold">
+                              {globalStorage.toLocaleString()} MBBL
+                            </span>
+                          </div>
+                          <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-orange-500 h-1.5 rounded-full w-[82%]"></div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                );
-              })()}
-            </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
-      </main>
-    );
-  }
+      </div>
+    </main>
+  );
+}

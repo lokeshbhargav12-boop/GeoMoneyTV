@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -8,6 +8,9 @@ import {
   Popup,
   CircleMarker,
   Polyline,
+  useMapEvents,
+  useMap,
+  Rectangle,
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -82,12 +85,73 @@ const MAJOR_ROUTES = [
   },
 ];
 
+// ─── BOUNDING BOX SELECTION TOOL ─────────────────────────────
+function BboxDrawer({
+  active,
+  currentBbox,
+  onBboxChange,
+}: {
+  active: boolean;
+  currentBbox: L.LatLngBounds | null;
+  onBboxChange: (bounds: L.LatLngBounds | null) => void;
+}) {
+  const map = useMap();
+  const [start, setStart] = useState<L.LatLng | null>(null);
+  const [end, setEnd] = useState<L.LatLng | null>(null);
+
+  useEffect(() => {
+    if (active) {
+      map.dragging.disable();
+    } else {
+      map.dragging.enable();
+      setStart(null);
+      setEnd(null);
+    }
+  }, [active, map]);
+
+  useMapEvents({
+    mousedown(e) {
+      if (!active) return;
+      setStart(e.latlng);
+      setEnd(e.latlng);
+      onBboxChange(null);
+    },
+    mousemove(e) {
+      if (!active || !start) return;
+      setEnd(e.latlng);
+    },
+    mouseup(e) {
+      if (!active || !start || !end) return;
+      const bounds = L.latLngBounds(start, end);
+      onBboxChange(bounds);
+      setStart(null);
+      setEnd(null);
+    },
+  });
+
+  if (start && end) {
+    return <Rectangle bounds={L.latLngBounds(start, end)} pathOptions={{ color: '#06b6d4', weight: 2, fillOpacity: 0.2 }} />;
+  }
+  
+  if (currentBbox) {
+    return <Rectangle bounds={currentBbox} pathOptions={{ color: '#06b6d4', weight: 2, fillOpacity: 0.1 }} />;
+  }
+
+  return null;
+}
+
 export default function IntelligenceMap({
   activeLayer,
   ships = [],
+  bboxMode = false,
+  selectedBbox = null,
+  setSelectedBbox = () => {},
 }: {
   activeLayer: string;
   ships?: any[];
+  bboxMode?: boolean;
+  selectedBbox?: L.LatLngBounds | null;
+  setSelectedBbox?: (bounds: L.LatLngBounds | null) => void;
 }) {
   useEffect(() => {
     delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -138,6 +202,8 @@ export default function IntelligenceMap({
       className="h-full w-full bg-black/90"
       attributionControl={false}
     >
+      <BboxDrawer active={bboxMode} currentBbox={selectedBbox} onBboxChange={setSelectedBbox} />
+
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
         attribution=""
