@@ -559,7 +559,7 @@ export default function OilAndGasIntelligence() {
                         </div>
                         <div className="relative w-full h-32 rounded border border-white/10 overflow-hidden mb-2">
                           <img 
-                            src="https://images.unsplash.com/photo-1605206385411-18e381018596?q=80&w=600&auto=format&fit=crop" 
+                            src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop" 
                             alt="Satellite Oil Tanks" 
                             className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-luminosity hover:mix-blend-normal transition-all"
                           />
