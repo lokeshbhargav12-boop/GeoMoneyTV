@@ -66,27 +66,58 @@ export default function NewsPageClient() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalArticles, setTotalArticles] = useState(0);
   const [categories, setCategories] =
     useState<NewsCategory[]>(DEFAULT_CATEGORIES);
 
   useEffect(() => {
-    fetchArticles();
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPage(1); // Reset page on filter change
+  }, [debouncedSearch, activeCategory]);
+
+  useEffect(() => {
     fetchCategories();
   }, []);
 
-  const fetchArticles = async () => {
-    try {
-      const res = await fetch("/api/articles?limit=50");
-      if (res.ok) {
-        const data = await res.json();
-        setArticles(data);
+  useEffect(() => {
+    const fetchArticles = async () => {
+      setLoading(true);
+      try {
+        const query = new URLSearchParams({
+          paginate: "true",
+          limit: "21", // Multiple of 3 for the grid layout
+          page: page.toString(),
+        });
+        
+        if (activeCategory !== "all") query.set("category", activeCategory);
+        if (debouncedSearch) query.set("search", debouncedSearch);
+
+        const res = await fetch(`/api/articles?${query.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.articles) {
+            setArticles(data.articles);
+            setTotalPages(data.pagination?.totalPages || 1);
+            setTotalArticles(data.pagination?.total || 0);
+          } else {
+            setArticles(data);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch articles:", error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Failed to fetch articles:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    fetchArticles();
+  }, [page, activeCategory, debouncedSearch]);
 
   const fetchCategories = async () => {
     try {
@@ -108,19 +139,7 @@ export default function NewsPageClient() {
     }
   };
 
-  const filteredArticles = articles.filter((article) => {
-    const matchesCategory =
-      activeCategory === "all" ||
-      article.category.toLowerCase().includes(activeCategory.toLowerCase());
-
-    const matchesSearch =
-      !searchQuery ||
-      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (article.description &&
-        article.description.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    return matchesCategory && matchesSearch;
-  });
+  const filteredArticles = articles; // Now filtered on the backend
 
   return (
     <div className="min-h-screen bg-geo-dark text-white pt-28 pb-24">
@@ -180,7 +199,7 @@ export default function NewsPageClient() {
         <div className="mb-6 text-sm text-gray-500">
           {loading
             ? "Loading..."
-            : `${filteredArticles.length} article${filteredArticles.length !== 1 ? "s" : ""} found`}
+            : `${totalArticles} article${totalArticles !== 1 ? "s" : ""} found`}
         </div>
 
         {/* Articles Grid */}
@@ -259,6 +278,29 @@ export default function NewsPageClient() {
                 </div>
               </Link>
             ))}
+          </div>
+        )}
+
+        {/* Pagination */
+        !loading && totalPages > 1 && (
+          <div className="mt-12 flex items-center justify-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white disabled:opacity-50 hover:bg-white/10 transition-colors"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-400 px-4">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white disabled:opacity-50 hover:bg-white/10 transition-colors"
+            >
+              Next
+            </button>
           </div>
         )}
       </div>
