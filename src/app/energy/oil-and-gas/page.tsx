@@ -272,7 +272,9 @@ export default function OilAndGasIntelligence() {
                   selectedBbox={selectedBbox}
                   setSelectedBbox={setSelectedBbox}
                   simulationMode={simulationMode}
-                  onSimulationDrag={() => setSimulationImpact(prev => prev + 15)}
+                  onSimulationDrag={() =>
+                    setSimulationImpact((prev) => prev + 15)
+                  }
                 />
               </div>
 
@@ -401,7 +403,9 @@ export default function OilAndGasIntelligence() {
             </div>
 
             {/* Predictive Price Engine */}
-            <PredictivePriceEngine simulationImpact={simulationMode ? simulationImpact : 0} />
+            <PredictivePriceEngine
+              simulationImpact={simulationMode ? simulationImpact : 0}
+            />
           </div>
 
           {/* --- RIGHT COL: WIDGETS --- */}

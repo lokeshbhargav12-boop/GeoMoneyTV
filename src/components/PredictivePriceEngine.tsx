@@ -16,7 +16,7 @@ interface GeolocationState {
 }
 
 export function PredictivePriceEngine({
-  simulationImpact = 0
+  simulationImpact = 0,
 }: {
   simulationImpact?: number;
 }) {

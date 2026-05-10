@@ -219,6 +219,19 @@ export default function IntelligenceMap({
   simulationMode?: boolean;
   onSimulationDrag?: () => void;
 }) {
+  const [simMarkers, setSimMarkers] = useState([
+    {
+      id: "sim-hormuz",
+      pos: [26.0, 56.5] as [number, number],
+      name: "Hormuz Blockade Sim",
+    },
+    {
+      id: "sim-malacca",
+      pos: [2.5, 101.5] as [number, number],
+      name: "Malacca Blockade Sim",
+    },
+  ]);
+
   useEffect(() => {
     delete (L.Icon.Default.prototype as any)._getIconUrl;
   }, []);
@@ -465,27 +478,21 @@ export default function IntelligenceMap({
 
       {/* SIMULATION MODE BLOCKADE DRAGGABLE MARKERS */}
       {simulationMode &&
-        [
-          {
-            id: "sim-hormuz",
-            pos: [26.0, 56.5] as [number, number],
-            name: "Hormuz Blockade Sim",
-          },
-          {
-            id: "sim-malacca",
-            pos: [2.5, 101.5] as [number, number],
-            name: "Malacca Blockade Sim",
-          },
-        ].map((sim) => (
+        simMarkers.map((sim, i) => (
           <Marker
             key={sim.id}
             position={sim.pos}
             icon={blockadeIcon}
             draggable={true}
             eventHandlers={{
-              dragend: () => {
+              dragend: (e) => {
+                const marker = e.target;
+                const position = marker.getLatLng();
+                const newMarkers = [...simMarkers];
+                newMarkers[i].pos = [position.lat, position.lng];
+                setSimMarkers(newMarkers);
                 onSimulationDrag();
-              }
+              },
             }}
           >
             <Popup className="geo-popup" autoPan={false}>
