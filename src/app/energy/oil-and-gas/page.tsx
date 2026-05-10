@@ -102,6 +102,7 @@ const INTELLIGENCE_LAYERS = [
 
 export default function OilAndGasIntelligence() {
   const [simulationMode, setSimulationMode] = useState(false);
+  const [simulationImpact, setSimulationImpact] = useState(0);
   const [activeLayer, setActiveLayer] = useState("shadow");
   const [shipData, setShipData] = useState<any[]>([]);
 
@@ -271,6 +272,7 @@ export default function OilAndGasIntelligence() {
                   selectedBbox={selectedBbox}
                   setSelectedBbox={setSelectedBbox}
                   simulationMode={simulationMode}
+                  onSimulationDrag={() => setSimulationImpact(prev => prev + 15)}
                 />
               </div>
 
@@ -399,7 +401,7 @@ export default function OilAndGasIntelligence() {
             </div>
 
             {/* Predictive Price Engine */}
-            <PredictivePriceEngine />
+            <PredictivePriceEngine simulationImpact={simulationMode ? simulationImpact : 0} />
           </div>
 
           {/* --- RIGHT COL: WIDGETS --- */}

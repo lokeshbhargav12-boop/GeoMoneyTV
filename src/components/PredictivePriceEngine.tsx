@@ -15,7 +15,11 @@ interface GeolocationState {
   error: string | null;
 }
 
-export function PredictivePriceEngine() {
+export function PredictivePriceEngine({
+  simulationImpact = 0
+}: {
+  simulationImpact?: number;
+}) {
   const [commodity, setCommodity] = useState<Commodity>("petrol");
   const [timeframe, setTimeframe] = useState<Timeframe>("1week");
   const [geo, setGeo] = useState<GeolocationState>({
@@ -91,8 +95,9 @@ export function PredictivePriceEngine() {
     return Array.from({ length: points }).map((_, i) => {
       const volatility = currentTimeframe === "1week" ? 0.05 : 0.15;
       const trend = Math.sin(i * 0.5) * volatility * base;
+      const simBoost = i > 0 ? (simulationImpact / 100) * base : 0;
       const aiPrediction =
-        base + trend + Math.random() * volatility * base * 0.5;
+        base + trend + Math.random() * volatility * base * 0.5 + simBoost;
       return {
         baseline: base + trend * 0.5,
         predicted: aiPrediction,
@@ -109,7 +114,7 @@ export function PredictivePriceEngine() {
 
   useEffect(() => {
     setChartData(getMockData(commodity, timeframe));
-  }, [commodity, timeframe]);
+  }, [commodity, timeframe, simulationImpact]);
 
   const maxVal =
     chartData.length > 0
