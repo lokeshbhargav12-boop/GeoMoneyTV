@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PredictivePriceEngine } from "@/components/PredictivePriceEngine";
+import { SatelliteTanksScene } from "@/components/OilTanksVisualization";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -616,14 +617,13 @@ export default function OilAndGasIntelligence() {
                           LIVE
                         </span>
                       </div>
-                      <div className="relative w-full h-32 rounded border border-white/10 overflow-hidden mb-2">
-                        <img
-                          src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop"
-                          alt="Satellite Oil Tanks"
-                          className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-luminosity hover:mix-blend-normal transition-all"
-                        />
+                      <div className="relative w-full h-48 rounded border border-white/10 overflow-hidden mb-2">
+                        {/* Interactive 3D Satellite Tanks View */}
+                        <div className="absolute inset-0 z-0">
+                          <SatelliteTanksScene />
+                        </div>
                         {/* UI overlay on satellite */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 pointer-events-none">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 pointer-events-none z-10">
                           <span className="text-[10px] text-white font-mono bg-black/60 px-1 inline-block w-max border border-white/10">
                             LOC: 26�16'18"N 50�08'19"E
                           </span>
