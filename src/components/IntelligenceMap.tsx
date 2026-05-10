@@ -14,7 +14,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Ship, Crosshair, Thermometer } from "lucide-react";
+import { Ship, Crosshair, Thermometer, AlertTriangle } from "lucide-react";
 // @ts-ignore: Suppress remote build type error for react-dom/server
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -208,12 +208,14 @@ export default function IntelligenceMap({
   bboxMode = false,
   selectedBbox = null,
   setSelectedBbox = () => {},
+  simulationMode = false,
 }: {
   activeLayer: string;
   ships?: any[];
   bboxMode?: boolean;
   selectedBbox?: L.LatLngBounds | null;
   setSelectedBbox?: (bounds: L.LatLngBounds | null) => void;
+  simulationMode?: boolean;
 }) {
   useEffect(() => {
     delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -243,6 +245,14 @@ export default function IntelligenceMap({
 
   const thermalIcon = createIcon(
     <Thermometer className="text-orange-500 w-6 h-6 drop-shadow-[0_0_10px_rgba(249,115,22,1)]" />,
+  );
+
+  const blockadeIcon = createIcon(
+    <div className="relative group cursor-grab active:cursor-grabbing">
+      <div className="absolute inset-0 bg-amber-500 rounded-full animate-ping opacity-30" />
+      <AlertTriangle className="text-amber-500 w-8 h-8 drop-shadow-[0_0_15px_rgba(245,158,11,1)]" />
+    </div>,
+    "blockade-marker"
   );
 
   // Real-time anomalies logic for shadow fleets
@@ -450,6 +460,31 @@ export default function IntelligenceMap({
             </Marker>
           );
         })}
+
+      {/* SIMULATION MODE BLOCKADE DRAGGABLE MARKERS */}
+      {simulationMode && [
+        { id: "sim-hormuz", pos: [26.0, 56.5] as [number, number], name: "Hormuz Blockade Sim" },
+        { id: "sim-malacca", pos: [2.5, 101.5] as [number, number], name: "Malacca Blockade Sim" },
+      ].map((sim) => (
+        <Marker
+          key={sim.id}
+          position={sim.pos}
+          icon={blockadeIcon}
+          draggable={true}
+        >
+          <Popup className="geo-popup" autoPan={false}>
+             <div className="bg-amber-950/90 border border-amber-500/50 p-2 rounded-lg text-amber-200 text-xs">
+                <span className="font-bold block text-amber-500 tracking-wider">
+                  ⚠️ SIMULATED BLOCKADE
+                </span>
+                <span className="text-amber-100/70 mt-1 block">
+                  Drag this marker over key chokepoints to model price impact.
+                </span>
+             </div>
+          </Popup>
+        </Marker>
+      ))}
+
     </MapContainer>
   );
 }

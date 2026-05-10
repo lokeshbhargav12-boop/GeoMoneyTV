@@ -270,6 +270,7 @@ export default function OilAndGasIntelligence() {
                   bboxMode={bboxMode}
                   selectedBbox={selectedBbox}
                   setSelectedBbox={setSelectedBbox}
+                  simulationMode={simulationMode}
                 />
               </div>
 
