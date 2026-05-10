@@ -85,6 +85,58 @@ const MAJOR_ROUTES = [
   },
 ];
 
+// --- MOCK WEATHER DATA FOR KEY CITIES ---
+const WEATHER_HUBS = [
+  {
+    id: 1,
+    pos: [29.7, -95.2] as [number, number],
+    name: "Houston",
+    temp: "32°C",
+    wind: "18 km/h",
+    rain: "0 mm",
+  },
+  {
+    id: 2,
+    pos: [51.9, 4.1] as [number, number],
+    name: "Rotterdam",
+    temp: "14°C",
+    wind: "25 km/h",
+    rain: "5 mm",
+  },
+  {
+    id: 3,
+    pos: [26.3, 50.1] as [number, number],
+    name: "Dammam",
+    temp: "42°C",
+    wind: "12 km/h",
+    rain: "0 mm",
+  },
+  {
+    id: 4,
+    pos: [1.3, 103.8] as [number, number],
+    name: "Singapore",
+    temp: "29°C",
+    wind: "8 km/h",
+    rain: "12 mm",
+  },
+  {
+    id: 5,
+    pos: [35.5, 129.3] as [number, number],
+    name: "Ulsan",
+    temp: "22°C",
+    wind: "15 km/h",
+    rain: "2 mm",
+  },
+  {
+    id: 6,
+    pos: [40.7, -74.0] as [number, number],
+    name: "New York",
+    temp: "18°C",
+    wind: "22 km/h",
+    rain: "8 mm",
+  },
+];
+
 // ─── BOUNDING BOX SELECTION TOOL ─────────────────────────────
 function BboxDrawer({
   active,
@@ -130,11 +182,21 @@ function BboxDrawer({
   });
 
   if (start && end) {
-    return <Rectangle bounds={L.latLngBounds(start, end)} pathOptions={{ color: '#06b6d4', weight: 2, fillOpacity: 0.2 }} />;
+    return (
+      <Rectangle
+        bounds={L.latLngBounds(start, end)}
+        pathOptions={{ color: "#06b6d4", weight: 2, fillOpacity: 0.2 }}
+      />
+    );
   }
-  
+
   if (currentBbox) {
-    return <Rectangle bounds={currentBbox} pathOptions={{ color: '#06b6d4', weight: 2, fillOpacity: 0.1 }} />;
+    return (
+      <Rectangle
+        bounds={currentBbox}
+        pathOptions={{ color: "#06b6d4", weight: 2, fillOpacity: 0.1 }}
+      />
+    );
   }
 
   return null;
@@ -202,7 +264,11 @@ export default function IntelligenceMap({
       className="h-full w-full bg-black/90"
       attributionControl={false}
     >
-      <BboxDrawer active={bboxMode} currentBbox={selectedBbox} onBboxChange={setSelectedBbox} />
+      <BboxDrawer
+        active={bboxMode}
+        currentBbox={selectedBbox}
+        onBboxChange={setSelectedBbox}
+      />
 
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
@@ -325,6 +391,65 @@ export default function IntelligenceMap({
             opacity={0.5}
           />
         ))}
+
+      {/* WEATHER HUBS DATA LAYER */}
+      {["temp", "wind", "rain", "storm"].includes(activeLayer) &&
+        WEATHER_HUBS.map((hub) => {
+          let displayValue = "";
+          let iconColor = "text-gray-300";
+
+          if (activeLayer === "temp") {
+            displayValue = hub.temp;
+            iconColor =
+              "text-orange-400 drop-shadow-[0_0_8px_rgba(251,146,60,0.8)]";
+          }
+          if (activeLayer === "wind") {
+            displayValue = hub.wind;
+            iconColor =
+              "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]";
+          }
+          if (activeLayer === "rain" || activeLayer === "storm") {
+            displayValue = hub.rain;
+            iconColor =
+              "text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]";
+          }
+
+          const weatherIcon = createIcon(
+            <div className="relative group">
+              <div
+                className={`absolute -top-3 -left-3 ${iconColor} bg-black/60 px-1.5 py-0.5 rounded font-mono text-[10px] font-bold whitespace-nowrap border border-white/10`}
+              >
+                {displayValue}
+              </div>
+              <div className="w-2 h-2 rounded-full bg-white/50 border border-white mt-1 shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
+            </div>,
+            "weather-hub-marker",
+          );
+
+          return (
+            <Marker
+              key={`weather-${hub.id}`}
+              position={hub.pos}
+              icon={weatherIcon}
+            >
+              <Popup className="geo-popup" autoPan={false}>
+                <div className="bg-slate-900/80 border border-slate-500/40 p-2 rounded-lg text-slate-200 text-xs shadow-xl">
+                  <span className="font-bold border-b border-slate-500/30 pb-1 mb-1 block">
+                    {hub.name}
+                  </span>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1 font-mono">
+                    <span className="text-gray-400">Temp:</span>
+                    <span className="text-orange-400">{hub.temp}</span>
+                    <span className="text-gray-400">Wind:</span>
+                    <span className="text-cyan-400">{hub.wind}</span>
+                    <span className="text-gray-400">Precip:</span>
+                    <span className="text-blue-400">{hub.rain}</span>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
     </MapContainer>
   );
 }

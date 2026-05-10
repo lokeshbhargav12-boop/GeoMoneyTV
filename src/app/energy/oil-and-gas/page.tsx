@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PredictivePriceEngine } from "@/components/PredictivePriceEngine";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -121,18 +122,20 @@ export default function OilAndGasIntelligence() {
         west: selectedBbox.getWest(),
       };
 
-      const shipsInBox = shipData.filter((s:any) => selectedBbox.contains([s.latitude, s.longitude]));
-      
-      const res = await fetch('/api/analyze-bbox', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const shipsInBox = shipData.filter((s: any) =>
+        selectedBbox.contains([s.latitude, s.longitude]),
+      );
+
+      const res = await fetch("/api/analyze-bbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ships: shipsInBox, aircraft: [], bounds }),
       });
       const data = await res.json();
-      setBboxAnalysis(data.summary || 'Failed to analyze region.');
+      setBboxAnalysis(data.summary || "Failed to analyze region.");
     } catch (e) {
       console.error(e);
-      setBboxAnalysis('Analysis failed due to network error.');
+      setBboxAnalysis("Analysis failed due to network error.");
     } finally {
       setIsAnalyzingBbox(false);
     }
@@ -257,11 +260,17 @@ export default function OilAndGasIntelligence() {
           <div className="lg:col-span-2 flex flex-col gap-6">
             {/* Map Area */}
             <div
-              className={`relative h-[500px] rounded-2xl overflow-hidden border ${simulationMode ? "border-amber-500/50" : "border-white/10"} bg-black/50 p-1`}
+              className={`relative h-[700px] rounded-2xl overflow-hidden border ${simulationMode ? "border-amber-500/50" : "border-white/10"} bg-black/50 p-1`}
             >
               {/* REAL LEAFLET MAP BACKGROUND */}
               <div className="absolute inset-0 z-0">
-                <IntelligenceMap activeLayer={activeLayer} ships={shipData} bboxMode={bboxMode} selectedBbox={selectedBbox} setSelectedBbox={setSelectedBbox} />
+                <IntelligenceMap
+                  activeLayer={activeLayer}
+                  ships={shipData}
+                  bboxMode={bboxMode}
+                  selectedBbox={selectedBbox}
+                  setSelectedBbox={setSelectedBbox}
+                />
               </div>
 
               {/* AI Region Select Controls (Top Right) */}
@@ -273,10 +282,12 @@ export default function OilAndGasIntelligence() {
                       if (bboxMode) setSelectedBbox(null);
                     }}
                     className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold tracking-wider transition-all ${
-                      bboxMode ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" : "bg-transparent text-gray-400 hover:text-white"
+                      bboxMode
+                        ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                        : "bg-transparent text-gray-400 hover:text-white"
                     }`}
                   >
-                    {bboxMode ? 'CANCEL SELECT' : 'AI REGION SELECT'}
+                    {bboxMode ? "CANCEL SELECT" : "AI REGION SELECT"}
                   </button>
                   {selectedBbox && (
                     <button
@@ -330,7 +341,13 @@ export default function OilAndGasIntelligence() {
                             STRATEGIC REGION AI REPORT
                           </span>
                         </div>
-                        <button onClick={() => {setBboxAnalysis(null); setSelectedBbox(null)}} className="text-gray-500 hover:text-white">
+                        <button
+                          onClick={() => {
+                            setBboxAnalysis(null);
+                            setSelectedBbox(null);
+                          }}
+                          className="text-gray-500 hover:text-white"
+                        >
                           ✕
                         </button>
                       </div>
@@ -381,67 +398,7 @@ export default function OilAndGasIntelligence() {
             </div>
 
             {/* Predictive Price Engine */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 relative overflow-hidden">
-              <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
-                <TrendingUp className="text-amber-500 w-5 h-5" /> 7-Day
-                Predictive Price Engine
-              </h3>
-              <div className="h-48 flex items-end justify-between gap-2 border-b border-l border-white/10 pl-2 pb-2 relative">
-                {/* Grid lines */}
-                <div className="absolute w-full border-t border-white/5 bottom-[33%]" />
-                <div className="absolute w-full border-t border-white/5 bottom-[66%]" />
-
-                {/* Mock Chart Bars */}
-                {[40, 45, 60, 50, 70, 65, 80].map((h, i) => (
-                  <div
-                    key={i}
-                    className="relative w-full flex justify-center group h-full items-end"
-                  >
-                    <div
-                      style={{ height: h + "%" }}
-                      className="w-2/3 bg-blue-500/50 rounded-t-sm transition-all"
-                    />
-                    <div
-                      style={{ height: h + 5 + "%" }}
-                      className="w-1 bg-geo-gold absolute rounded-t-sm z-10 shadow-[0_0_8px_rgba(255,215,0,0.5)]"
-                    />
-                    {/* Simulation Line */}
-                    {simulationMode && (
-                      <div
-                        style={{ height: h + i * 10 + "%" }}
-                        className="w-1 bg-orange-500 absolute -right-1 rounded-t-sm z-20 border-l border-dashed border-black"
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-between text-xs text-gray-500 mt-2 px-2">
-                <span>Day 1</span>
-                <span>Day 2</span>
-                <span>Day 3</span>
-                <span>Day 4</span>
-                <span>Day 5</span>
-                <span>Day 6</span>
-                <span>Day 7</span>
-              </div>
-              {/* Legend */}
-              <div className="flex gap-4 mt-6 text-xs font-medium pl-2">
-                <div className="flex items-center gap-2 text-gray-400">
-                  <div className="w-3 h-3 bg-blue-500 border border-blue-400 rounded-sm" />{" "}
-                  BASELINE CURRENT
-                </div>
-                <div className="flex items-center gap-2 text-geo-gold">
-                  <div className="w-3 h-3 bg-geo-gold rounded-full" /> AI
-                  PREDICTED
-                </div>
-                {simulationMode && (
-                  <div className="flex items-center gap-2 text-orange-400">
-                    <div className="w-3 h-3 bg-orange-500 rounded-sm" />{" "}
-                    SIMULATED IMPACT
-                  </div>
-                )}
-              </div>
-            </div>
+            <PredictivePriceEngine />
           </div>
 
           {/* --- RIGHT COL: WIDGETS --- */}
