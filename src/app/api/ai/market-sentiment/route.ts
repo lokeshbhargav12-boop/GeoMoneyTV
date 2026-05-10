@@ -9,7 +9,7 @@ const INSTRUMENT_NAMES: Record<string, string> = {
     'CAPITALCOM:US500': 'S&P 500 Index',
     'CAPITALCOM:NATURALGAS': 'Natural Gas',
     'CAPITALCOM:SILVER': 'Silver',
-    'CBOT:ZN1!': 'US 10-Year Treasury Note',
+    'TVC:US10Y': 'US 10-Year Treasury Note',
 }
 
 export async function POST(req: Request) {

@@ -69,32 +69,6 @@ export default function TradingViewMiniChart({
         className="tradingview-widget-container absolute top-0 left-0 w-full"
         style={{ height: `${height + 44}px` }}
       />
-      {/* Cover the TradingView logo — top-right corner of the widget iframe */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          right: 0,
-          width: "56px",
-          height: "36px",
-          background: logoCoverColor,
-          zIndex: 10,
-          pointerEvents: "none",
-        }}
-      />
-      {/* Cover any top-left logo just in case */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "70px",
-          height: "36px",
-          background: logoCoverColor,
-          zIndex: 10,
-          pointerEvents: "none",
-        }}
-      />
     </div>
   );
 }

@@ -380,7 +380,10 @@ export default function TradingViewMarketQuotes() {
       </div>
 
       {/* ── TradingView widget ──────────────────────────────────────── */}
-      <div ref={widgetAreaRef} className="flex-1 min-h-0 relative overflow-hidden">
+      <div
+        ref={widgetAreaRef}
+        className="flex-1 min-h-0 relative overflow-hidden"
+      >
         {selected.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <p className="text-xs text-gray-600">

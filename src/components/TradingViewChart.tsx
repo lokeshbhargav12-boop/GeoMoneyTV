@@ -54,20 +54,33 @@ export default function TradingViewChart({
   }, [symbol, interval, height]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+      }}
+    >
       <div
         ref={containerRef}
         className="tradingview-widget-container"
-        style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "calc(100% + 40px)" }}
-      />
-      {/* Cover the TradingView logo in the top-left of the chart iframe */}
-      <div
         style={{
           position: "absolute",
           top: 0,
           left: 0,
-          width: "60px",
-          height: "40px",
+          width: "100%",
+          height: "calc(100% + 40px)",
+        }}
+      />
+      {/* Cover the TradingView logo in the bottom-left of the chart iframe */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          width: "55px",
+          height: "80px",
           background: "#050505",
           zIndex: 10,
           pointerEvents: "none",

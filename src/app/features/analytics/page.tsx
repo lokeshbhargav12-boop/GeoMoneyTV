@@ -138,7 +138,7 @@ const INSTRUMENTS = [
   {
     id: "us10y",
     label: "US 10Y",
-    symbol: "CBOT:ZN1!",
+    symbol: "TVC:US10Y",
     name: "US Treasury Note",
     color: "#a29bfe",
     lineColor: "rgba(162,155,254,1)",
@@ -164,7 +164,7 @@ const CAPITAL_FLOW = [
     bgColor: "rgba(212,175,55,0.12)",
   },
   {
-    symbol: "CBOT:ZN1!",
+    symbol: "TVC:US10Y",
     label: "10-Year Treasury Note",
     desc: "Global risk-free rate benchmark. Rising yields signal risk-off, pressuring commodities.",
     color: "#a29bfe",
