@@ -8,7 +8,7 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url)
         const category = searchParams.get('category')
         const search = searchParams.get('search')
-        const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50)
+        const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
 
         const where: any = { published: true }
 

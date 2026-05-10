@@ -43,8 +43,15 @@ function Tank({
 
       {/* Internal Outline (Scanner style) */}
       <mesh position={[0, height / 2, 0]}>
-        <cylinderGeometry args={[radius * 1.01, radius * 1.01, height * 1.01, 16]} />
-        <meshBasicMaterial color="#06b6d4" wireframe transparent opacity={0.1} />
+        <cylinderGeometry
+          args={[radius * 1.01, radius * 1.01, height * 1.01, 16]}
+        />
+        <meshBasicMaterial
+          color="#06b6d4"
+          wireframe
+          transparent
+          opacity={0.1}
+        />
       </mesh>
 
       {/* Oil Fill Level */}
@@ -53,8 +60,20 @@ function Tank({
           args={[radius * 0.95, radius * 0.95, height * fillLevel, 32]}
         />
         <meshStandardMaterial
-          color={fillLevel > 0.7 ? "#ef4444" : fillLevel > 0.4 ? "#f59e0b" : "#10b981"}
-          emissive={fillLevel > 0.7 ? "#ef4444" : fillLevel > 0.4 ? "#f59e0b" : "#10b981"}
+          color={
+            fillLevel > 0.7
+              ? "#ef4444"
+              : fillLevel > 0.4
+                ? "#f59e0b"
+                : "#10b981"
+          }
+          emissive={
+            fillLevel > 0.7
+              ? "#ef4444"
+              : fillLevel > 0.4
+                ? "#f59e0b"
+                : "#10b981"
+          }
           emissiveIntensity={0.5}
           transparent
           opacity={0.8}
@@ -86,7 +105,7 @@ function GroundScanner() {
         <planeGeometry args={[20, 20]} />
         <meshStandardMaterial color="#020617" metalness={0.1} roughness={0.9} />
       </mesh>
-      
+
       {/* Scanning grid */}
       <gridHelper
         ref={gridRef as any}
@@ -109,9 +128,9 @@ export function SatelliteTanksScene() {
       [0, 0],
       [-4, 0],
       [4, 0],
-      [0, 4]
+      [0, 4],
     ];
-    
+
     for (let i = 0; i < positions.length; i++) {
       const [x, z] = positions[i];
       arr.push({
@@ -133,7 +152,11 @@ export function SatelliteTanksScene() {
     >
       <ambientLight intensity={1.5} />
       <directionalLight position={[10, 15, 10]} intensity={2} color="#06b6d4" />
-      <directionalLight position={[-10, 5, -10]} intensity={0.5} color="#ef4444" />
+      <directionalLight
+        position={[-10, 5, -10]}
+        intensity={0.5}
+        color="#ef4444"
+      />
 
       <group position={[0, -0.5, 0]}>
         <GroundScanner />

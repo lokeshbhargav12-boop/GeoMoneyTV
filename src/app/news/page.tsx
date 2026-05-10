@@ -76,7 +76,7 @@ export default function NewsPageClient() {
 
   const fetchArticles = async () => {
     try {
-      const res = await fetch("/api/articles");
+      const res = await fetch("/api/articles?limit=50");
       if (res.ok) {
         const data = await res.json();
         setArticles(data);
