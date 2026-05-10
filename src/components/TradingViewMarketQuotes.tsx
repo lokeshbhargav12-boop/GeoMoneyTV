@@ -215,7 +215,7 @@ export default function TradingViewMarketQuotes() {
       "https://s3.tradingview.com/external-embedding/embed-widget-market-quotes.js";
     script.text = JSON.stringify({
       width: "100%",
-      height: widgetHeight,
+      height: widgetHeight + 44,
       symbolsGroups: buildSymbolGroups(selected),
       showSymbolLogo: false,
       isTransparent: true,
@@ -380,7 +380,7 @@ export default function TradingViewMarketQuotes() {
       </div>
 
       {/* ── TradingView widget ──────────────────────────────────────── */}
-      <div ref={widgetAreaRef} className="flex-1 min-h-0 overflow-hidden">
+      <div ref={widgetAreaRef} className="flex-1 min-h-0 relative overflow-hidden">
         {selected.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <p className="text-xs text-gray-600">
@@ -390,7 +390,8 @@ export default function TradingViewMarketQuotes() {
         ) : (
           <div
             ref={containerRef}
-            className="tradingview-widget-container w-full h-full"
+            className="tradingview-widget-container absolute top-0 left-0 w-full"
+            style={{ height: "calc(100% + 44px)" }}
           />
         )}
       </div>

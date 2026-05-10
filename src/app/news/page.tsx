@@ -95,7 +95,7 @@ export default function NewsPageClient() {
           limit: "21", // Multiple of 3 for the grid layout
           page: page.toString(),
         });
-        
+
         if (activeCategory !== "all") query.set("category", activeCategory);
         if (debouncedSearch) query.set("search", debouncedSearch);
 
@@ -281,28 +281,30 @@ export default function NewsPageClient() {
           </div>
         )}
 
-        {/* Pagination */
-        !loading && totalPages > 1 && (
-          <div className="mt-12 flex items-center justify-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white disabled:opacity-50 hover:bg-white/10 transition-colors"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-gray-400 px-4">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white disabled:opacity-50 hover:bg-white/10 transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        )}
+        {
+          /* Pagination */
+          !loading && totalPages > 1 && (
+            <div className="mt-12 flex items-center justify-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white disabled:opacity-50 hover:bg-white/10 transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-400 px-4">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white disabled:opacity-50 hover:bg-white/10 transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          )
+        }
       </div>
     </div>
   );
