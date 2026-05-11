@@ -79,11 +79,12 @@ export default function TradingViewChart({
           position: "absolute",
           bottom: 0,
           left: 0,
-          width: "55px",
-          height: "80px",
-          background: "#050505",
+          width: "65px",
+          height: "40px",
+          background: "transparent",
           zIndex: 10,
           pointerEvents: "none",
+          backdropFilter: "blur(20px)",
         }}
       />
     </div>
