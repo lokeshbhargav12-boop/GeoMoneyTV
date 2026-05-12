@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import { encodeSymbolParam } from "@/components/MacroMarketsPanel";
 
-const TradingViewChart = dynamic(
-  () => import("@/components/TradingViewChart"),
+const AlphaVantageChart = dynamic(
+  () => import("@/components/AlphaVantageChart"),
   {
     ssr: false,
     loading: () => (
@@ -34,8 +34,8 @@ const TradingViewChart = dynamic(
   },
 );
 
-const TradingViewMiniChart = dynamic(
-  () => import("@/components/TradingViewMiniChart"),
+const AlphaVantageMiniChart = dynamic(
+  () => import("@/components/AlphaVantageMiniChart"),
   {
     ssr: false,
     loading: () => (
@@ -348,7 +348,7 @@ export default function AnalyticsDashboardPage() {
                 transition={{ duration: 0.3 }}
                 className="h-full"
               >
-                <TradingViewChart
+                <AlphaVantageChart
                   symbol={selected.symbol}
                   interval="D"
                   height={580}
@@ -710,7 +710,7 @@ export default function AnalyticsDashboardPage() {
                 </div>
                 {/* Mini chart */}
                 <div className="relative">
-                  <TradingViewMiniChart
+                  <AlphaVantageMiniChart
                     symbol={inst.symbol}
                     height={130}
                     dateRange="1M"
@@ -768,7 +768,7 @@ export default function AnalyticsDashboardPage() {
                 </div>
                 {/* Overlay intercepts TV iframe clicks */}
                 <div className="relative">
-                  <TradingViewMiniChart
+                  <AlphaVantageMiniChart
                     symbol={inst.symbol}
                     height={150}
                     dateRange="3M"

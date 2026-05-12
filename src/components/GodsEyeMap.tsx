@@ -203,11 +203,21 @@ function BboxDrawer({
   });
 
   if (start && end) {
-    return <Rectangle bounds={L.latLngBounds(start, end)} pathOptions={{ color: '#06b6d4', weight: 2, fillOpacity: 0.2 }} />;
+    return (
+      <Rectangle
+        bounds={L.latLngBounds(start, end)}
+        pathOptions={{ color: "#06b6d4", weight: 2, fillOpacity: 0.2 }}
+      />
+    );
   }
-  
+
   if (currentBbox) {
-    return <Rectangle bounds={currentBbox} pathOptions={{ color: '#06b6d4', weight: 2, fillOpacity: 0.1 }} />;
+    return (
+      <Rectangle
+        bounds={currentBbox}
+        pathOptions={{ color: "#06b6d4", weight: 2, fillOpacity: 0.1 }}
+      />
+    );
   }
 
   return null;
@@ -250,7 +260,7 @@ export default function GodsEyeMap({
   const [streetViewFov, setStreetViewFov] = useState(90);
 
   // Sidebar tab
-  
+
   const [bboxMode, setBboxMode] = useState(false);
   const [selectedBbox, setSelectedBbox] = useState<L.LatLngBounds | null>(null);
   const [isAnalyzingBbox, setIsAnalyzingBbox] = useState(false);
@@ -268,35 +278,39 @@ export default function GodsEyeMap({
         west: selectedBbox.getWest(),
       };
 
-      const shipsInBox = ships.filter((s) => selectedBbox.contains([s.latitude, s.longitude]));
-      const aircraftInBox = aircraft.filter((a) => selectedBbox.contains([a.latitude, a.longitude]));
+      const shipsInBox = ships.filter((s) =>
+        selectedBbox.contains([s.latitude, s.longitude]),
+      );
+      const aircraftInBox = aircraft.filter((a) =>
+        selectedBbox.contains([a.latitude, a.longitude]),
+      );
 
       // Avoid passing too big arrays
       const shipsData = shipsInBox.slice(0, 100);
       const aircraftData = aircraftInBox.slice(0, 100);
 
-      const res = await fetch('/api/analyze-bbox', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          ships: shipsData, 
-          aircraft: aircraftData, 
-          bounds, 
-          layer: "global-surveillance" 
+      const res = await fetch("/api/analyze-bbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ships: shipsData,
+          aircraft: aircraftData,
+          bounds,
+          layer: "global-surveillance",
         }),
       });
       const data = await res.json();
-      setBboxAnalysis(data.summary || 'Failed to analyze region.');
+      setBboxAnalysis(data.summary || "Failed to analyze region.");
     } catch (e) {
       console.error(e);
-      setBboxAnalysis('Analysis failed due to network error.');
+      setBboxAnalysis("Analysis failed due to network error.");
     } finally {
       setIsAnalyzingBbox(false);
       setBboxMode(false);
     }
   };
 
-  const [sidebarTab, setSidebarTab] = useState<"cameras" | "streetview" >(
+  const [sidebarTab, setSidebarTab] = useState<"cameras" | "streetview">(
     "cameras",
   );
 
@@ -390,7 +404,11 @@ export default function GodsEyeMap({
           style={{ background: "#0a0a0a" }}
         >
           <MapController center={mapCenter} zoom={mapZoom} />
-          <BboxDrawer active={bboxMode} currentBbox={selectedBbox} onBboxChange={setSelectedBbox} />
+          <BboxDrawer
+            active={bboxMode}
+            currentBbox={selectedBbox}
+            onBboxChange={setSelectedBbox}
+          />
           <StreetViewClickHandler
             active={streetViewActive && !streetViewLocation}
             onDropPin={handleStreetViewDrop}
@@ -494,7 +512,6 @@ export default function GodsEyeMap({
         <ScanOverlay />
         <PegmanCursor active={streetViewActive && !streetViewLocation} />
 
-        
         {/* ─── ANALYSIS RESULT PANEL ──────────────────── */}
         <AnimatePresence>
           {bboxAnalysis && (
@@ -512,7 +529,13 @@ export default function GodsEyeMap({
                       STRATEGIC REGION AI REPORT
                     </span>
                   </div>
-                  <button onClick={() => {setBboxAnalysis(null); setSelectedBbox(null)}} className="text-gray-500 hover:text-white">
+                  <button
+                    onClick={() => {
+                      setBboxAnalysis(null);
+                      setSelectedBbox(null);
+                    }}
+                    className="text-gray-500 hover:text-white"
+                  >
                     ✕
                   </button>
                 </div>
@@ -564,7 +587,6 @@ export default function GodsEyeMap({
           </div>
 
           <div className="flex items-center gap-2">
-            
             {/* Analysis Box */}
             <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-1 py-1 flex items-center gap-1">
               <button
@@ -573,10 +595,12 @@ export default function GodsEyeMap({
                   if (bboxMode) setSelectedBbox(null); // Cancel selection
                 }}
                 className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold tracking-wider transition-all ${
-                  bboxMode ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" : "bg-transparent text-gray-400 hover:text-white"
+                  bboxMode
+                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                    : "bg-transparent text-gray-400 hover:text-white"
                 }`}
               >
-                {bboxMode ? 'CANCEL SELECT' : 'AI REGION SELECT'}
+                {bboxMode ? "CANCEL SELECT" : "AI REGION SELECT"}
               </button>
               {selectedBbox && (
                 <button

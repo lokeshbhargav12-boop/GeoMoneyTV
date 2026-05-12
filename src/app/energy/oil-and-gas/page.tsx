@@ -131,7 +131,12 @@ export default function OilAndGasIntelligence() {
       const res = await fetch("/api/analyze-bbox", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ships: shipsInBox, aircraft: [], bounds, layer: activeLayer }),
+        body: JSON.stringify({
+          ships: shipsInBox,
+          aircraft: [],
+          bounds,
+          layer: activeLayer,
+        }),
       });
       const data = await res.json();
       setBboxAnalysis(data.summary || "Failed to analyze region.");
