@@ -257,12 +257,12 @@ export default function OilAndGasIntelligence() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           {/* --- LEFT COL: MAIN MAP & FORECAST --- */}
-          <div className="lg:col-span-2 flex flex-col gap-6">
+          <div className="xl:col-span-3 flex flex-col gap-6">
             {/* Map Area */}
             <div
-              className={`relative h-[700px] rounded-2xl overflow-hidden border ${simulationMode ? "border-amber-500/50" : "border-white/10"} bg-black/50 p-1`}
+              className={`relative h-[850px] rounded-2xl overflow-hidden border ${simulationMode ? "border-amber-500/50" : "border-white/10"} bg-black/50 p-1`}
             >
               {/* REAL LEAFLET MAP BACKGROUND */}
               <div className="absolute inset-0 z-0">
@@ -308,7 +308,7 @@ export default function OilAndGasIntelligence() {
               </div>
 
               {/* Layer Toggles overlay */}
-              <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-2 flex flex-col gap-2">
+              <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-2 flex flex-col gap-2 max-h-[calc(100%-220px)] overflow-y-auto custom-scrollbar">
                 <span className="text-xs font-semibold text-gray-400 px-2 pb-1 border-b border-white/10">
                   INTELLIGENCE LAYERS
                 </span>

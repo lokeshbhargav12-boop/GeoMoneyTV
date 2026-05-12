@@ -202,6 +202,97 @@ function BboxDrawer({
   return null;
 }
 
+// Sub-component for fetching and displaying current weather on click
+function WeatherClickInspector({
+  active,
+  owmKey,
+}: {
+  active: boolean;
+  owmKey?: string;
+}) {
+  const map = useMap();
+  const [clickedPos, setClickedPos] = useState<L.LatLng | null>(null);
+  const [weatherData, setWeatherData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  useMapEvents({
+    click: async (e) => {
+      // Don't interfere if they are drawing a bbox
+      if (active) return;
+      if (!owmKey) return;
+
+      setClickedPos(e.latlng);
+      setWeatherData(null);
+      setLoading(true);
+
+      try {
+        const res = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?lat=${e.latlng.lat}&lon=${e.latlng.lng}&appid=${owmKey}&units=metric`,
+        );
+        const data = await res.json();
+        setWeatherData(data);
+      } catch (err) {
+        console.error("Failed to fetch location weather", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+  });
+
+  if (!clickedPos) return null;
+
+  return (
+    <Popup 
+      position={clickedPos} 
+      eventHandlers={{ remove: () => setClickedPos(null) }}
+    >
+      <div className="bg-black/90 border border-emerald-500/30 p-3 rounded-xl text-white text-xs min-w-[200px] shadow-2xl">
+        {loading ? (
+          <div className="flex items-center gap-2 text-emerald-400">
+            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            Scanning Atmosphere...
+          </div>
+        ) : weatherData && weatherData.main ? (
+          <>
+            <span className="text-emerald-400 font-bold block border-b border-white/10 pb-2 mb-2 text-sm uppercase tracking-wider">
+              {weatherData.name || "Remote Location"},{" "}
+              {weatherData.sys?.country || "N/A"}
+            </span>
+            <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+              <div>
+                <span className="text-gray-500 block text-[10px]">TEMP</span>
+                <span className="font-mono text-gray-200">
+                  {weatherData.main.temp}°C
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 block text-[10px]">WIND</span>
+                <span className="font-mono text-gray-200">
+                  {weatherData.wind.speed} m/s
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 block text-[10px]">CONDITIONS</span>
+                <span className="font-mono text-cyan-400 capitalize">
+                  {weatherData.weather?.[0]?.description || "Clear"}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 block text-[10px]">HUMIDITY</span>
+                <span className="font-mono text-gray-200">
+                  {weatherData.main.humidity}%
+                </span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <span className="text-red-400">No atmospheric data available</span>
+        )}
+      </div>
+    </Popup>
+  );
+}
+
 export default function IntelligenceMap({
   activeLayer,
   ships = [],
@@ -294,6 +385,7 @@ export default function IntelligenceMap({
         currentBbox={selectedBbox}
         onBboxChange={setSelectedBbox}
       />
+      <WeatherClickInspector active={bboxMode} owmKey={owmKey} />
 
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
