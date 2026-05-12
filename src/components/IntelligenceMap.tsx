@@ -242,8 +242,8 @@ function WeatherClickInspector({
   if (!clickedPos) return null;
 
   return (
-    <Popup 
-      position={clickedPos} 
+    <Popup
+      position={clickedPos}
       eventHandlers={{ remove: () => setClickedPos(null) }}
     >
       <div className="bg-black/90 border border-emerald-500/30 p-3 rounded-xl text-white text-xs min-w-[200px] shadow-2xl">
@@ -272,13 +272,17 @@ function WeatherClickInspector({
                 </span>
               </div>
               <div>
-                <span className="text-gray-500 block text-[10px]">CONDITIONS</span>
+                <span className="text-gray-500 block text-[10px]">
+                  CONDITIONS
+                </span>
                 <span className="font-mono text-cyan-400 capitalize">
                   {weatherData.weather?.[0]?.description || "Clear"}
                 </span>
               </div>
               <div>
-                <span className="text-gray-500 block text-[10px]">HUMIDITY</span>
+                <span className="text-gray-500 block text-[10px]">
+                  HUMIDITY
+                </span>
                 <span className="font-mono text-gray-200">
                   {weatherData.main.humidity}%
                 </span>

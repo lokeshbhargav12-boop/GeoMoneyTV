@@ -278,7 +278,12 @@ export default function GodsEyeMap({
       const res = await fetch('/api/analyze-bbox', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ships: shipsData, aircraft: aircraftData, bounds }),
+        body: JSON.stringify({ 
+          ships: shipsData, 
+          aircraft: aircraftData, 
+          bounds, 
+          layer: "global-surveillance" 
+        }),
       });
       const data = await res.json();
       setBboxAnalysis(data.summary || 'Failed to analyze region.');
