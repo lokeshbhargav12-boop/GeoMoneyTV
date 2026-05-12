@@ -20,7 +20,7 @@ function Tank({
 
   // Slight pulsing for the oil level to make it feel "active" scanning
   useFrame(({ clock }) => {
-    if (fillRef.current) {
+    if (fillRef.current && !Array.isArray(fillRef.current.material)) {
       fillRef.current.material.opacity =
         0.7 + Math.sin(clock.elapsedTime * 2) * 0.1;
     }

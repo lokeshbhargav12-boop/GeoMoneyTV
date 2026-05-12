@@ -397,8 +397,6 @@ export default function TradingViewMarketQuotes() {
               className="tradingview-widget-container absolute top-0 left-0 w-full"
               style={{ height: "calc(100% + 60px)" }}
             />
-            {/* Fallback overlay to ensure logo is hidden */}
-            <div className="absolute bottom-0 left-0 w-full h-[6px] bg-[#0e0e1a] pointer-events-none z-10" />
           </>
         )}
       </div>

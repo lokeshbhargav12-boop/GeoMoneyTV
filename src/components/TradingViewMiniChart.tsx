@@ -69,8 +69,6 @@ export default function TradingViewMiniChart({
         className="tradingview-widget-container absolute top-0 left-0 w-full"
         style={{ height: `${height + 50}px` }}
       />
-      {/* Fallback overlay to cover logo if it's still visible */}
-      <div className="absolute bottom-0 left-0 w-full h-[6px] bg-[#0d0d0d] pointer-events-none z-10" />
     </div>
   );
 }

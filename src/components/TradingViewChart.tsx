@@ -73,20 +73,6 @@ export default function TradingViewChart({
           height: "calc(100% + 40px)",
         }}
       />
-      {/* Cover the TradingView logo in the bottom-left of the chart iframe */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          width: "65px",
-          height: "40px",
-          background: "transparent",
-          zIndex: 10,
-          pointerEvents: "none",
-          backdropFilter: "blur(20px)",
-        }}
-      />
     </div>
   );
 }
