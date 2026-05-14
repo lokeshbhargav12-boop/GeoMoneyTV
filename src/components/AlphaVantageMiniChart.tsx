@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -6,9 +6,9 @@ import {
   PointElement,
   LineElement,
   Tooltip,
-  Filler
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
+  Filler,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
 
 ChartJS.register(
   CategoryScale,
@@ -16,7 +16,7 @@ ChartJS.register(
   PointElement,
   LineElement,
   Tooltip,
-  Filler
+  Filler,
 );
 
 interface Props {
@@ -31,23 +31,25 @@ interface Props {
 export default function AlphaVantageMiniChart({
   symbol,
   height = 130,
-  trendLineColor = 'rgba(212,175,55,1)',
-  underLineColor = 'rgba(212,175,55,0.1)'
+  trendLineColor = "rgba(212,175,55,1)",
+  underLineColor = "rgba(212,175,55,0.1)",
 }: Props) {
   const [chartData, setChartData] = useState<any>(null);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch(`/api/alpha-vantage?symbol=${encodeURIComponent(symbol)}`);
+        const res = await fetch(
+          `/api/alpha-vantage?symbol=${encodeURIComponent(symbol)}`,
+        );
         const json = await res.json();
-        
+
         if (json.data && Array.isArray(json.data)) {
           // Mini charts usually show smaller range, e.g., last 30 days
           const recentData = json.data.slice(-30);
           const dates = recentData.map((d: any) => d.date);
           const prices = recentData.map((d: any) => d.close);
-          
+
           setChartData({
             labels: dates,
             datasets: [
@@ -58,9 +60,9 @@ export default function AlphaVantageMiniChart({
                 borderWidth: 1.5,
                 pointRadius: 0,
                 fill: true,
-                tension: 0.1
-              }
-            ]
+                tension: 0.1,
+              },
+            ],
           });
         }
       } catch (err) {
@@ -79,14 +81,16 @@ export default function AlphaVantageMiniChart({
     },
     scales: {
       x: { display: false },
-      y: { display: false }
+      y: { display: false },
     },
     layout: { padding: 0 },
-    interaction: { mode: 'index' as const, intersect: false }
+    interaction: { mode: "index" as const, intersect: false },
   };
 
   if (!chartData) {
-    return <div style={{ height }} className="w-full bg-white/5 animate-pulse" />;
+    return (
+      <div style={{ height }} className="w-full bg-white/5 animate-pulse" />
+    );
   }
 
   return (

@@ -61,7 +61,11 @@ export default async function RootLayout({
 
           {/* Beta Banner */}
           <div className="fixed top-0 z-[60] w-full bg-yellow-500/90 text-black text-xs text-center py-1 font-semibold tracking-wide">
-            Beta Version — Features may change.{" "}
+            GeoMoney v0.1.0{" "}
+            {process.env.NODE_ENV === "development"
+              ? "(Local)"
+              : "(Production)"}{" "}
+            — Beta. Features may change.{" "}
             <a href="/about/contact" className="underline hover:text-black/70">
               Share feedback
             </a>
