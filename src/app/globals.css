@@ -53,3 +53,21 @@ font {
 .tradingview-widget-container {
   overflow: hidden !important;
 }
+
+@keyframes ticker-marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-marquee {
+  animation: ticker-marquee-scroll 60s linear infinite;
+  will-change: transform;
+}
+
+.ticker-marquee:hover {
+  animation-play-state: paused;
+}

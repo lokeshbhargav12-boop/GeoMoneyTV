@@ -20,8 +20,8 @@ import {
 import { motion } from "framer-motion";
 import { MARKET_INSTRUMENTS } from "@/components/MacroMarketsPanel";
 
-const TradingViewChart = dynamic(
-  () => import("@/components/TradingViewChart"),
+const AlphaVantageChart = dynamic(
+  () => import("@/components/AlphaVantageChart"),
   {
     ssr: false,
     loading: () => (
@@ -122,14 +122,6 @@ function newsSearchTerm(symbol: string, displayName: string): string {
   return displayName.split(/[\s/]/)[0];
 }
 
-const TIMEFRAMES = [
-  { label: "1D", interval: "60" },
-  { label: "1W", interval: "D" },
-  { label: "1M", interval: "W" },
-  { label: "3M", interval: "W" },
-  { label: "1Y", interval: "M" },
-] as const;
-
 export default function InstrumentDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -143,7 +135,6 @@ export default function InstrumentDetailPage() {
     color: "#888888",
   };
 
-  const [interval, setInterval] = useState<string>("D");
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -239,23 +230,9 @@ export default function InstrumentDetailPage() {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            {/* Timeframe selector */}
-            <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
-              {TIMEFRAMES.map((tf) => (
-                <button
-                  key={tf.label}
-                  onClick={() => setInterval(tf.interval)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                    interval === tf.interval
-                      ? "bg-geo-gold/20 text-geo-gold"
-                      : "text-gray-500 hover:text-white"
-                  }`}
-                >
-                  {tf.label}
-                </button>
-              ))}
+            <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] uppercase tracking-[0.2em] text-gray-500">
+              Daily historical feed
             </div>
-
             <Link
               href="/features/analytics"
               className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-geo-gold transition-colors"
@@ -270,12 +247,8 @@ export default function InstrumentDetailPage() {
       {/* ── Body ───────────────────────────────────────────────────── */}
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 pt-6 pb-16 space-y-6">
         {/* Chart */}
-        <div className="rounded-xl border border-white/10 overflow-hidden bg-black h-[520px] xl:h-[640px]">
-          <TradingViewChart
-            symbol={tvSymbol}
-            interval={interval}
-            height={640}
-          />
+        <div className="rounded-xl border border-white/10 overflow-hidden bg-black/60 p-3 md:p-4 h-[520px] xl:h-[640px]">
+          <AlphaVantageChart symbol={tvSymbol} height="100%" />
         </div>
 
         {/* ── Market Intelligence ──────────────────────────────────── */}
