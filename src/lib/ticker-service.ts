@@ -46,7 +46,9 @@ export async function getStoredTickerData() {
                 symbol: item.symbol,
                 price: item.price,
                 change: item.change || 0,
-                changePercent: item.change || 0,
+                changePercent: item.previousClose && item.previousClose !== 0
+                    ? ((item.price - item.previousClose) / item.previousClose) * 100
+                    : item.change || 0,
                 type: item.type
             }));
         }
