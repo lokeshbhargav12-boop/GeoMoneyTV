@@ -73,14 +73,14 @@ function runNewsSync() {
   req.end();
 }
 
-function runIntelligenceReport() {
+function runIntelligenceReport(type = "daily") {
   console.log(
-    `[Scheduler] Running daily intelligence report at ${new Date().toISOString()}`,
+    `[Scheduler] Running ${type} intelligence report at ${new Date().toISOString()}`,
   );
   const options = {
     hostname: "127.0.0.1",
     port: port,
-    path: "/api/cron/intelligence-report",
+    path: `/api/cron/intelligence-report?type=${type}`,
     method: "GET",
     headers: {
       Authorization: `Bearer ${process.env.CRON_SECRET || ""}`,
@@ -96,17 +96,17 @@ function runIntelligenceReport() {
         const result = JSON.parse(data);
         if (result.success) {
           console.log(
-            `[Scheduler] Intelligence report sent — ${result.sentCount}/${result.totalRecipients} recipients.`,
+            `[Scheduler] ${type} intelligence report sent — ${result.sentCount}/${result.totalRecipients} recipients.`,
           );
         } else {
           console.error(
-            "[Scheduler] Intelligence report failed:",
+            `[Scheduler] ${type} intelligence report failed:`,
             result.error,
           );
         }
       } catch {
         console.log(
-          "[Scheduler] Intelligence report response:",
+          `[Scheduler] ${type} intelligence report response:`,
           data.slice(0, 200),
         );
       }
@@ -114,7 +114,7 @@ function runIntelligenceReport() {
   });
   req.on("error", (err) =>
     console.error(
-      "[Scheduler] Intelligence report request failed:",
+      `[Scheduler] ${type} intelligence report request failed:`,
       err.message,
     ),
   );
@@ -156,6 +156,35 @@ function scheduleDailyAt(utcHour, utcMinute, label, fn) {
   schedule();
 }
 
+function scheduleWeeklyAt(utcDayOfWeek, utcHour, utcMinute, label, fn) {
+  function msUntilNext() {
+    const now = new Date();
+    const next = new Date(now);
+    next.setUTCHours(utcHour, utcMinute, 0, 0);
+
+    const dayDelta = (utcDayOfWeek - now.getUTCDay() + 7) % 7;
+    next.setUTCDate(now.getUTCDate() + dayDelta);
+
+    if (next <= now) {
+      next.setUTCDate(next.getUTCDate() + 7);
+    }
+
+    return next - now;
+  }
+
+  function schedule() {
+    const delay = msUntilNext();
+    const fireAt = new Date(Date.now() + delay).toISOString();
+    console.log(`[Scheduler] ${label} scheduled — next run at ${fireAt} UTC`);
+    setTimeout(() => {
+      fn();
+      setInterval(fn, 7 * 24 * 60 * 60 * 1000);
+    }, delay);
+  }
+
+  schedule();
+}
+
 let missingStaticAssetsCount = 0;
 
 app.prepare().then(() => {
@@ -166,7 +195,14 @@ app.prepare().then(() => {
   }, 15000); // wait 15s after boot before first sync
 
   // Daily Intelligence Report — 11:20 AM IST = 05:50 UTC
-  scheduleDailyAt(5, 50, "Intelligence Report", runIntelligenceReport);
+  scheduleDailyAt(5, 50, "Daily Intelligence Report", () =>
+    runIntelligenceReport("daily"),
+  );
+
+  // Weekly Intelligence Report — Monday 11:30 AM IST = 06:00 UTC
+  scheduleWeeklyAt(1, 6, 0, "Weekly Intelligence Report", () =>
+    runIntelligenceReport("weekly"),
+  );
 
   createServer(async (req, res) => {
     try {

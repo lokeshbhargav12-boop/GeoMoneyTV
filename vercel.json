@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/intelligence-report?type=daily",
-      "schedule": "30 5 * * *"
+      "schedule": "50 5 * * *"
     },
     {
       "path": "/api/cron/intelligence-report?type=weekly",
