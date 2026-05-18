@@ -106,11 +106,30 @@ export default function OilAndGasIntelligence() {
   const [simulationImpact, setSimulationImpact] = useState(0);
   const [activeLayer, setActiveLayer] = useState("shadow");
   const [shipData, setShipData] = useState<any[]>([]);
+  const [converterValue, setConverterValue] = useState("1000");
+  const [fromUnit, setFromUnit] = useState("bbl");
+  const [toUnit, setToUnit] = useState("liters");
 
   const [bboxMode, setBboxMode] = useState(false);
   const [selectedBbox, setSelectedBbox] = useState<any>(null);
   const [isAnalyzingBbox, setIsAnalyzingBbox] = useState(false);
   const [bboxAnalysis, setBboxAnalysis] = useState<string | null>(null);
+
+  const CONVERSION_FACTORS: Record<string, number> = {
+    bbl: 1,
+    gallons: 42,
+    liters: 158.987,
+    cubicMeters: 0.158987,
+    cubicFeet: 5.61458,
+    metricTons: 0.136,
+  };
+
+  const converterAmount = Number.parseFloat(converterValue);
+  const convertedValue =
+    Number.isFinite(converterAmount) && converterAmount >= 0
+      ? (converterAmount * CONVERSION_FACTORS[toUnit]) /
+        CONVERSION_FACTORS[fromUnit]
+      : null;
 
   const analyzeBbox = async () => {
     if (!selectedBbox) return;
@@ -155,7 +174,7 @@ export default function OilAndGasIntelligence() {
       const data = await res.json();
       // Only keep relevant oil & gas supply chain vessels (tankers, lng, bulk)
       const relevantShips = (data.ships || []).filter((s: any) =>
-        ["tanker", "lng", "bulk"].includes(s.type?.toLowerCase() || ""),
+        ["tanker", "lng"].includes(s.type?.toLowerCase() || ""),
       );
       setShipData(relevantShips);
     } catch (e) {
@@ -490,8 +509,9 @@ export default function OilAndGasIntelligence() {
                     Volatility
                   </h3>
                   <p className="text-sm text-gray-400 mb-6">
-                    Real-time delivery risk tracking based on live tanker AIS
-                    data in crucial global chokepoints.
+                    Real-time delivery risk tracking based only on live crude
+                    tanker and LNG carrier AIS traffic in critical energy
+                    chokepoints.
                   </p>
 
                   <div className="space-y-4">
@@ -513,7 +533,7 @@ export default function OilAndGasIntelligence() {
                             </span>
                             <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                               <Anchor className="w-3 h-3" /> {region.data.ships}{" "}
-                              tankers detected
+                              energy vessels detected
                             </div>
                           </div>
                           <span
@@ -556,12 +576,23 @@ export default function OilAndGasIntelligence() {
                   <input
                     type="number"
                     placeholder="1000"
+                    min="0"
+                    step="any"
+                    value={converterValue}
+                    onChange={(e) => setConverterValue(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-geo-gold"
                   />
-                  <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-white outline-none">
-                    <option>Barrels (bbl)</option>
-                    <option>Gallons (gal)</option>
-                    <option>Cubic Meters</option>
+                  <select
+                    value={fromUnit}
+                    onChange={(e) => setFromUnit(e.target.value)}
+                    className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-white outline-none"
+                  >
+                    <option value="bbl">Barrels (bbl)</option>
+                    <option value="gallons">Gallons (gal)</option>
+                    <option value="cubicMeters">Cubic Meters</option>
+                    <option value="liters">Liters (L)</option>
+                    <option value="cubicFeet">Cubic Feet</option>
+                    <option value="metricTons">Metric Tons</option>
                   </select>
                 </div>
                 <div className="flex justify-center text-gray-500">
@@ -571,23 +602,33 @@ export default function OilAndGasIntelligence() {
                   <input
                     type="number"
                     readOnly
-                    value="158.98"
+                    value={
+                      convertedValue == null
+                        ? ""
+                        : convertedValue >= 100
+                          ? convertedValue.toFixed(2)
+                          : convertedValue.toFixed(4)
+                    }
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-gray-300 outline-none"
                   />
-                  <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-white outline-none">
-                    <option>Liters (L)</option>
-                    <option>Cubic Feet</option>
-                    <option>Metric Tons</option>
+                  <select
+                    value={toUnit}
+                    onChange={(e) => setToUnit(e.target.value)}
+                    className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-white outline-none"
+                  >
+                    <option value="liters">Liters (L)</option>
+                    <option value="cubicFeet">Cubic Feet</option>
+                    <option value="metricTons">Metric Tons</option>
+                    <option value="bbl">Barrels (bbl)</option>
+                    <option value="gallons">Gallons (gal)</option>
+                    <option value="cubicMeters">Cubic Meters</option>
                   </select>
                 </div>
-                <a
-                  href="https://www.rigzone.com/calculator/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[10px] text-center text-gray-500 hover:text-geo-gold mt-2 transition-colors"
-                >
-                  Uses standard API gravity formulas. Ref: Rigzone
-                </a>
+                <p className="text-[10px] text-center text-gray-500 mt-2">
+                  Field conversion for logistics planning. Metric tons use a
+                  crude approximation suitable for quick operating context, not
+                  custody transfer.
+                </p>
               </div>
             </div>
 
@@ -638,9 +679,9 @@ export default function OilAndGasIntelligence() {
                         </div>
                       </div>
                       <p className="text-[11px] text-gray-400 leading-relaxed">
-                        AI detection shows major facility clusters exceeding
-                        exported tank limits, highly correlated with localized
-                        shadow fleet anomalies.
+                        AI detection highlights whether visible storage behavior
+                        is consistent with normal export cadence or whether it
+                        is diverging from nearby tanker activity.
                       </p>
                     </div>
 
