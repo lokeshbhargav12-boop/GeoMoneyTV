@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Loader2, Info } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { useState } from "react";
+import { Loader2, Info } from "lucide-react";
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 interface NewsBiasProps {
   title: string;
@@ -18,32 +18,75 @@ interface BiasResult {
   explanation: string;
 }
 
+interface BiasApiResponse {
+  bias?: {
+    score?: number;
+    category?: string;
+    explanation?: string;
+  };
+  result?: BiasResult;
+  confidence?: number;
+  score?: number;
+  category?: string;
+  explanation?: string;
+}
+
 export default function NewsBias({ title, text, className }: NewsBiasProps) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BiasResult | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const analyzeBias = async () => {
     setLoading(true);
-    setError('');
-    
+    setError("");
+
     try {
-      const response = await fetch('/api/ai/bias', {
-        method: 'POST',
+      const response = await fetch("/api/ai/bias", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ title, text }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to analyze bias');
+        throw new Error("Failed to analyze bias");
       }
 
-      const data = await response.json();
-      setResult(data);
+      const data: BiasApiResponse = await response.json();
+      const normalized: BiasResult | null = data.bias
+        ? {
+            score: Number(data.bias.score ?? 0),
+            category: data.bias.category || "Center",
+            confidence: Number(data.confidence ?? 75),
+            explanation:
+              data.bias.explanation || "No bias rationale was returned.",
+          }
+        : data.result
+          ? {
+              score: Number(data.result.score ?? 0),
+              category: data.result.category || "Center",
+              confidence: Number(data.result.confidence ?? 75),
+              explanation:
+                data.result.explanation || "No bias rationale was returned.",
+            }
+          : data.category || typeof data.score === "number"
+            ? {
+                score: Number(data.score ?? 0),
+                category: data.category || "Center",
+                confidence: Number(data.confidence ?? 75),
+                explanation:
+                  data.explanation || "No bias rationale was returned.",
+              }
+            : null;
+
+      if (!normalized) {
+        throw new Error("Unexpected bias response format");
+      }
+
+      setResult(normalized);
     } catch (err) {
-      setError('Could not analyze bias at this time.');
+      setError("Could not analyze bias at this time.");
       console.error(err);
     } finally {
       setLoading(false);
@@ -58,19 +101,24 @@ export default function NewsBias({ title, text, className }: NewsBiasProps) {
   };
 
   const getBiasColor = (score: number) => {
-    if (score < -30) return 'text-blue-500'; // Left
-    if (score > 30) return 'text-red-500';   // Right
-    return 'text-gray-400';                  // Center
+    if (score < -30) return "text-blue-500"; // Left
+    if (score > 30) return "text-red-500"; // Right
+    return "text-gray-400"; // Center
   };
 
   const getBiasBg = (score: number) => {
-    if (score < -30) return 'bg-blue-500';
-    if (score > 30) return 'bg-red-500';
-    return 'bg-gray-400';
+    if (score < -30) return "bg-blue-500";
+    if (score > 30) return "bg-red-500";
+    return "bg-gray-400";
   };
 
   return (
-    <div className={twMerge("bg-black/20 border border-white/10 rounded-xl p-4 backdrop-blur-sm", className)}>
+    <div
+      className={twMerge(
+        "bg-black/20 border border-white/10 rounded-xl p-4 backdrop-blur-sm",
+        className,
+      )}
+    >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
           <span className="bg-gradient-to-r from-blue-400 via-white to-red-400 bg-clip-text text-transparent">
@@ -78,7 +126,7 @@ export default function NewsBias({ title, text, className }: NewsBiasProps) {
           </span>
           <Info className="w-4 h-4 text-gray-500" />
         </h3>
-        
+
         {!result && !loading && (
           <button
             onClick={analyzeBias}
@@ -121,7 +169,7 @@ export default function NewsBias({ title, text, className }: NewsBiasProps) {
             </div>
 
             {/* Indicator */}
-            <div 
+            <div
               className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_2px_rgba(255,255,255,0.5)] transition-all duration-1000 ease-out z-10"
               style={{ left: `${getPosition(result.score)}%` }}
             />
@@ -129,14 +177,19 @@ export default function NewsBias({ title, text, className }: NewsBiasProps) {
 
           <div className="flex items-start justify-between gap-4 mb-3">
             <div>
-              <div className={clsx("text-xl font-bold mb-1", getBiasColor(result.score))}>
+              <div
+                className={clsx(
+                  "text-xl font-bold mb-1",
+                  getBiasColor(result.score),
+                )}
+              >
                 {result.category}
               </div>
               <div className="text-xs text-gray-400 uppercase tracking-widest font-semibold">
                 Assessment Strength: {result.confidence}%
               </div>
             </div>
-            
+
             <div className="text-2xl font-black text-white/10">
               {Math.abs(result.score)}
             </div>
@@ -145,10 +198,10 @@ export default function NewsBias({ title, text, className }: NewsBiasProps) {
           <p className="text-sm text-gray-300 leading-relaxed bg-white/5 p-3 rounded-lg border border-white/5">
             {result.explanation}
           </p>
-          
+
           <div className="mt-3 flex justify-end">
-            <button 
-              onClick={analyzeBias} 
+            <button
+              onClick={analyzeBias}
               className="text-xs text-gray-500 hover:text-white transition-colors"
             >
               Re-analyze
