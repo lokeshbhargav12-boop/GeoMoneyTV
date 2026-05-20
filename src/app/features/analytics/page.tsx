@@ -188,8 +188,7 @@ const CHART_RESOLUTIONS: Array<{
 export default function AnalyticsDashboardPage() {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string>("gold");
-  const [chartResolution, setChartResolution] =
-    useState<ChartResolution>("D");
+  const [chartResolution, setChartResolution] = useState<ChartResolution>("D");
   const [sentimentCache, setSentimentCache] = useState<
     Record<string, SentimentData>
   >({});

@@ -14,8 +14,8 @@ export async function GET(request: Request) {
     const requestedInterval = searchParams.get('interval');
     const interval: SupportedInterval =
         requestedInterval === '60min' ||
-        requestedInterval === 'W' ||
-        requestedInterval === 'M'
+            requestedInterval === 'W' ||
+            requestedInterval === 'M'
             ? requestedInterval
             : 'D';
 
