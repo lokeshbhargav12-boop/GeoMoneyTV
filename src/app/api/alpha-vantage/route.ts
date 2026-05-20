@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 
 const API_KEY = '2CXKVQU2QM3DKVOM';
 
+type SupportedInterval = '60min' | 'D' | 'W' | 'M';
+
 // In-memory cache to avoid hitting the 25 req/day limit
 const cache = new Map<string, { timestamp: number, data: any }>();
 const CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
@@ -9,6 +11,13 @@ const CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get('symbol');
+    const requestedInterval = searchParams.get('interval');
+    const interval: SupportedInterval =
+        requestedInterval === '60min' ||
+        requestedInterval === 'W' ||
+        requestedInterval === 'M'
+            ? requestedInterval
+            : 'D';
 
     if (!symbol) {
         return NextResponse.json({ error: 'Missing symbol' }, { status: 400 });
@@ -27,7 +36,7 @@ export async function GET(request: Request) {
     };
 
     const avSymbol = proxyMap[symbol] || symbol;
-    const cacheKey = avSymbol;
+    const cacheKey = `${avSymbol}:${interval}`;
 
     // Check cache
     const cached = cache.get(cacheKey);
@@ -36,9 +45,25 @@ export async function GET(request: Request) {
     }
 
     try {
-        const response = await fetch(
-            `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${avSymbol}&outputsize=compact&apikey=${API_KEY}`
-        );
+        const queryUrl = new URL('https://www.alphavantage.co/query');
+
+        if (interval === '60min') {
+            queryUrl.searchParams.set('function', 'TIME_SERIES_INTRADAY');
+            queryUrl.searchParams.set('interval', '60min');
+            queryUrl.searchParams.set('outputsize', 'compact');
+        } else if (interval === 'W') {
+            queryUrl.searchParams.set('function', 'TIME_SERIES_WEEKLY');
+        } else if (interval === 'M') {
+            queryUrl.searchParams.set('function', 'TIME_SERIES_MONTHLY');
+        } else {
+            queryUrl.searchParams.set('function', 'TIME_SERIES_DAILY');
+            queryUrl.searchParams.set('outputsize', 'compact');
+        }
+
+        queryUrl.searchParams.set('symbol', avSymbol);
+        queryUrl.searchParams.set('apikey', API_KEY);
+
+        const response = await fetch(queryUrl.toString());
         const data = await response.json();
 
         if (data['Note'] || data['Information']) {
@@ -50,9 +75,18 @@ export async function GET(request: Request) {
             }
         }
 
-        if (data['Time Series (Daily)']) {
+        const timeSeriesKey =
+            interval === '60min'
+                ? 'Time Series (60min)'
+                : interval === 'W'
+                    ? 'Weekly Time Series'
+                    : interval === 'M'
+                        ? 'Monthly Time Series'
+                        : 'Time Series (Daily)';
+
+        if (data[timeSeriesKey]) {
             // transform data to array of objects
-            const timeSeries = data['Time Series (Daily)'];
+            const timeSeries = data[timeSeriesKey];
             const rawDates = Object.keys(timeSeries).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
             const formattedData = rawDates.map(date => ({

@@ -29,7 +29,11 @@ interface Props {
   height?: number | string;
 }
 
-export default function AlphaVantageChart({ symbol, height = 580 }: Props) {
+export default function AlphaVantageChart({
+  symbol,
+  interval = "D",
+  height = 580,
+}: Props) {
   const [chartData, setChartData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +42,7 @@ export default function AlphaVantageChart({ symbol, height = 580 }: Props) {
       setLoading(true);
       try {
         const res = await fetch(
-          `/api/alpha-vantage?symbol=${encodeURIComponent(symbol)}`,
+          `/api/alpha-vantage?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}`,
         );
         const json = await res.json();
 
@@ -70,7 +74,7 @@ export default function AlphaVantageChart({ symbol, height = 580 }: Props) {
       setLoading(false);
     }
     fetchData();
-  }, [symbol]);
+  }, [interval, symbol]);
 
   const options = {
     responsive: true,

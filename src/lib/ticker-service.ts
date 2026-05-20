@@ -1,11 +1,37 @@
 import { prisma } from "@/lib/prisma";
 
+type TickerSymbolConfig = {
+    label: string;
+    symbol: string;
+    type: string;
+    sourceSymbol?: string;
+};
+
 const DEFAULT_SYMBOLS = [
-    { label: 'S&P 500', symbol: 'SPY', type: 'stock' },
-    { label: 'Gold (Oz)', symbol: 'GLD', type: 'commodity' },
-    { label: 'Bitcoin', symbol: 'BTC', type: 'crypto' },
-    { label: 'Euro', symbol: 'EUR', type: 'currency' },
-];
+    { label: 'GOLD', symbol: 'GOLD', type: 'commodity', sourceSymbol: 'GLD' },
+    { label: 'SILVER', symbol: 'SILVER', type: 'commodity', sourceSymbol: 'SLV' },
+    { label: 'COPPER', symbol: 'COPPER', type: 'commodity', sourceSymbol: 'CPER' },
+    { label: 'CRUDE OIL', symbol: 'CRUDE', type: 'commodity', sourceSymbol: 'USO' },
+    { label: 'NAT GAS', symbol: 'NATGAS', type: 'commodity', sourceSymbol: 'UNG' },
+    { label: 'URANIUM', symbol: 'URANIUM', type: 'commodity', sourceSymbol: 'URNM' },
+    { label: 'LITHIUM', symbol: 'LITHIUM', type: 'commodity', sourceSymbol: 'LIT' },
+] satisfies TickerSymbolConfig[];
+
+const COMMODITY_PROXY_MAP: Record<string, string> = {
+    GOLD: 'GLD',
+    XAUUSD: 'GLD',
+    SILVER: 'SLV',
+    XAGUSD: 'SLV',
+    COPPER: 'CPER',
+    CRUDE: 'USO',
+    USOIL: 'USO',
+    WTI: 'USO',
+    NATGAS: 'UNG',
+    NATURALGAS: 'UNG',
+    UNGAS: 'UNG',
+    URANIUM: 'URNM',
+    LITHIUM: 'LIT',
+};
 
 // Mining commodities for the ticker (Discovery Alert style)
 const MINING_COMMODITIES = [
@@ -20,6 +46,52 @@ const MINING_COMMODITIES = [
     { label: 'URANIUM', symbol: 'URANIUM', price: 97.50, change: -3.03, changePercent: -3.03, type: 'commodity' },
     { label: 'LITHIUM', symbol: 'LITHIUM', price: 10250.00, change: 125.00, changePercent: 1.23, type: 'commodity' },
 ];
+
+function normalizeTickerKey(value: string) {
+    return value.trim().toUpperCase();
+}
+
+function mergeTickerRows(storedRows: Array<{
+    label: string;
+    symbol: string;
+    price: number;
+    change: number;
+    changePercent: number;
+    type: string;
+}>) {
+    const storedBySymbol = new Map(
+        storedRows.map((item) => [normalizeTickerKey(item.symbol), item]),
+    );
+
+    const merged = MINING_COMMODITIES.map((item) => {
+        const stored =
+            storedBySymbol.get(normalizeTickerKey(item.symbol)) ||
+            storedBySymbol.get(normalizeTickerKey(item.label));
+
+        return stored
+            ? {
+                ...item,
+                label: stored.label || item.label,
+                symbol: stored.symbol || item.symbol,
+                price: stored.price,
+                change: stored.change,
+                changePercent: stored.changePercent,
+                type: stored.type || item.type,
+            }
+            : item;
+    });
+
+    const additionalRows = storedRows.filter((item) => {
+        const key = normalizeTickerKey(item.symbol);
+        return !MINING_COMMODITIES.some(
+            (baseItem) =>
+                normalizeTickerKey(baseItem.symbol) === key ||
+                normalizeTickerKey(baseItem.label) === key,
+        ) && ["commodity", "index"].includes(item.type);
+    });
+
+    return [...merged, ...additionalRows];
+}
 
 export async function getMiningCommodityData() {
     // Returns mining commodity data for the ticker
@@ -41,7 +113,7 @@ export async function getStoredTickerData() {
         });
 
         if (data.length > 0) {
-            return data.map(item => ({
+            const storedRows = data.map(item => ({
                 label: item.label,
                 symbol: item.symbol,
                 price: item.price,
@@ -51,6 +123,8 @@ export async function getStoredTickerData() {
                     : item.change || 0,
                 type: item.type
             }));
+
+            return mergeTickerRows(storedRows);
         }
 
         // Return mining commodities as fallback
@@ -68,12 +142,17 @@ export async function updateTickerData() {
             where: { key: { in: ['ticker_symbols', 'alpha_vantage_key'] } }
         });
 
-        let symbols = DEFAULT_SYMBOLS;
+        let symbols: TickerSymbolConfig[] = DEFAULT_SYMBOLS;
         let apiKey = '';
 
         settings.forEach((s) => {
             if (s.key === 'ticker_symbols') {
-                try { symbols = JSON.parse(s.value); } catch { }
+                try {
+                    const parsed = JSON.parse(s.value);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        symbols = parsed;
+                    }
+                } catch { }
             } else if (s.key === 'alpha_vantage_key') {
                 apiKey = s.value.trim();
             }
@@ -94,13 +173,14 @@ export async function updateTickerData() {
                 let previousClose = 0;
 
                 let url = "";
+                const fetchSymbol = item.sourceSymbol || COMMODITY_PROXY_MAP[normalizeTickerKey(item.symbol)] || item.symbol;
 
-                if (item.type === 'crypto' && item.symbol === 'BTC') {
-                    url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${item.symbol}&to_currency=USD&apikey=${apiKey}`;
-                } else if (item.type === 'currency' && item.symbol === 'EUR') {
-                    url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${item.symbol}&to_currency=USD&apikey=${apiKey}`;
+                if (item.type === 'crypto' && fetchSymbol === 'BTC') {
+                    url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${fetchSymbol}&to_currency=USD&apikey=${apiKey}`;
+                } else if (item.type === 'currency' && fetchSymbol === 'EUR') {
+                    url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${fetchSymbol}&to_currency=USD&apikey=${apiKey}`;
                 } else {
-                    url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${item.symbol}&apikey=${apiKey}`;
+                    url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${fetchSymbol}&apikey=${apiKey}`;
                 }
 
                 const res = await fetch(url);

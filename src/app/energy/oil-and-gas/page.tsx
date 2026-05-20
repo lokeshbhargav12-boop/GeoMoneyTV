@@ -34,6 +34,21 @@ const IntelligenceMap = dynamic(() => import("@/components/IntelligenceMap"), {
   ssr: false,
 });
 
+const CONVERSION_UNITS = {
+  bbl: { label: "Barrels (bbl)", factor: 1 },
+  gallons: { label: "Gallons (gal)", factor: 42 },
+  liters: { label: "Liters (L)", factor: 158.987 },
+  cubicMeters: { label: "Cubic Meters", factor: 0.158987 },
+  cubicFeet: { label: "Cubic Feet", factor: 5.61458 },
+  metricTons: { label: "Metric Tons", factor: 0.136 },
+} as const;
+
+type ConversionUnit = keyof typeof CONVERSION_UNITS;
+
+function isConversionUnit(value: string): value is ConversionUnit {
+  return value in CONVERSION_UNITS;
+}
+
 // --- MOCK DATA ---
 const INTELLIGENCE_LAYERS = [
   {
@@ -107,29 +122,42 @@ export default function OilAndGasIntelligence() {
   const [activeLayer, setActiveLayer] = useState("shadow");
   const [shipData, setShipData] = useState<any[]>([]);
   const [converterValue, setConverterValue] = useState("1000");
-  const [fromUnit, setFromUnit] = useState("bbl");
-  const [toUnit, setToUnit] = useState("liters");
+  const [fromUnit, setFromUnit] = useState<ConversionUnit>("bbl");
+  const [toUnit, setToUnit] = useState<ConversionUnit>("liters");
 
   const [bboxMode, setBboxMode] = useState(false);
   const [selectedBbox, setSelectedBbox] = useState<any>(null);
   const [isAnalyzingBbox, setIsAnalyzingBbox] = useState(false);
   const [bboxAnalysis, setBboxAnalysis] = useState<string | null>(null);
 
-  const CONVERSION_FACTORS: Record<string, number> = {
-    bbl: 1,
-    gallons: 42,
-    liters: 158.987,
-    cubicMeters: 0.158987,
-    cubicFeet: 5.61458,
-    metricTons: 0.136,
+  const converterAmount = Number.parseFloat(converterValue);
+  const fromFactor = CONVERSION_UNITS[fromUnit]?.factor;
+  const toFactor = CONVERSION_UNITS[toUnit]?.factor;
+  const convertedValue =
+    Number.isFinite(converterAmount) &&
+    converterAmount >= 0 &&
+    Number.isFinite(fromFactor) &&
+    Number.isFinite(toFactor) &&
+    fromFactor > 0
+      ? (converterAmount * toFactor) / fromFactor
+      : null;
+
+  const handleFromUnitChange = (value: string) => {
+    if (isConversionUnit(value)) {
+      setFromUnit(value);
+    }
   };
 
-  const converterAmount = Number.parseFloat(converterValue);
-  const convertedValue =
-    Number.isFinite(converterAmount) && converterAmount >= 0
-      ? (converterAmount * CONVERSION_FACTORS[toUnit]) /
-        CONVERSION_FACTORS[fromUnit]
-      : null;
+  const handleToUnitChange = (value: string) => {
+    if (isConversionUnit(value)) {
+      setToUnit(value);
+    }
+  };
+
+  const swapUnits = () => {
+    setFromUnit(toUnit);
+    setToUnit(fromUnit);
+  };
 
   const analyzeBbox = async () => {
     if (!selectedBbox) return;
@@ -584,19 +612,24 @@ export default function OilAndGasIntelligence() {
                   />
                   <select
                     value={fromUnit}
-                    onChange={(e) => setFromUnit(e.target.value)}
+                    onChange={(e) => handleFromUnitChange(e.target.value)}
                     className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-white outline-none"
                   >
-                    <option value="bbl">Barrels (bbl)</option>
-                    <option value="gallons">Gallons (gal)</option>
-                    <option value="cubicMeters">Cubic Meters</option>
-                    <option value="liters">Liters (L)</option>
-                    <option value="cubicFeet">Cubic Feet</option>
-                    <option value="metricTons">Metric Tons</option>
+                    {Object.entries(CONVERSION_UNITS).map(([value, unit]) => (
+                      <option key={value} value={value}>
+                        {unit.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="flex justify-center text-gray-500">
-                  <TrendingDown className="w-4 h-4" />
+                  <button
+                    type="button"
+                    onClick={swapUnits}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-gray-400 transition hover:text-white"
+                  >
+                    <TrendingDown className="w-4 h-4" /> Swap
+                  </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -613,15 +646,14 @@ export default function OilAndGasIntelligence() {
                   />
                   <select
                     value={toUnit}
-                    onChange={(e) => setToUnit(e.target.value)}
+                    onChange={(e) => handleToUnitChange(e.target.value)}
                     className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-white outline-none"
                   >
-                    <option value="liters">Liters (L)</option>
-                    <option value="cubicFeet">Cubic Feet</option>
-                    <option value="metricTons">Metric Tons</option>
-                    <option value="bbl">Barrels (bbl)</option>
-                    <option value="gallons">Gallons (gal)</option>
-                    <option value="cubicMeters">Cubic Meters</option>
+                    {Object.entries(CONVERSION_UNITS).map(([value, unit]) => (
+                      <option key={value} value={value}>
+                        {unit.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <p className="text-[10px] text-center text-gray-500 mt-2">

@@ -70,6 +70,8 @@ interface SentimentData {
   timestamp: string;
 }
 
+type ChartResolution = "60min" | "D" | "W" | "M";
+
 // ── Instruments ────────────────────────────────────────────────────────────────
 const INSTRUMENTS = [
   {
@@ -173,9 +175,21 @@ const CAPITAL_FLOW = [
   },
 ];
 
+const CHART_RESOLUTIONS: Array<{
+  label: string;
+  value: ChartResolution;
+}> = [
+  { label: "1H", value: "60min" },
+  { label: "1D", value: "D" },
+  { label: "1W", value: "W" },
+  { label: "1M", value: "M" },
+];
+
 export default function AnalyticsDashboardPage() {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string>("gold");
+  const [chartResolution, setChartResolution] =
+    useState<ChartResolution>("D");
   const [sentimentCache, setSentimentCache] = useState<
     Record<string, SentimentData>
   >({});
@@ -339,19 +353,49 @@ export default function AnalyticsDashboardPage() {
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
           {/* Main GeoMoney Advanced Chart */}
           <div className="xl:col-span-3 rounded-xl border border-white/10 overflow-hidden bg-white/5 h-[420px] xl:h-[580px]">
+            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3">
+              <div>
+                <div className="text-sm font-semibold text-white">
+                  Advanced Macro Chart
+                </div>
+                <div className="text-xs text-gray-500">
+                  Resolution-aware pricing for {selected.name}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 p-1">
+                {CHART_RESOLUTIONS.map((resolution) => {
+                  const isActive = chartResolution === resolution.value;
+
+                  return (
+                    <button
+                      key={resolution.value}
+                      type="button"
+                      onClick={() => setChartResolution(resolution.value)}
+                      className={`rounded-full px-3 py-1 text-[11px] font-semibold tracking-[0.2em] transition-colors ${
+                        isActive
+                          ? "bg-geo-gold text-black"
+                          : "text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      {resolution.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <AnimatePresence mode="wait">
               <motion.div
-                key={selected.symbol}
+                key={`${selected.symbol}-${chartResolution}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="h-full"
+                className="h-[calc(100%-61px)]"
               >
                 <AlphaVantageChart
                   symbol={selected.symbol}
-                  interval="D"
-                  height={580}
+                  interval={chartResolution}
+                  height="100%"
                 />
               </motion.div>
             </AnimatePresence>
