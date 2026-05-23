@@ -73,6 +73,39 @@ function runNewsSync() {
   req.end();
 }
 
+function runTickerSync() {
+  console.log(`[Scheduler] Running ticker sync at ${new Date().toISOString()}`);
+  const options = {
+    hostname: "127.0.0.1",
+    port: port,
+    path: "/api/cron/ticker",
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${process.env.CRON_SECRET || ""}`,
+    },
+  };
+  const req = require("http").request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => {
+      data += chunk;
+    });
+    res.on("end", () => {
+      try {
+        const result = JSON.parse(data);
+        console.log(
+          `[Scheduler] Ticker sync complete — tickers: ${result.synced?.tickers ?? "?"}`,
+        );
+      } catch {
+        console.log("[Scheduler] Ticker sync response:", data.slice(0, 200));
+      }
+    });
+  });
+  req.on("error", (err) =>
+    console.error("[Scheduler] Ticker sync failed:", err.message),
+  );
+  req.end();
+}
+
 function runIntelligenceReport(type = "daily") {
   console.log(
     `[Scheduler] Running ${type} intelligence report at ${new Date().toISOString()}`,
@@ -188,6 +221,11 @@ function scheduleWeeklyAt(utcDayOfWeek, utcHour, utcMinute, label, fn) {
 let missingStaticAssetsCount = 0;
 
 app.prepare().then(() => {
+  setTimeout(() => {
+    runTickerSync();
+    setInterval(runTickerSync, 60 * 1000);
+  }, 5000);
+
   // Run news sync immediately on startup, then every hour
   setTimeout(() => {
     runNewsSync();

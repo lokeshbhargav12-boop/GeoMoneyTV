@@ -54,7 +54,7 @@ export default function Ticker() {
     }
 
     fetchTicker();
-    const intervalId = window.setInterval(fetchTicker, 60_000);
+    const intervalId = window.setInterval(fetchTicker, 30_000);
 
     return () => {
       active = false;

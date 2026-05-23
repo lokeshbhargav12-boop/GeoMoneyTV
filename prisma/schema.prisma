@@ -149,6 +149,36 @@ model CommodityPrice {
   updatedAt DateTime @updatedAt
 }
 
+model MarketPriceHistory {
+  id         String   @id @default(cuid())
+  label      String
+  symbol     String
+  source     String
+  interval   String
+  open       Float
+  high       Float
+  low        Float
+  close      Float
+  volume     Float?
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([symbol, interval, recordedAt])
+  @@index([symbol, interval, recordedAt])
+  @@index([recordedAt])
+}
+
+model MediaAsset {
+  id        String   @id @default(cuid())
+  kind      String
+  filename  String
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([kind, createdAt])
+}
+
 model SocialPost {
   id          String   @id @default(cuid())
   text        String   @db.Text

@@ -1,50 +1,41 @@
 import { prisma } from "@/lib/prisma";
+import {
+    ensureTickerFresh,
+    fetchAndStoreHistory,
+    getStoredHistory,
+    refreshTickerQuotes,
+    type MarketHistoryRow,
+    type MarketInterval,
+    type MarketSymbolConfig,
+} from "@/lib/market-data-service";
 
-type TickerSymbolConfig = {
-    label: string;
-    symbol: string;
-    type: string;
-    sourceSymbol?: string;
-};
+export type TickerSymbolConfig = MarketSymbolConfig;
 
 const DEFAULT_SYMBOLS = [
-    { label: 'GOLD', symbol: 'GOLD', type: 'commodity', sourceSymbol: 'GLD' },
-    { label: 'SILVER', symbol: 'SILVER', type: 'commodity', sourceSymbol: 'SLV' },
-    { label: 'COPPER', symbol: 'COPPER', type: 'commodity', sourceSymbol: 'CPER' },
-    { label: 'CRUDE OIL', symbol: 'CRUDE', type: 'commodity', sourceSymbol: 'USO' },
-    { label: 'NAT GAS', symbol: 'NATGAS', type: 'commodity', sourceSymbol: 'UNG' },
-    { label: 'URANIUM', symbol: 'URANIUM', type: 'commodity', sourceSymbol: 'URNM' },
-    { label: 'LITHIUM', symbol: 'LITHIUM', type: 'commodity', sourceSymbol: 'LIT' },
+    { label: "GOLD", symbol: "GOLD", type: "commodity", sourceSymbol: "XAUUSD" },
+    { label: "SILVER", symbol: "SILVER", type: "commodity", sourceSymbol: "XAGUSD" },
+    { label: "COPPER", symbol: "COPPER", type: "commodity", sourceSymbol: "CAPITALCOM:COPPER" },
+    { label: "ZINC", symbol: "ZINC", type: "commodity" },
+    { label: "LEAD", symbol: "LEAD", type: "commodity" },
+    { label: "NICKEL", symbol: "NICKEL", type: "commodity" },
+    { label: "CRUDE OIL", symbol: "CRUDE", type: "commodity", sourceSymbol: "TVC:USOIL" },
+    { label: "NAT GAS", symbol: "NATGAS", type: "commodity", sourceSymbol: "CAPITALCOM:NATURALGAS" },
+    { label: "ASX200", symbol: "ASX200", type: "index" },
+    { label: "URANIUM", symbol: "URANIUM", type: "commodity" },
+    { label: "LITHIUM", symbol: "LITHIUM", type: "commodity" },
 ] satisfies TickerSymbolConfig[];
 
-const COMMODITY_PROXY_MAP: Record<string, string> = {
-    GOLD: 'GLD',
-    XAUUSD: 'GLD',
-    SILVER: 'SLV',
-    XAGUSD: 'SLV',
-    COPPER: 'CPER',
-    CRUDE: 'USO',
-    USOIL: 'USO',
-    WTI: 'USO',
-    NATGAS: 'UNG',
-    NATURALGAS: 'UNG',
-    UNGAS: 'UNG',
-    URANIUM: 'URNM',
-    LITHIUM: 'LIT',
-};
-
-// Mining commodities for the ticker (Discovery Alert style)
 const MINING_COMMODITIES = [
-    { label: 'GOLD', symbol: 'GOLD', price: 2715.30, change: -5.20, changePercent: -0.19, type: 'commodity' },
-    { label: 'SILVER', symbol: 'SILVER', price: 30.125, change: -0.205, changePercent: -0.68, type: 'commodity' },
-    { label: 'COPPER', symbol: 'COPPER', price: 4.2150, change: 0.0350, changePercent: 0.84, type: 'commodity' },
-    { label: 'ZINC', symbol: 'ZINC', price: 3360.090, change: -68.750, changePercent: -2.01, type: 'commodity' },
-    { label: 'LEAD', symbol: 'LEAD', price: 1985.500, change: -4.350, changePercent: -0.22, type: 'commodity' },
-    { label: 'NICKEL', symbol: 'NICKEL', price: 17521.0, change: -963.0, changePercent: -5.21, type: 'commodity' },
-    { label: 'CRUDE OIL', symbol: 'CRUDE', price: 69.84, change: 0.14, changePercent: 0.20, type: 'commodity' },
-    { label: 'ASX200', symbol: 'ASX200', price: 8818.49, change: -75.00, changePercent: -0.84, type: 'index' },
-    { label: 'URANIUM', symbol: 'URANIUM', price: 97.50, change: -3.03, changePercent: -3.03, type: 'commodity' },
-    { label: 'LITHIUM', symbol: 'LITHIUM', price: 10250.00, change: 125.00, changePercent: 1.23, type: 'commodity' },
+    { label: "GOLD", symbol: "GOLD", price: 2715.30, change: -5.20, changePercent: -0.19, type: "commodity" },
+    { label: "SILVER", symbol: "SILVER", price: 30.125, change: -0.205, changePercent: -0.68, type: "commodity" },
+    { label: "COPPER", symbol: "COPPER", price: 4.2150, change: 0.0350, changePercent: 0.84, type: "commodity" },
+    { label: "ZINC", symbol: "ZINC", price: 3360.090, change: -68.750, changePercent: -2.01, type: "commodity" },
+    { label: "LEAD", symbol: "LEAD", price: 1985.500, change: -4.350, changePercent: -0.22, type: "commodity" },
+    { label: "NICKEL", symbol: "NICKEL", price: 17521.0, change: -963.0, changePercent: -5.21, type: "commodity" },
+    { label: "CRUDE OIL", symbol: "CRUDE", price: 69.84, change: 0.14, changePercent: 0.20, type: "commodity" },
+    { label: "ASX200", symbol: "ASX200", price: 8818.49, change: -75.00, changePercent: -0.84, type: "index" },
+    { label: "URANIUM", symbol: "URANIUM", price: 97.50, change: -3.03, changePercent: -3.03, type: "commodity" },
+    { label: "LITHIUM", symbol: "LITHIUM", price: 10250.00, change: 125.00, changePercent: 1.23, type: "commodity" },
 ];
 
 function normalizeTickerKey(value: string) {
@@ -94,8 +85,6 @@ function mergeTickerRows(storedRows: Array<{
 }
 
 export async function getMiningCommodityData() {
-    // Returns mining commodity data for the ticker
-    // In production, this would fetch from a live API
     return MINING_COMMODITIES.map(item => ({
         label: item.label,
         symbol: item.symbol,
@@ -104,6 +93,39 @@ export async function getMiningCommodityData() {
         changePercent: item.changePercent,
         type: item.type
     }));
+}
+
+export async function getTickerSymbols(): Promise<TickerSymbolConfig[]> {
+    try {
+        const setting = await prisma.siteSettings.findUnique({
+            where: { key: "ticker_symbols" },
+            select: { value: true },
+        });
+
+        if (!setting) {
+            return DEFAULT_SYMBOLS;
+        }
+
+        const parsed = JSON.parse(setting.value);
+
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+            return DEFAULT_SYMBOLS;
+        }
+
+        return parsed.filter(
+            (item): item is TickerSymbolConfig =>
+                typeof item?.label === "string" &&
+                typeof item?.symbol === "string" &&
+                typeof item?.type === "string",
+        );
+    } catch {
+        return DEFAULT_SYMBOLS;
+    }
+}
+
+export async function ensureTickerDataFresh(maxAgeMs = 60_000) {
+    const symbols = await getTickerSymbols();
+    return ensureTickerFresh(symbols, maxAgeMs);
 }
 
 export async function getStoredTickerData() {
@@ -136,100 +158,46 @@ export async function getStoredTickerData() {
 }
 
 export async function updateTickerData() {
-    try {
-        // 1. Get Settings
-        const settings = await prisma.siteSettings.findMany({
-            where: { key: { in: ['ticker_symbols', 'alpha_vantage_key'] } }
-        });
+    const symbols = await getTickerSymbols();
+    return refreshTickerQuotes(symbols);
+}
 
-        let symbols: TickerSymbolConfig[] = DEFAULT_SYMBOLS;
-        let apiKey = '';
+export async function resolveTickerSymbolConfig(rawSymbol: string) {
+    const symbols = await getTickerSymbols();
+    const normalized = normalizeTickerKey(rawSymbol);
 
-        settings.forEach((s) => {
-            if (s.key === 'ticker_symbols') {
-                try {
-                    const parsed = JSON.parse(s.value);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        symbols = parsed;
-                    }
-                } catch { }
-            } else if (s.key === 'alpha_vantage_key') {
-                apiKey = s.value.trim();
-            }
-        });
-
-        if (!apiKey) {
-            console.log("Skipping Ticker Update: No API Key");
-            return 0;
+    return (
+        symbols.find(
+            (item) =>
+                normalizeTickerKey(item.symbol) === normalized ||
+                normalizeTickerKey(item.label) === normalized ||
+                normalizeTickerKey(item.sourceSymbol || "") === normalized,
+        ) || {
+            label: rawSymbol,
+            symbol: rawSymbol,
+            type: "instrument",
         }
+    );
+}
 
-        // 2. Fetch data for each symbol
-        let updatedCount = 0;
-
-        for (const item of symbols) {
-            try {
-                let price = 0;
-                let change = 0;
-                let previousClose = 0;
-
-                let url = "";
-                const fetchSymbol = item.sourceSymbol || COMMODITY_PROXY_MAP[normalizeTickerKey(item.symbol)] || item.symbol;
-
-                if (item.type === 'crypto' && fetchSymbol === 'BTC') {
-                    url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${fetchSymbol}&to_currency=USD&apikey=${apiKey}`;
-                } else if (item.type === 'currency' && fetchSymbol === 'EUR') {
-                    url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${fetchSymbol}&to_currency=USD&apikey=${apiKey}`;
-                } else {
-                    url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${fetchSymbol}&apikey=${apiKey}`;
-                }
-
-                const res = await fetch(url);
-                const data = await res.json();
-
-                if (data['Global Quote']) {
-                    const q = data['Global Quote'];
-                    price = parseFloat(q['05. price']);
-                    change = parseFloat(q['10. change percent']?.replace('%', ''));
-                    previousClose = parseFloat(q['08. previous close']);
-                } else if (data['Realtime Currency Exchange Rate']) {
-                    const q = data['Realtime Currency Exchange Rate'];
-                    price = parseFloat(q['5. Exchange Rate']);
-                    change = 0;
-                } else {
-                    console.warn(`No data for ${item.symbol}`, data);
-                    continue;
-                }
-
-                if (price > 0) {
-                    await prisma.commodityPrice.upsert({
-                        where: { symbol: item.symbol },
-                        update: {
-                            price,
-                            change,
-                            previousClose,
-                            updatedAt: new Date()
-                        },
-                        create: {
-                            label: item.label,
-                            symbol: item.symbol,
-                            type: item.type,
-                            price,
-                            change,
-                            previousClose
-                        }
-                    });
-                    updatedCount++;
-                }
-
-            } catch (err) {
-                console.error(`Failed to update ${item.symbol}`, err);
-            }
-        }
-
-        return updatedCount;
-
-    } catch (error) {
-        console.error("Critical error in updateTickerData", error);
-        throw error;
+export async function getOrRefreshStoredHistory(
+    rawSymbol: string,
+    interval: MarketInterval,
+): Promise<{ symbol: string; data: MarketHistoryRow[] }> {
+    if (interval === "60min") {
+        await ensureTickerDataFresh();
     }
+
+    const symbolConfig = await resolveTickerSymbolConfig(rawSymbol);
+    let data = await getStoredHistory(symbolConfig.symbol, interval);
+
+    if (data.length === 0) {
+        await fetchAndStoreHistory(symbolConfig, interval);
+        data = await getStoredHistory(symbolConfig.symbol, interval);
+    }
+
+    return {
+        symbol: symbolConfig.symbol,
+        data,
+    };
 }

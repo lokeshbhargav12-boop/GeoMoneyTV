@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
-import { getStoredTickerData, getMiningCommodityData } from "@/lib/ticker-service";
+import {
+  ensureTickerDataFresh,
+  getStoredTickerData,
+  getMiningCommodityData,
+} from "@/lib/ticker-service";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    await ensureTickerDataFresh();
+
     // First try to get stored data from DB
     let data = await getStoredTickerData();
 
@@ -15,7 +21,7 @@ export async function GET() {
 
     return NextResponse.json(data, {
       headers: {
-        'Cache-Control': 's-maxage=60, stale-while-revalidate=300',
+        'Cache-Control': 's-maxage=15, stale-while-revalidate=60',
       },
     });
   } catch (error) {
@@ -24,7 +30,7 @@ export async function GET() {
     const fallbackData = await getMiningCommodityData();
     return NextResponse.json(fallbackData, {
       headers: {
-        'Cache-Control': 's-maxage=60, stale-while-revalidate=300',
+        'Cache-Control': 's-maxage=15, stale-while-revalidate=60',
       },
     });
   }

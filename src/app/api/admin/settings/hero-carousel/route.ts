@@ -2,10 +2,30 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import path from 'path'
+import fs from 'fs'
 
 const KEY = 'hero_carousel'
 
 const defaultSlides = Array(5).fill(null).map(() => ({ url: '', title: '', subtitle: '' }))
+
+function isSlideUrlAvailable(url: string) {
+    if (!url) {
+        return false
+    }
+
+    if (url.startsWith('/api/media/')) {
+        return true
+    }
+
+    if (url.startsWith('/uploads/')) {
+        const relativePath = url.replace(/^\/uploads\//, '')
+        const localFilePath = path.join(process.cwd(), 'public', 'uploads', relativePath)
+        return fs.existsSync(localFilePath)
+    }
+
+    return true
+}
 
 export async function GET() {
     try {
@@ -17,6 +37,24 @@ export async function GET() {
                 // Ensure exactly 5 slides
                 while (slides.length < 5) slides.push({ url: '', title: '', subtitle: '' })
                 slides = slides.slice(0, 5)
+                const sanitizedSlides = slides.map((slide) =>
+                    slide?.url && !isSlideUrlAvailable(slide.url)
+                        ? { ...slide, url: '' }
+                        : slide,
+                )
+
+                const didSanitize = sanitizedSlides.some(
+                    (slide, index) => slide.url !== slides[index]?.url,
+                )
+
+                slides = sanitizedSlides
+
+                if (didSanitize && setting) {
+                    await prisma.siteSettings.update({
+                        where: { key: KEY },
+                        data: { value: JSON.stringify(slides) },
+                    })
+                }
             } catch {
                 slides = defaultSlides
             }

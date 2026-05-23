@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { writeFile } from 'fs/promises'
+import { prisma } from '@/lib/prisma'
 import path from 'path'
-import fs from 'fs'
 
 export async function POST(req: Request) {
     try {
@@ -34,16 +33,17 @@ export async function POST(req: Request) {
 
         const ext = path.extname(file.name).toLowerCase() || '.jpg'
         const filename = `carousel-${Date.now()}${ext}`
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+        const asset = await prisma.mediaAsset.create({
+            data: {
+                kind: 'hero-carousel',
+                filename,
+                mimeType: file.type,
+                data: buffer,
+            },
+            select: { id: true },
+        })
 
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true })
-        }
-
-        const filepath = path.join(uploadDir, filename)
-        await writeFile(filepath, buffer)
-
-        return NextResponse.json({ url: `/uploads/${filename}` })
+        return NextResponse.json({ url: `/api/media/${asset.id}` })
     } catch (error) {
         console.error('Upload error:', error)
         return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
