@@ -1,4 +1,4 @@
-import Hero from "@/components/Hero";
+import Hero, { type CarouselSlide } from "@/components/Hero";
 import Features from "@/components/Features";
 import Newsletter from "@/components/Newsletter";
 import WaitlistSection from "@/components/WaitlistSection";
@@ -58,22 +58,53 @@ async function getQuickBriefings() {
   }
 }
 
+async function getHeroCarouselSlides(): Promise<CarouselSlide[]> {
+  try {
+    const setting = await prisma.siteSettings.findUnique({
+      where: { key: "hero_carousel" },
+      select: { value: true },
+    });
+
+    if (!setting) {
+      return [];
+    }
+
+    const parsedSlides = JSON.parse(setting.value);
+
+    if (!Array.isArray(parsedSlides)) {
+      return [];
+    }
+
+    return parsedSlides.filter(
+      (slide): slide is CarouselSlide =>
+        typeof slide?.url === "string" &&
+        slide.url.length > 0 &&
+        typeof slide.title === "string" &&
+        typeof slide.subtitle === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
 export default async function Home({
   searchParams,
 }: {
   searchParams: { q?: string };
 }) {
-  const [articles, globalBriefings, quickBriefings] = await Promise.all([
-    getRecentArticles(),
-    getGlobalBriefings(),
-    getQuickBriefings(),
-  ]);
+  const [articles, globalBriefings, quickBriefings, heroCarouselSlides] =
+    await Promise.all([
+      getRecentArticles(),
+      getGlobalBriefings(),
+      getQuickBriefings(),
+      getHeroCarouselSlides(),
+    ]);
 
   return (
     <main className="min-h-screen text-white selection:bg-geo-gold selection:text-black relative">
       {/* Add top padding for fixed ticker + navbar */}
       <div className="pt-0">
-        <Hero />
+        <Hero initialSlides={heroCarouselSlides} />
       </div>
 
       <Features />

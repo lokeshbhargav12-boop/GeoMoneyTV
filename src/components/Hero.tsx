@@ -4,17 +4,21 @@ import { useState, useEffect } from "react";
 import Globe from "./Globe";
 import AiAssistant from "./AiAssistant";
 
-interface CarouselSlide {
+export interface CarouselSlide {
   url: string;
   title: string;
   subtitle: string;
 }
 
-export default function Hero() {
+interface HeroProps {
+  initialSlides?: CarouselSlide[];
+}
+
+export default function Hero({ initialSlides = [] }: HeroProps) {
   const [text, setText] = useState("");
   const [showCursor, setShowCursor] = useState(true);
   const [isTypingComplete, setIsTypingComplete] = useState(false);
-  const [slides, setSlides] = useState<CarouselSlide[]>([]);
+  const [slides, setSlides] = useState<CarouselSlide[]>(initialSlides);
   const [activeSlide, setActiveSlide] = useState(0);
 
   const fullText = "How energy, resources, and markets shape the global order";
@@ -42,6 +46,12 @@ export default function Hero() {
       .then((data) => {
         if (data.slides) {
           setSlides(data.slides.filter((s: CarouselSlide) => s.url));
+          setActiveSlide((currentSlide) => {
+            const nextSlides = data.slides.filter((s: CarouselSlide) => s.url);
+            return nextSlides.length === 0
+              ? 0
+              : Math.min(currentSlide, nextSlides.length - 1);
+          });
         }
       })
       .catch(() => {});
