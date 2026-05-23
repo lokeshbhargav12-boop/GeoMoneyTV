@@ -9,8 +9,7 @@ import NewsImage from "@/components/NewsImage";
 import EnergySection from "@/components/EnergySection";
 import BriefingsSection from "@/components/BriefingsSection";
 
-// Revalidate page cache every 60 seconds (ISR) — avoids DB hit on every request
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 async function getRecentArticles() {
   try {
