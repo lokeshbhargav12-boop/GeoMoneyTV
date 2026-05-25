@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -1256,6 +1256,58 @@ export default function WorldMonitorPage() {
     setMobileHudOpen(true);
   }, []);
 
+  // ─── SECTION NAVIGATION ────────────────────────────────
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [sideNavMinimized, setSideNavMinimized] = useState(false);
+
+  const SIDE_NAV_SECTIONS = [
+    { id: "risk-indices", label: "Risk Indices", icon: Activity },
+    { id: "chokepoints", label: "Chokepoints", icon: Target },
+    { id: "asset-tracking", label: "Asset Tracking", icon: Layers },
+    { id: "nuclear-monitor", label: "Nuclear Monitor", icon: Atom },
+    { id: "sanctions", label: "Sanctions Tracker", icon: ShieldAlert },
+    { id: "sigint-feeds", label: "SIGINT Feeds", icon: Radio },
+    { id: "country-briefs", label: "Country Briefs", icon: Flag },
+  ] as const;
+
+  // IntersectionObserver — track which section is currently in view
+  useEffect(() => {
+    if (isCompactLayout) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.id);
+            break; // use the first visible one
+          }
+        }
+      },
+      { rootMargin: "-20% 0px -60% 0px", threshold: 0.1 },
+    );
+
+    const currentRefs = sectionRefs.current;
+    SIDE_NAV_SECTIONS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) {
+        currentRefs[id] = el;
+        observer.observe(el);
+      }
+    });
+
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCompactLayout]);
+
+  const scrollToSection = useCallback((sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActiveSection(sectionId);
+    }
+  }, []);
+
   // ──────────────────────────────────────────────────────────
   return (
     <main className="relative flex min-h-dvh flex-col overflow-y-auto pt-[104px] text-white sm:pt-[128px]">
@@ -2173,23 +2225,98 @@ export default function WorldMonitorPage() {
           )}
         </div>
 
+        {/* ═══ SIDE NAVIGATION (3D mode desktop only) ══════ */}
+        {!apertureActive && !isCompactLayout && (
+          <div className="absolute left-0 top-[60%] -translate-y-1/2 z-20">
+            <motion.div
+              initial={{ opacity: 0, x: -16 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex flex-col gap-1"
+            >
+              {sideNavMinimized ? (
+                <button
+                  onClick={() => setSideNavMinimized(false)}
+                  className="rounded-r-xl border border-white/10 border-l-0 bg-black/65 backdrop-blur-xl px-2 py-3 text-gray-400 hover:text-geo-gold transition-colors shadow-xl"
+                  title="Open section navigation"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              ) : (
+                <div className="rounded-r-2xl border border-white/10 border-l-0 bg-black/65 backdrop-blur-xl px-2 py-1.5 shadow-xl max-w-[200px]">
+                  <div className="flex items-center justify-between px-1 pb-1.5 border-b border-white/5">
+                    <span className="text-[9px] font-mono uppercase tracking-[0.15em] text-gray-500">
+                      Sections
+                    </span>
+                    <button
+                      onClick={() => setSideNavMinimized(true)}
+                      className="text-gray-600 hover:text-gray-300 transition-colors"
+                      title="Minimize"
+                    >
+                      <ChevronRight className="h-3 w-3 rotate-180" />
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-0.5 pt-1">
+                    {SIDE_NAV_SECTIONS.map((section) => {
+                      const Icon = section.icon;
+                      const isActive = activeSection === section.id;
+                      return (
+                        <button
+                          key={section.id}
+                          onClick={() => scrollToSection(section.id)}
+                          className={`
+                            flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-all group
+                            ${isActive
+                              ? "bg-geo-gold/10 border border-geo-gold/30 text-geo-gold"
+                              : "border border-transparent text-gray-500 hover:text-gray-200 hover:bg-white/5"
+                            }
+                          `}
+                        >
+                          <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? "text-geo-gold" : "text-gray-600 group-hover:text-gray-400"}`} />
+                          <span className="text-[10px] font-medium leading-tight truncate">
+                            {section.label}
+                          </span>
+                          {isActive && (
+                            <span className="ml-auto h-1.5 w-1.5 rounded-full bg-geo-gold animate-pulse shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+
         {/* ═══ DASHBOARD GRID LAYER ═════════════════════════ */}
         <div className="mt-6 flex flex-col gap-6 w-full">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div id="risk-indices" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 scroll-mt-[140px]">
             <RiskIndicesWidget data={RISK_INDICES} />
-            <ChokepointsWidget
-              data={CHOKEPOINTS}
-              onChokepointClick={handleChokepointClick}
-            />
-            <AssetTrackingWidget data={trackedAssets} />
+            <div id="chokepoints" className="scroll-mt-[140px]">
+              <ChokepointsWidget
+                data={CHOKEPOINTS}
+                onChokepointClick={handleChokepointClick}
+              />
+            </div>
+            <div id="asset-tracking" className="scroll-mt-[140px]">
+              <AssetTrackingWidget data={trackedAssets} />
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <NuclearMonitorWidget data={NUCLEAR_STATUS} />
-            <SanctionsWidget data={SANCTIONS_DATA} />
+            <div id="nuclear-monitor" className="scroll-mt-[140px]">
+              <NuclearMonitorWidget data={NUCLEAR_STATUS} />
+            </div>
+            <div id="sanctions" className="scroll-mt-[140px]">
+              <SanctionsWidget data={SANCTIONS_DATA} />
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SigintWidget data={SIGINT_FEEDS} />
-            <CountryBriefsWidget data={COUNTRY_BRIEFS} />
+            <div id="sigint-feeds" className="scroll-mt-[140px]">
+              <SigintWidget data={SIGINT_FEEDS} />
+            </div>
+            <div id="country-briefs" className="scroll-mt-[140px]">
+              <CountryBriefsWidget data={COUNTRY_BRIEFS} />
+            </div>
           </div>
         </div>
 
