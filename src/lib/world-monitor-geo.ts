@@ -15,7 +15,7 @@ export const LIVE_WEBCAMS: Webcam[] = [
         title: "Al Jazeera English Live",
         lat: 25.2854,
         lng: 51.5310,
-        embedUrl: "https://www.youtube.com/embed/-dpyN_PzFos?autoplay=1&mute=1&controls=0&loop=1",
+        embedUrl: "https://www.youtube.com/embed/bNyUyrR0PHo?autoplay=1&mute=1",
         thumbnail: "https://images.unsplash.com/photo-1546201382-72ab3e318cf1?w=300&h=200&fit=crop",
         country: "QA",
         type: "live",
@@ -26,7 +26,7 @@ export const LIVE_WEBCAMS: Webcam[] = [
         lat: 35.6595,
         lng: 139.7004,
         embedUrl:
-            "https://www.youtube.com/embed/DjdUEyjx8GM?autoplay=1&mute=1&controls=0&loop=1",
+            "https://www.youtube.com/embed/DjdUEyjx8GM?autoplay=1&mute=1",
         thumbnail:
             "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=300&h=200&fit=crop",
         country: "JP",
@@ -38,7 +38,7 @@ export const LIVE_WEBCAMS: Webcam[] = [
         lat: 51.5074,
         lng: -0.1278,
         embedUrl:
-            "https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1&controls=0&loop=1",
+            "https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1",
         thumbnail:
             "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=300&h=200&fit=crop",
         country: "GB",
@@ -50,7 +50,7 @@ export const LIVE_WEBCAMS: Webcam[] = [
         lat: 40.7128,
         lng: -74.0060,
         embedUrl:
-            "https://www.youtube.com/embed/dp8PhLsUcFE?autoplay=1&mute=1&controls=0&loop=1",
+            "https://www.youtube.com/embed/dp8PhLsUcFE?autoplay=1&mute=1",
         thumbnail:
             "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=300&h=200&fit=crop",
         country: "US",
@@ -62,7 +62,7 @@ export const LIVE_WEBCAMS: Webcam[] = [
         lat: 0,
         lng: 0,
         embedUrl:
-            "https://www.youtube.com/embed/21X5lGlDOfg?autoplay=1&mute=1&controls=0&loop=1",
+            "https://www.youtube.com/embed/21X5lGlDOfg?autoplay=1&mute=1",
         thumbnail:
             "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&h=200&fit=crop",
         country: "ISS",
