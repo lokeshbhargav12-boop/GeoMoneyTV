@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, ExternalLink, Tag } from "lucide-react";
 import NewsImage from "@/components/NewsImage";
 import ArticleContent from "@/components/ArticleContent";
+import ArticleNavigation from "@/components/ArticleNavigation";
 
 // Cache article pages for 5 minutes
 export const revalidate = 300;
@@ -39,6 +40,32 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
       take: 3,
       orderBy: { createdAt: "desc" },
     });
+  } catch {}
+
+  // Fetch prev/next articles for navigation
+  let prevArticle: { slug: string; title: string } | null = null;
+  let nextArticle: { slug: string; title: string } | null = null;
+  try {
+    const [prev, next] = await Promise.all([
+      prisma.article.findFirst({
+        where: {
+          published: true,
+          createdAt: { lt: article.createdAt },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { slug: true, title: true },
+      }),
+      prisma.article.findFirst({
+        where: {
+          published: true,
+          createdAt: { gt: article.createdAt },
+        },
+        orderBy: { createdAt: "asc" },
+        select: { slug: true, title: true },
+      }),
+    ]);
+    prevArticle = prev;
+    nextArticle = next;
   } catch {}
 
   return (
@@ -125,6 +152,14 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
               </a>
             </div>
           )}
+
+          {/* Article Navigation — Previous / Next */}
+          <ArticleNavigation
+            prevSlug={prevArticle?.slug ?? null}
+            prevTitle={prevArticle?.title ?? null}
+            nextSlug={nextArticle?.slug ?? null}
+            nextTitle={nextArticle?.title ?? null}
+          />
 
           {/* Related Articles */}
           {relatedArticles.length > 0 && (

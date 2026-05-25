@@ -84,7 +84,21 @@ export default function NewsBias({ title, text, className }: NewsBiasProps) {
         throw new Error("Unexpected bias response format");
       }
 
-      setResult(normalized);
+      // Normalize category based on actual score to prevent mismatches
+      // (AI sometimes returns "Lean Left" with a positive score, etc.)
+      const score = normalized.score;
+      let correctedCategory: string;
+      if (score <= -60) correctedCategory = "Left";
+      else if (score <= -20) correctedCategory = "Lean Left";
+      else if (score <= 20) correctedCategory = "Center";
+      else if (score <= 60) correctedCategory = "Lean Right";
+      else correctedCategory = "Right";
+
+      setResult({
+        ...normalized,
+        score,
+        category: correctedCategory,
+      });
     } catch (err) {
       setError("Could not analyze bias at this time.");
       console.error(err);
