@@ -91,7 +91,10 @@ export function getStreetViewEmbedUrl(
     heading = 0,
     pitch = 0,
 ): string {
-    return `https://www.google.com/maps/embed?pb=!4v${Date.now()}!6m8!1m7!1s!2m2!1d${lat}!2d${lng}!3f${heading}!4f${pitch}!5f0.75`;
+    // Use layer=c + cbll= + cbp= format which reliably shows Street View
+    // panorama in an iframe without requiring a Google API key.
+    // cbp=11,heading,0,pitch,0  →  11=street view mode, heading, tilt, pitch, zoom
+    return `https://maps.google.com/maps?q=${lat},${lng}&layer=c&cbll=${lat},${lng}&cbp=11,${heading},0,${pitch},0&output=embed&iwloc=0`;
 }
 
 export function getStreetViewDirectUrl(
