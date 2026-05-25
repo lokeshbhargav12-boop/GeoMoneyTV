@@ -8,6 +8,8 @@ import {
     type MarketInterval,
     type MarketSymbolConfig,
 } from "@/lib/market-data-service";
+import { getMarketStatus } from "@/lib/market-schedule";
+import type { MarketStatus } from "@/lib/market-schedule";
 
 export type TickerSymbolConfig = MarketSymbolConfig;
 
@@ -25,7 +27,16 @@ const DEFAULT_SYMBOLS = [
     { label: "LITHIUM", symbol: "LITHIUM", type: "commodity" },
 ] satisfies TickerSymbolConfig[];
 
-const MINING_COMMODITIES = [
+interface BaseCommodityItem {
+    label: string;
+    symbol: string;
+    price: number;
+    change: number;
+    changePercent: number;
+    type: string;
+}
+
+const MINING_COMMODITIES: BaseCommodityItem[] = [
     { label: "GOLD", symbol: "GOLD", price: 2715.30, change: -5.20, changePercent: -0.19, type: "commodity" },
     { label: "SILVER", symbol: "SILVER", price: 30.125, change: -0.205, changePercent: -0.68, type: "commodity" },
     { label: "COPPER", symbol: "COPPER", price: 4.2150, change: 0.0350, changePercent: 0.84, type: "commodity" },
@@ -38,18 +49,57 @@ const MINING_COMMODITIES = [
     { label: "LITHIUM", symbol: "LITHIUM", price: 10250.00, change: 125.00, changePercent: 1.23, type: "commodity" },
 ];
 
-function normalizeTickerKey(value: string) {
-    return value.trim().toUpperCase();
-}
-
-function mergeTickerRows(storedRows: Array<{
+export interface TickerItem {
     label: string;
     symbol: string;
     price: number;
     change: number;
     changePercent: number;
     type: string;
-}>) {
+    marketStatus: MarketStatus;
+    sessionLabel: string;
+    lastTradingTimestamp: string | null;
+}
+
+interface StoredRow {
+    label: string;
+    symbol: string;
+    price: number;
+    change: number;
+    changePercent: number;
+    type: string;
+    marketStatus?: string;
+    lastTradingTimestamp?: Date | null;
+}
+
+function normalizeTickerKey(value: string) {
+    return value.trim().toUpperCase();
+}
+
+function attachMarketStatus(item: Omit<TickerItem, "marketStatus" | "sessionLabel" | "lastTradingTimestamp"> & { marketStatus?: string; lastTradingTimestamp?: string | Date | null; sessionLabel?: string }): TickerItem {
+    const { status, sessionLabel } = getMarketStatus(item.symbol, item.type);
+    const isActive = status === "OPEN" || status === "PRE_MARKET" || status === "POST_MARKET";
+
+    const lastTs = item.lastTradingTimestamp
+        ? (item.lastTradingTimestamp instanceof Date
+            ? item.lastTradingTimestamp.toISOString()
+            : String(item.lastTradingTimestamp))
+        : null;
+
+    return {
+        label: item.label,
+        symbol: item.symbol,
+        price: item.price,
+        change: isActive ? item.change : 0,
+        changePercent: isActive ? item.changePercent : 0,
+        type: item.type,
+        marketStatus: status,
+        sessionLabel,
+        lastTradingTimestamp: lastTs,
+    };
+}
+
+function mergeTickerRows(storedRows: StoredRow[]): TickerItem[] {
     const storedBySymbol = new Map(
         storedRows.map((item) => [normalizeTickerKey(item.symbol), item]),
     );
@@ -59,17 +109,20 @@ function mergeTickerRows(storedRows: Array<{
             storedBySymbol.get(normalizeTickerKey(item.symbol)) ||
             storedBySymbol.get(normalizeTickerKey(item.label));
 
-        return stored
-            ? {
-                ...item,
+        if (stored) {
+            return attachMarketStatus({
                 label: stored.label || item.label,
                 symbol: stored.symbol || item.symbol,
                 price: stored.price,
                 change: stored.change,
                 changePercent: stored.changePercent,
                 type: stored.type || item.type,
-            }
-            : item;
+                marketStatus: stored.marketStatus,
+                lastTradingTimestamp: stored.lastTradingTimestamp,
+            });
+        }
+
+        return attachMarketStatus(item);
     });
 
     const additionalRows = storedRows.filter((item) => {
@@ -81,18 +134,15 @@ function mergeTickerRows(storedRows: Array<{
         ) && ["commodity", "index"].includes(item.type);
     });
 
-    return [...merged, ...additionalRows];
+    const additionalWithStatus = additionalRows.map((item) =>
+        attachMarketStatus(item),
+    );
+
+    return [...merged, ...additionalWithStatus];
 }
 
-export async function getMiningCommodityData() {
-    return MINING_COMMODITIES.map(item => ({
-        label: item.label,
-        symbol: item.symbol,
-        price: item.price,
-        change: item.change,
-        changePercent: item.changePercent,
-        type: item.type
-    }));
+export async function getMiningCommodityData(): Promise<TickerItem[]> {
+    return MINING_COMMODITIES.map(item => attachMarketStatus(item));
 }
 
 export async function getTickerSymbols(): Promise<TickerSymbolConfig[]> {
@@ -128,14 +178,14 @@ export async function ensureTickerDataFresh(maxAgeMs = 60_000) {
     return ensureTickerFresh(symbols, maxAgeMs);
 }
 
-export async function getStoredTickerData() {
+export async function getStoredTickerData(): Promise<TickerItem[]> {
     try {
         const data = await prisma.commodityPrice.findMany({
             orderBy: { updatedAt: 'desc' },
         });
 
         if (data.length > 0) {
-            const storedRows = data.map(item => ({
+            const storedRows: StoredRow[] = data.map(item => ({
                 label: item.label,
                 symbol: item.symbol,
                 price: item.price,
@@ -143,13 +193,14 @@ export async function getStoredTickerData() {
                 changePercent: item.previousClose && item.previousClose !== 0
                     ? ((item.price - item.previousClose) / item.previousClose) * 100
                     : item.change || 0,
-                type: item.type
+                type: item.type,
+                marketStatus: item.marketStatus,
+                lastTradingTimestamp: item.lastTradingTimestamp,
             }));
 
             return mergeTickerRows(storedRows);
         }
 
-        // Return mining commodities as fallback
         return getMiningCommodityData();
     } catch (error) {
         console.error("Error reading ticker from DB:", error);

@@ -1,5 +1,7 @@
 import YahooFinance from "yahoo-finance2";
 import { prisma } from "@/lib/prisma";
+import { getMarketStatus } from "@/lib/market-schedule";
+import type { MarketStatus } from "@/lib/market-schedule";
 
 const yahooFinance = new YahooFinance();
 
@@ -13,6 +15,8 @@ export interface MarketQuoteRow {
     change: number;
     changePercent: number;
     previousClose: number | null;
+    marketStatus: MarketStatus;
+    lastTradingTimestamp: string | null;
     updatedAt?: Date;
 }
 
@@ -136,14 +140,23 @@ export async function fetchLatestQuote(
             return null;
         }
 
+        const { status: marketStatus, exchange } = getMarketStatus(
+            item.symbol,
+            item.type,
+        );
+
+        const isActive = marketStatus === "OPEN" || marketStatus === "PRE_MARKET" || marketStatus === "POST_MARKET";
+
         return {
             label: item.label,
             symbol: item.symbol,
             type: item.type,
             price,
-            change,
-            changePercent,
+            change: isActive ? change : 0,
+            changePercent: isActive ? changePercent : 0,
             previousClose,
+            marketStatus,
+            lastTradingTimestamp: isActive ? new Date().toISOString() : null,
         };
     } catch (error) {
         console.error(`Quote fetch failed for ${item.symbol}:`, error);
@@ -243,6 +256,10 @@ export async function upsertLatestQuote(quote: MarketQuoteRow) {
             price: quote.price,
             change: quote.change,
             previousClose: quote.previousClose,
+            marketStatus: quote.marketStatus,
+            lastTradingTimestamp: quote.lastTradingTimestamp
+                ? new Date(quote.lastTradingTimestamp)
+                : null,
             updatedAt: new Date(),
         },
         create: {
@@ -252,6 +269,10 @@ export async function upsertLatestQuote(quote: MarketQuoteRow) {
             price: quote.price,
             change: quote.change,
             previousClose: quote.previousClose,
+            marketStatus: quote.marketStatus,
+            lastTradingTimestamp: quote.lastTradingTimestamp
+                ? new Date(quote.lastTradingTimestamp)
+                : null,
         },
     });
 

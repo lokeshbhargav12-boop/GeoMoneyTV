@@ -139,14 +139,16 @@ model TrackedMaterial {
 }
 
 model CommodityPrice {
-  id        String   @id @default(cuid())
-  label     String
-  symbol    String   @unique
-  price     Float
-  change    Float?
-  previousClose Float?
-  type      String
-  updatedAt DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  label               String
+  symbol              String   @unique
+  price               Float
+  change              Float?
+  previousClose       Float?
+  type                String
+  marketStatus        String   @default("OPEN")
+  lastTradingTimestamp DateTime?
+  updatedAt           DateTime @updatedAt
 }
 
 model MarketPriceHistory {
