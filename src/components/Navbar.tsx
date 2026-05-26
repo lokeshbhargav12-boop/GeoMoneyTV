@@ -24,8 +24,7 @@ const NAV_LINKS = [
     subLinks: [
       { href: "/energy", label: "Energy Hub" },
       { href: "/energy/oil-and-gas", label: "Oil & Gas" },
-      { href: "/energy", label: "Coal (Coming Soon)" },
-      { href: "/energy", label: "Energy Infrastructure (Coming Soon)" },
+      { href: "/energy/infrastructure", label: "Energy Infrastructure" },
     ],
   },
   { href: "/materials", label: "Critical Materials" },
@@ -156,7 +155,15 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             </select>
 
             {session?.user ? (
-              <SignOutButton />
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/profile"
+                  className="rounded-full border border-geo-gold/30 bg-geo-gold/10 px-4 py-1.5 text-sm font-medium text-geo-gold hover:bg-geo-gold/20 transition-colors"
+                >
+                  Profile
+                </Link>
+                <SignOutButton />
+              </div>
             ) : (
               <Link
                 href="/auth/signin"

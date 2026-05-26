@@ -17,7 +17,21 @@ export async function GET() {
         select: {
             trackedMaterials: {
                 orderBy: { createdAt: 'desc' },
-                select: { id: true, materialId: true, createdAt: true },
+                select: {
+                    id: true,
+                    materialId: true,
+                    createdAt: true,
+                    material: {
+                        select: {
+                            name: true,
+                            symbol: true,
+                            category: true,
+                            price: true,
+                            unit: true,
+                            description: true,
+                        },
+                    },
+                },
             },
         },
     })
