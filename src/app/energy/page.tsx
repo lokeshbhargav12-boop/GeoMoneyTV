@@ -7,8 +7,38 @@ import {
     ArrowLeft, Sun, Wind, Droplets, Atom, Flame, Zap,
     Calculator, Leaf, BrainCircuit, Globe2, TrendingUp,
     TrendingDown, Battery, Shield, Sparkles, Loader2,
-    ArrowRight, BarChart3, Factory, Landmark, ChevronRight
+    ArrowRight, BarChart3, Factory, Landmark, ChevronRight, Route
 } from 'lucide-react'
+
+const ENERGY_DESKS = [
+    {
+        name: 'Fossil Energy Desk',
+        href: '/energy/fossil-energy',
+        icon: Flame,
+        accent: 'from-orange-300 to-red-400',
+        border: 'border-orange-300/20',
+        bg: 'bg-orange-300/10',
+        summary: 'Coal, gas, oil, LNG, and pipeline corridors in one operating layout.',
+    },
+    {
+        name: 'Oil and Gas Intelligence',
+        href: '/energy/oil-and-gas',
+        icon: Route,
+        accent: 'from-amber-300 to-orange-400',
+        border: 'border-amber-300/20',
+        bg: 'bg-amber-300/10',
+        summary: 'Shipping, weather, refinery heat, and tactical hydrocarbon monitoring.',
+    },
+    {
+        name: 'Infrastructure Matrix',
+        href: '/energy/infrastructure',
+        icon: Factory,
+        accent: 'from-cyan-300 to-emerald-300',
+        border: 'border-cyan-300/20',
+        bg: 'bg-cyan-300/10',
+        summary: 'Cross-technology asset layers, constraints, storage, and resilience.',
+    },
+]
 
 // ─── GLOBAL ENERGY MIX DATA ──────────────────────────────────
 const ENERGY_SOURCES = [
@@ -213,22 +243,54 @@ export default function EnergyPage() {
                             <Zap className="w-4 h-4" /> Energy Hub
                         </span>
                         <h1 className="text-4xl md:text-5xl font-bold mt-2">
-                            Renewable <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">Energy</span> Intelligence
+                            Global <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">Energy</span> Intelligence
                         </h1>
                         <p className="text-gray-400 mt-4 max-w-2xl">
-                            Track the global energy transition with AI-powered analysis, calculators, commodity data, and geopolitical policy intelligence.
+                            Track renewable and fossil systems with AI-powered analysis, calculators, pipeline-aware operating desks, and geopolitical policy intelligence.
                         </p>
                     </motion.div>
                 </div>
 
                 {/* ─── HUB NAVIGATION ────────────────────────── */}
                 <div className="flex overflow-x-auto gap-3 mb-12 pb-2" style={{scrollbarWidth: 'none'}}>
+                    <Link href="/energy/fossil-energy" className="px-4 py-2 whitespace-nowrap bg-orange-300/10 border border-orange-300/20 rounded-full hover:bg-orange-300/20 hover:text-orange-100 transition-all text-sm">Fossil Energy</Link>
                     <a href="#dashboard" className="px-4 py-2 whitespace-nowrap bg-white/5 border border-white/10 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-all text-sm">Dashboard</a>
                     <a href="#analyzer" className="px-4 py-2 whitespace-nowrap bg-white/5 border border-white/10 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-all text-sm">AI Analyzer</a>
                     <a href="#calculators" className="px-4 py-2 whitespace-nowrap bg-white/5 border border-white/10 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-all text-sm">Calculators</a>
                     <a href="#storage" className="px-4 py-2 whitespace-nowrap bg-white/5 border border-white/10 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-all text-sm">Energy Storage (ESS)</a>
                     <a href="#policy" className="px-4 py-2 whitespace-nowrap bg-white/5 border border-white/10 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-all text-sm">Policy Tracker</a>
                 </div>
+
+                <section className="mb-16">
+                    <div className="flex items-center justify-between gap-4 mb-6">
+                        <h2 className="text-2xl font-bold flex items-center gap-3">
+                            <Factory className="w-6 h-6 text-orange-300" /> Operational Desks
+                        </h2>
+                        <span className="text-xs uppercase tracking-widest text-gray-500">Enabled routes</span>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {ENERGY_DESKS.map((desk) => {
+                            const Icon = desk.icon
+
+                            return (
+                                <Link
+                                    key={desk.name}
+                                    href={desk.href}
+                                    className={`group rounded-2xl border ${desk.border} ${desk.bg} p-5 transition-all hover:-translate-y-1 hover:border-white/30`}
+                                >
+                                    <div className="flex items-center justify-between gap-4 mb-4">
+                                        <div className={`inline-flex rounded-xl bg-gradient-to-r ${desk.accent} p-2 text-black`}>
+                                            <Icon className="w-5 h-5" />
+                                        </div>
+                                        <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-white mb-2">{desk.name}</h3>
+                                    <p className="text-sm text-gray-400 leading-relaxed">{desk.summary}</p>
+                                </Link>
+                            )
+                        })}
+                    </div>
+                </section>
 
 
                 {/* ═══ 1. GLOBAL ENERGY MIX DASHBOARD ═══════════ */}

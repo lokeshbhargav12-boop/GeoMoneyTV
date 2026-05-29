@@ -25,21 +25,30 @@ export default function EnergySection() {
                         </div>
                         <h2 className="text-3xl font-bold tracking-tight">
                             <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                                Renewable Energy
+                                Energy
                             </span>{' '}
                             Intelligence
                         </h2>
                         <p className="mt-2 text-gray-500 text-sm">
-                            Track the global energy transition — solar, wind, nuclear, hydrogen & more
+                            Track renewable systems, fossil corridors, and the global energy transition in one desk
                         </p>
                     </div>
-                    <Link
-                        href="/energy"
-                        className="text-sm font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-2 transition-colors group"
-                    >
-                        Explore Hub
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </Link>
+                    <div className="flex flex-wrap gap-3">
+                        <Link
+                            href="/energy"
+                            className="text-sm font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-2 transition-colors group"
+                        >
+                            Explore Hub
+                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                        <Link
+                            href="/energy/fossil-energy"
+                            className="inline-flex items-center gap-2 rounded-full border border-orange-300/30 bg-orange-300/10 px-4 py-2 text-sm font-semibold text-orange-200 hover:bg-orange-300/20 transition-colors"
+                        >
+                            Fossil Energy
+                            <ArrowRight className="w-4 h-4" />
+                        </Link>
+                    </div>
                 </div>
 
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -90,13 +99,22 @@ export default function EnergySection() {
 
                 {/* CTA */}
                 <div className="mt-10 text-center">
-                    <Link
-                        href="/energy"
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 font-medium hover:bg-emerald-500/20 transition-all"
-                    >
-                        Explore Energy Hub
-                        <ArrowRight className="w-4 h-4" />
-                    </Link>
+                    <div className="flex flex-wrap items-center justify-center gap-3">
+                        <Link
+                            href="/energy"
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 font-medium hover:bg-emerald-500/20 transition-all"
+                        >
+                            Explore Energy Hub
+                            <ArrowRight className="w-4 h-4" />
+                        </Link>
+                        <Link
+                            href="/energy/fossil-energy"
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-orange-300/10 border border-orange-300/30 rounded-lg text-orange-200 font-medium hover:bg-orange-300/20 transition-all"
+                        >
+                            Open Fossil Energy
+                            <ArrowRight className="w-4 h-4" />
+                        </Link>
+                    </div>
                 </div>
             </div>
         </section>

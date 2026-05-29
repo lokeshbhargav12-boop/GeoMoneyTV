@@ -23,9 +23,9 @@ export default function EnergyAdminPage() {
         <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
           {[
             { label: 'Energy Hub', status: 'Active' },
-            { label: 'Oil & Gas', status: 'Coming Soon' },
-            { label: 'Coal', status: 'Coming Soon' },
-            { label: 'Energy Infrastructure', status: 'Coming Soon' },
+            { label: 'Oil & Gas', status: 'Active' },
+            { label: 'Fossil Energy', status: 'Active' },
+            { label: 'Energy Infrastructure', status: 'Active' },
           ].map((item) => (
             <div key={item.label} className="rounded-lg border border-white/10 bg-black/30 p-4">
               <p className="text-sm font-medium text-white">{item.label}</p>
