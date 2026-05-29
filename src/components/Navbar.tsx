@@ -23,6 +23,7 @@ const NAV_LINKS = [
     label: "Energy",
     subLinks: [
       { href: "/energy", label: "Energy Hub" },
+      { href: "/energy/coal", label: "Coal" },
       { href: "/energy/oil-and-gas", label: "Oil & Gas" },
       { href: "/energy/infrastructure", label: "Energy Infrastructure" },
     ],
