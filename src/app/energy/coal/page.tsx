@@ -161,7 +161,7 @@ export default function CoalPage() {
   }, [emissionsCapacity, emissionsFactor, emissionsLoad]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#090806] via-[#120d08] to-black text-white pt-28 pb-24">
+    <main className="min-h-screen bg-gradient-to-br from-[#090806] via-[#120d08] to-black text-white pt-32 pb-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
           <Link

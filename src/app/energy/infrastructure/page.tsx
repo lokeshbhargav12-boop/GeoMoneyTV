@@ -130,7 +130,7 @@ export default function EnergyInfrastructurePage() {
     const colorMap: Record<string, string> = { emerald: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400', blue: 'border-blue-500/50 bg-blue-500/10 text-blue-400', amber: 'border-amber-500/50 bg-amber-500/10 text-amber-400', cyan: 'border-cyan-500/50 bg-cyan-500/10 text-cyan-400', purple: 'border-purple-500/50 bg-purple-500/10 text-purple-400', rose: 'border-rose-500/50 bg-rose-500/10 text-rose-400', teal: 'border-teal-500/50 bg-teal-500/10 text-teal-400', indigo: 'border-indigo-500/50 bg-indigo-500/10 text-indigo-400' }
 
     return (
-        <main className="min-h-screen bg-geo-dark text-white pt-28 pb-24">
+        <main className="min-h-screen bg-geo-dark text-white pt-32 pb-24">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 {/* HERO */}
                 <div className="mb-12">

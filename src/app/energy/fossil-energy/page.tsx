@@ -315,7 +315,7 @@ export default function FossilEnergyPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#06080d] text-white pt-28 pb-24">
+    <main className="min-h-screen bg-[#06080d] text-white pt-32 pb-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-10">
           <Link

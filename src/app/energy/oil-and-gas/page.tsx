@@ -220,8 +220,8 @@ export default function OilAndGasIntelligence() {
     <main
       className={
         simulationMode
-          ? "min-h-screen pt-28 pb-24 transition-colors duration-500 bg-[#1a1100] border-amber-500/30 border-8"
-          : "min-h-screen pt-28 pb-24 transition-colors duration-500 bg-gradient-to-br from-[#0a0a0c] to-black"
+          ? "min-h-screen pt-32 pb-24 transition-colors duration-500 bg-[#1a1100] border-amber-500/30 border-8"
+          : "min-h-screen pt-32 pb-24 transition-colors duration-500 bg-gradient-to-br from-[#0a0a0c] to-black"
       }
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

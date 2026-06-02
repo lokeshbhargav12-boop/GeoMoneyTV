@@ -69,7 +69,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
   } catch {}
 
   return (
-    <main className="min-h-screen bg-geo-dark text-white pt-28 pb-24">
+    <main className="min-h-screen bg-geo-dark text-white pt-32 pb-24">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         {/* Back Link */}
         <Link
