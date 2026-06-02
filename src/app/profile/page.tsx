@@ -65,28 +65,25 @@ export default function ProfilePage() {
     }
   }, [session, status, fetchTracked]);
 
-  const handleUntrack = useCallback(
-    async (materialId: string) => {
-      setUntrackingId(materialId);
-      try {
-        const res = await fetch("/api/user/tracked-materials", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ materialId }),
-        });
-        if (res.ok) {
-          setTracked((prev) =>
-            prev.filter((item) => item.materialId !== materialId),
-          );
-        }
-      } catch {
-        // silently fail
-      } finally {
-        setUntrackingId(null);
+  const handleUntrack = useCallback(async (materialId: string) => {
+    setUntrackingId(materialId);
+    try {
+      const res = await fetch("/api/user/tracked-materials", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ materialId }),
+      });
+      if (res.ok) {
+        setTracked((prev) =>
+          prev.filter((item) => item.materialId !== materialId),
+        );
       }
-    },
-    [],
-  );
+    } catch {
+      // silently fail
+    } finally {
+      setUntrackingId(null);
+    }
+  }, []);
 
   if (status === "loading") {
     return (
@@ -141,7 +138,9 @@ export default function ProfilePage() {
           <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Star className="w-5 h-5 text-geo-gold" />
-              <h2 className="text-lg font-semibold">Tracked Critical Materials</h2>
+              <h2 className="text-lg font-semibold">
+                Tracked Critical Materials
+              </h2>
             </div>
             <span className="text-sm text-gray-500">
               {tracked.length} material{tracked.length !== 1 ? "s" : ""}
@@ -160,7 +159,8 @@ export default function ProfilePage() {
                   No tracked materials yet
                 </p>
                 <p className="text-gray-500 text-sm mb-6">
-                  Browse critical materials and click the star icon to track them.
+                  Browse critical materials and click the star icon to track
+                  them.
                 </p>
                 <Link
                   href="/materials"
@@ -184,7 +184,8 @@ export default function ProfilePage() {
                           {item.material.name}
                         </h3>
                         <p className="text-xs text-geo-gold font-medium mt-0.5">
-                          {item.material.symbol} &middot; {item.material.category}
+                          {item.material.symbol} &middot;{" "}
+                          {item.material.category}
                         </p>
                         {item.material.price && (
                           <p className="mt-2 text-sm font-bold text-white">
@@ -203,11 +204,14 @@ export default function ProfilePage() {
                         )}
                         <p className="mt-2 text-[10px] text-gray-600">
                           Tracked{" "}
-                          {new Date(item.createdAt).toLocaleDateString(undefined, {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
+                          {new Date(item.createdAt).toLocaleDateString(
+                            undefined,
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )}
                         </p>
                       </div>
                       <button
