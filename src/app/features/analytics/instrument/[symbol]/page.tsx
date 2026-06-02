@@ -56,6 +56,21 @@ interface SentimentData {
   timestamp: string;
 }
 
+type ChartResolution = "1min" | "5min" | "15min" | "60min" | "D" | "W" | "M";
+
+const CHART_RESOLUTIONS: Array<{
+  label: string;
+  value: ChartResolution;
+}> = [
+  { label: "1m", value: "1min" },
+  { label: "5m", value: "5min" },
+  { label: "15m", value: "15min" },
+  { label: "1H", value: "60min" },
+  { label: "1D", value: "D" },
+  { label: "1W", value: "W" },
+  { label: "1MO", value: "M" },
+];
+
 interface NewsArticle {
   id: string;
   title: string;
@@ -136,6 +151,7 @@ export default function InstrumentDetailPage() {
   };
 
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
+  const [chartResolution, setChartResolution] = useState<ChartResolution>("D");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [news, setNews] = useState<NewsArticle[]>([]);
@@ -230,8 +246,25 @@ export default function InstrumentDetailPage() {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] uppercase tracking-[0.2em] text-gray-500">
-              Daily historical feed
+            <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 overflow-x-auto max-w-full">
+              {CHART_RESOLUTIONS.map((resolution) => {
+                const isActive = chartResolution === resolution.value;
+
+                return (
+                  <button
+                    key={resolution.value}
+                    type="button"
+                    onClick={() => setChartResolution(resolution.value)}
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold tracking-[0.2em] transition-colors whitespace-nowrap ${
+                      isActive
+                        ? "bg-geo-gold text-black"
+                        : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {resolution.label}
+                  </button>
+                );
+              })}
             </div>
             <Link
               href="/features/analytics"
@@ -248,7 +281,11 @@ export default function InstrumentDetailPage() {
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 pt-6 pb-16 space-y-6">
         {/* Chart */}
         <div className="rounded-xl border border-white/10 overflow-hidden bg-black/60 p-3 md:p-4 h-[520px] xl:h-[640px]">
-          <AlphaVantageChart symbol={tvSymbol} height="100%" />
+          <AlphaVantageChart
+            symbol={tvSymbol}
+            interval={chartResolution}
+            height="100%"
+          />
         </div>
 
         {/* ── Market Intelligence ──────────────────────────────────── */}

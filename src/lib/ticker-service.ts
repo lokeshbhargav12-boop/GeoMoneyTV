@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import {
+    HISTORY_REFRESH_MS,
     ensureTickerFresh,
     fetchAndStoreHistory,
+    getLatestStoredHistoryTimestamp,
     getStoredHistory,
     refreshTickerQuotes,
     type MarketHistoryRow,
@@ -241,8 +243,15 @@ export async function getOrRefreshStoredHistory(
 
     const symbolConfig = await resolveTickerSymbolConfig(rawSymbol);
     let data = await getStoredHistory(symbolConfig.symbol, interval);
+    const latestRecordedAt = await getLatestStoredHistoryTimestamp(
+        symbolConfig.symbol,
+        interval,
+    );
+    const shouldRefresh =
+        !latestRecordedAt ||
+        Date.now() - latestRecordedAt.getTime() > HISTORY_REFRESH_MS[interval];
 
-    if (data.length === 0) {
+    if (data.length === 0 || shouldRefresh) {
         await fetchAndStoreHistory(symbolConfig, interval);
         data = await getStoredHistory(symbolConfig.symbol, interval);
     }

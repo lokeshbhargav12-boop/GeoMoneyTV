@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getOrRefreshStoredHistory } from '@/lib/ticker-service';
 
-type SupportedInterval = '60min' | 'D' | 'W' | 'M';
+type SupportedInterval = '1min' | '5min' | '15min' | '60min' | 'D' | 'W' | 'M';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get('symbol');
     const requestedInterval = searchParams.get('interval');
     const interval: SupportedInterval =
-        requestedInterval === '60min' ||
+        requestedInterval === '1min' ||
+            requestedInterval === '5min' ||
+            requestedInterval === '15min' ||
+            requestedInterval === '60min' ||
             requestedInterval === 'W' ||
             requestedInterval === 'M'
             ? requestedInterval

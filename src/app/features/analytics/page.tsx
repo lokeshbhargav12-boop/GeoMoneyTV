@@ -70,7 +70,8 @@ interface SentimentData {
   timestamp: string;
 }
 
-type ChartResolution = "60min" | "D" | "W" | "M";
+type ChartResolution = "1min" | "5min" | "15min" | "60min" | "D" | "W" | "M";
+type ChartVariant = "line" | "bar";
 
 // ── Instruments ────────────────────────────────────────────────────────────────
 const INSTRUMENTS = [
@@ -179,16 +180,28 @@ const CHART_RESOLUTIONS: Array<{
   label: string;
   value: ChartResolution;
 }> = [
+  { label: "1m", value: "1min" },
+  { label: "5m", value: "5min" },
+  { label: "15m", value: "15min" },
   { label: "1H", value: "60min" },
   { label: "1D", value: "D" },
   { label: "1W", value: "W" },
-  { label: "1M", value: "M" },
+  { label: "1MO", value: "M" },
+];
+
+const CHART_VARIANTS: Array<{
+  label: string;
+  value: ChartVariant;
+}> = [
+  { label: "Line", value: "line" },
+  { label: "Bar", value: "bar" },
 ];
 
 export default function AnalyticsDashboardPage() {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string>("gold");
   const [chartResolution, setChartResolution] = useState<ChartResolution>("D");
+  const [chartVariant, setChartVariant] = useState<ChartVariant>("line");
   const [sentimentCache, setSentimentCache] = useState<
     Record<string, SentimentData>
   >({});
@@ -361,25 +374,47 @@ export default function AnalyticsDashboardPage() {
                   Resolution-aware pricing for {selected.name}
                 </div>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 p-1">
-                {CHART_RESOLUTIONS.map((resolution) => {
-                  const isActive = chartResolution === resolution.value;
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 p-1 overflow-x-auto max-w-full">
+                  {CHART_RESOLUTIONS.map((resolution) => {
+                    const isActive = chartResolution === resolution.value;
 
-                  return (
-                    <button
-                      key={resolution.value}
-                      type="button"
-                      onClick={() => setChartResolution(resolution.value)}
-                      className={`rounded-full px-3 py-1 text-[11px] font-semibold tracking-[0.2em] transition-colors ${
-                        isActive
-                          ? "bg-geo-gold text-black"
-                          : "text-gray-400 hover:text-white"
-                      }`}
-                    >
-                      {resolution.label}
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={resolution.value}
+                        type="button"
+                        onClick={() => setChartResolution(resolution.value)}
+                        className={`rounded-full px-3 py-1 text-[11px] font-semibold tracking-[0.2em] transition-colors whitespace-nowrap ${
+                          isActive
+                            ? "bg-geo-gold text-black"
+                            : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {resolution.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/20 p-1">
+                  {CHART_VARIANTS.map((variant) => {
+                    const isActive = chartVariant === variant.value;
+
+                    return (
+                      <button
+                        key={variant.value}
+                        type="button"
+                        onClick={() => setChartVariant(variant.value)}
+                        className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors whitespace-nowrap ${
+                          isActive
+                            ? "bg-white text-black"
+                            : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {variant.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             <AnimatePresence mode="wait">
@@ -394,6 +429,10 @@ export default function AnalyticsDashboardPage() {
                 <AlphaVantageChart
                   symbol={selected.symbol}
                   interval={chartResolution}
+                  variant={chartVariant}
+                  lineColor={selected.lineColor}
+                  fillColor={selected.bgColor}
+                  barColor={selected.color}
                   height="100%"
                 />
               </motion.div>

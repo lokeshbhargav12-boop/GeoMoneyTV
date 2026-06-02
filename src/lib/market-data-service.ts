@@ -5,7 +5,7 @@ import type { MarketStatus } from "@/lib/market-schedule";
 
 const yahooFinance = new YahooFinance();
 
-export type MarketInterval = "60min" | "D" | "W" | "M";
+export type MarketInterval = "1min" | "5min" | "15min" | "60min" | "D" | "W" | "M";
 
 export interface MarketQuoteRow {
     label: string;
@@ -37,7 +37,7 @@ export interface MarketSymbolConfig {
 }
 
 type HistoryIntervalConfig = {
-    yahooInterval: "1h" | "1d" | "1wk" | "1mo";
+    yahooInterval: "1m" | "5m" | "15m" | "1h" | "1d" | "1wk" | "1mo";
     days: number;
 };
 
@@ -46,6 +46,7 @@ const YAHOO_SYMBOL_MAP: Record<string, string> = {
     XAUUSD: "GC=F",
     SILVER: "SI=F",
     XAGUSD: "SI=F",
+    "CAPITALCOM:SILVER": "SI=F",
     COPPER: "HG=F",
     "CAPITALCOM:COPPER": "HG=F",
     CRUDE: "CL=F",
@@ -55,6 +56,9 @@ const YAHOO_SYMBOL_MAP: Record<string, string> = {
     NATGAS: "NG=F",
     NATURALGAS: "NG=F",
     "CAPITALCOM:NATURALGAS": "NG=F",
+    SPX: "^GSPC",
+    US500: "^GSPC",
+    "CAPITALCOM:US500": "^GSPC",
     ASX200: "^AXJO",
     URANIUM: "URNM",
     LITHIUM: "LIT",
@@ -66,10 +70,23 @@ const YAHOO_SYMBOL_MAP: Record<string, string> = {
 };
 
 const HISTORY_CONFIG: Record<MarketInterval, HistoryIntervalConfig> = {
+    "1min": { yahooInterval: "1m", days: 7 },
+    "5min": { yahooInterval: "5m", days: 30 },
+    "15min": { yahooInterval: "15m", days: 60 },
     "60min": { yahooInterval: "1h", days: 30 },
     D: { yahooInterval: "1d", days: 365 * 5 },
     W: { yahooInterval: "1wk", days: 365 * 10 },
     M: { yahooInterval: "1mo", days: 365 * 20 },
+};
+
+export const HISTORY_REFRESH_MS: Record<MarketInterval, number> = {
+    "1min": 2 * 60 * 1000,
+    "5min": 10 * 60 * 1000,
+    "15min": 20 * 60 * 1000,
+    "60min": 70 * 60 * 1000,
+    D: 6 * 60 * 60 * 1000,
+    W: 24 * 60 * 60 * 1000,
+    M: 7 * 24 * 60 * 60 * 1000,
 };
 
 const HISTORY_LOOKBACK_LIMIT = 400;
@@ -79,17 +96,31 @@ function normalizeTickerKey(value: string) {
     return value.trim().toUpperCase();
 }
 
-function resolveYahooSymbol(item: Pick<MarketSymbolConfig, "symbol" | "sourceSymbol">) {
-    const sourceKey = item.sourceSymbol
-        ? normalizeTickerKey(item.sourceSymbol)
-        : undefined;
-    const symbolKey = normalizeTickerKey(item.symbol);
-
-    if (sourceKey && YAHOO_SYMBOL_MAP[sourceKey]) {
-        return YAHOO_SYMBOL_MAP[sourceKey];
+function lookupYahooSymbol(rawValue?: string | null) {
+    if (!rawValue) {
+        return null;
     }
 
-    return YAHOO_SYMBOL_MAP[symbolKey] || item.sourceSymbol || item.symbol;
+    const normalized = normalizeTickerKey(rawValue);
+
+    if (YAHOO_SYMBOL_MAP[normalized]) {
+        return YAHOO_SYMBOL_MAP[normalized];
+    }
+
+    const unprefixed = normalized.includes(":")
+        ? normalized.split(":").pop() || normalized
+        : normalized;
+
+    return YAHOO_SYMBOL_MAP[unprefixed] || null;
+}
+
+function resolveYahooSymbol(item: Pick<MarketSymbolConfig, "symbol" | "sourceSymbol">) {
+    return (
+        lookupYahooSymbol(item.sourceSymbol) ||
+        lookupYahooSymbol(item.symbol) ||
+        item.sourceSymbol ||
+        item.symbol
+    );
 }
 
 function subtractDays(days: number) {
@@ -245,6 +276,22 @@ export async function getStoredHistory(
         close: row.close,
         volume: row.volume ?? 0,
     }));
+}
+
+export async function getLatestStoredHistoryTimestamp(
+    symbol: string,
+    interval: MarketInterval,
+): Promise<Date | null> {
+    const latestRow = await prisma.marketPriceHistory.findFirst({
+        where: {
+            symbol,
+            interval,
+        },
+        orderBy: { recordedAt: "desc" },
+        select: { recordedAt: true },
+    });
+
+    return latestRow?.recordedAt ?? null;
 }
 
 export async function upsertLatestQuote(quote: MarketQuoteRow) {
