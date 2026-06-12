@@ -155,28 +155,29 @@ export default function ArticleContent({
   aiSummary,
   title,
 }: ArticleContentProps) {
-  const [displayContent, setDisplayContent] = useState<string>(
-    aiSummary || content,
-  );
-  const [loadingSummary, setLoadingSummary] = useState(false);
-  const [isAiGenerated, setIsAiGenerated] = useState(!!aiSummary);
+   const [displayContent, setDisplayContent] = useState<string>(
+     aiSummary || content,
+   );
+   const [loadingSummary, setLoadingSummary] = useState(false);
+   const [isAiGenerated, setIsAiGenerated] = useState(!!aiSummary);
 
-  const cleanedContent = content.replace(/\[\+\d+ chars\]$/, "").trim();
-  const isTruncated =
-    cleanedContent.match(/\[\+\d+ chars\]$/) ||
-    cleanedContent.endsWith("...") ||
-    cleanedContent.length < 300;
+   const cleanedContent = content.replace(/\[\+\d+ chars\]$/, "").trim();
+   const isTruncated =
+     cleanedContent.match(/\[\+\d+ chars\]$/) ||
+     cleanedContent.endsWith("...") ||
+     cleanedContent.length < 300;
 
-  useEffect(() => {
-    if (aiSummary) {
-      setDisplayContent(aiSummary);
-      setIsAiGenerated(true);
-    } else if (isTruncated) {
-      generateAiSummary();
-    } else {
-      setDisplayContent(cleanedContent);
-    }
-  }, [articleId]);
+   useEffect(() => {
+     if (aiSummary) {
+       setDisplayContent(aiSummary);
+       setIsAiGenerated(true);
+     } else if (isTruncated) {
+       // Always generate AI summary for truncated content
+       generateAiSummary();
+     } else {
+       setDisplayContent(cleanedContent);
+     }
+   }, [articleId]);
 
   const generateAiSummary = async () => {
     setLoadingSummary(true);

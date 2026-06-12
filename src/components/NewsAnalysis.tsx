@@ -48,12 +48,12 @@ export default function NewsAnalysis({ title, text, articleId, className }: News
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState('');
 
-  // Auto-initialize if we have an articleId (cached analysis may exist)
-  useEffect(() => {
-    if (articleId) {
-      analyzeContent();
-    }
-  }, [articleId]);
+   // Auto-initialize if we have an articleId (cached analysis may exist)
+   useEffect(() => {
+     if (articleId) {
+       analyzeContent();
+     }
+   }, [articleId]);
 
   const analyzeContent = async () => {
     setLoading(true);
