@@ -4,13 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/pre-build.js && node scripts/setup-db.js",
     "build": "next build",
     "seed": "node scripts/create-admin.js && node scripts/init-settings.js",
     "start": "node server.js",
     "lint": "next lint",
     "postbuild": "echo 'Build completed successfully'",
     "postinstall": "prisma generate",
-    "newsletter-queue": "node scripts/process-newsletter-queue.js"
+    "newsletter-queue": "node scripts/process-newsletter-queue.js",
+    "db:setup": "node scripts/setup-db.js"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
