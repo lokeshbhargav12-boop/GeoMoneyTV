@@ -51,28 +51,46 @@ async function setupDatabase() {
   log(`Node version: ${process.version}`, 'blue');
   log(`Working directory: ${process.cwd()}`, 'blue');
   
-  // Check if .env file exists
+  // Check environment variables (Hostinger sets these in control panel)
   logSection('CHECKING ENVIRONMENT');
+  
+  // Check if DATABASE_URL is set (either from .env file or environment variable)
+  let databaseUrl = process.env.DATABASE_URL;
+  
+  // Try to load from .env file if DATABASE_URL not in environment
   const envPath = path.join(process.cwd(), '.env');
-  if (fs.existsSync(envPath)) {
-    log('✓ .env file found', 'green');
-    
-    // Check DATABASE_URL without exposing credentials
+  if (!databaseUrl && fs.existsSync(envPath)) {
+    log('.env file found, loading DATABASE_URL from file', 'blue');
     const envContent = fs.readFileSync(envPath, 'utf8');
     const dbUrlMatch = envContent.match(/DATABASE_URL=([^\n]+)/);
     if (dbUrlMatch) {
-      const dbUrl = dbUrlMatch[1];
-      // Mask password in logs
-      const maskedUrl = dbUrl.replace(/:([^@]+)@/, ':****@');
-      log(`✓ DATABASE_URL configured: ${maskedUrl}`, 'green');
-    } else {
-      logError('DATABASE_URL not found in .env file');
-      process.exit(1);
+      databaseUrl = dbUrlMatch[1];
     }
+  }
+  
+  if (databaseUrl) {
+    log('✓ DATABASE_URL is configured', 'green');
+    // Mask password in logs
+    const maskedUrl = databaseUrl.replace(/:([^@]+)@/, ':****@');
+    log(`✓ Database URL: ${maskedUrl}`, 'green');
+    
+    // Set it in process.env for Prisma to use
+    process.env.DATABASE_URL = databaseUrl;
   } else {
-    logError('.env file not found!');
-    log('Please create a .env file with DATABASE_URL', 'yellow');
+    logError('DATABASE_URL not found!');
+    log('Please set DATABASE_URL in Hostinger control panel or create a .env file', 'yellow');
+    log('Required format: mysql://username:password@host:port/database', 'yellow');
     process.exit(1);
+  }
+  
+  // Check other critical environment variables
+  const criticalVars = ['NEXTAUTH_SECRET', 'NEXTAUTH_URL'];
+  for (const varName of criticalVars) {
+    if (process.env[varName]) {
+      log(`✓ ${varName} is set`, 'green');
+    } else {
+      log(`⚠ ${varName} not set (may cause issues)`, 'yellow');
+    }
   }
   
   // Check if prisma schema exists
