@@ -201,58 +201,21 @@ async function setupDatabase() {
   
   // Step 4: Create Default Admin User
   logSection('STEP 4: CREATING DEFAULT ADMIN USER');
-  try {
-    log('Creating default admin account...', 'yellow');
-    
-    const adminScript = `
-      const { PrismaClient } = require('@prisma/client');
-      const { hash } = require('bcryptjs');
-      const prisma = new PrismaClient();
-      
-      async function createAdmin() {
-        try {
-          const hashedPassword = await hash('admin123', 12);
-          
-          const user = await prisma.user.upsert({
-            where: { email: 'admin@geomoneytv.com' },
-            update: {
-              password: hashedPassword,
-              role: 'admin',
-              name: 'Administrator',
-            },
-            create: {
-              email: 'admin@geomoneytv.com',
-              password: hashedPassword,
-              role: 'admin',
-              name: 'Administrator',
-            },
-          });
-          
-          console.log('✓ Admin user created/updated successfully');
-          console.log('  Email: admin@geomoneytv.com');
-          console.log('  Password: admin123');
-          console.log('  Role: ' + user.role);
-          
-          await prisma.$disconnect();
-        } catch (error) {
-          console.error('✗ Failed to create admin:', error.message);
-          process.exit(1);
-        }
-      }
-      
-      createAdmin();
-    `;
-    
-    const output = execSync(`node -e "${adminScript.replace(/"/g, '\\"')}"`, { 
-      encoding: 'utf8',
-      stdio: 'pipe'
-    });
-    
-    log(output, 'green');
-    log('⚠ IMPORTANT: Change the default password after first login!', 'yellow');
-  } catch (error) {
-    logError('Failed to create admin user', error);
-    log('Continuing anyway... you may need to create admin manually', 'yellow');
+  const adminScriptPath = path.join(process.cwd(), 'scripts', 'create-default-admin.js');
+  if (fs.existsSync(adminScriptPath)) {
+    try {
+      log('Creating default admin account...', 'yellow');
+      const output = execSync('node scripts/create-default-admin.js', { 
+        encoding: 'utf8',
+        stdio: 'pipe'
+      });
+      log(output, 'green');
+    } catch (error) {
+      logError('Failed to create admin user', error);
+      log('Continuing anyway... you may need to create admin manually', 'yellow');
+    }
+  } else {
+    log('⚠ create-default-admin.js not found (skipping)', 'yellow');
   }
   
   // Step 5: Initialize Default Settings (Optional)
