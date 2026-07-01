@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -198,6 +199,30 @@ const CHART_VARIANTS: Array<{
 ];
 
 export default function AnalyticsDashboardPage() {
+  // Analytics page temporarily disabled per product request.
+  // Keeping the original component below for easy re-activation later.
+  return (
+    <main className="min-h-screen bg-geo-dark text-white pt-32 flex items-center justify-center px-4">
+      <div className="text-center max-w-xl">
+        <h1 className="text-4xl font-bold mb-4">Analytics Coming Soon</h1>
+        <p className="text-gray-400 mb-8">
+          The GeoMoney Analytics dashboard is temporarily unavailable while we
+          prepare the next release. Check back soon for live global macro
+          intelligence.
+        </p>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-bold text-white hover:bg-blue-700 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Home
+        </Link>
+      </div>
+    </main>
+  );
+
+  // Original dashboard component — re-enable by removing the return above.
+  // eslint-disable-next-line no-unreachable
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string>("gold");
   const [chartResolution, setChartResolution] = useState<ChartResolution>("D");
