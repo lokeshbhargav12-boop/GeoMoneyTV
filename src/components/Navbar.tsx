@@ -29,6 +29,8 @@ const NAV_LINKS = [
     ],
   },
   { href: "/materials", label: "Critical Materials" },
+  // Analytics hidden from navigation per product request
+  // { href: "/features/analytics", label: "Analytics" },
   { href: "/tools", label: "Tools" },
   {
     href: "/about",
@@ -175,7 +177,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             )}
 
             <Link
-              href="#waitlist"
+              href="/payment"
               className="hidden lg:flex rounded-full bg-blue-600 px-4 py-1.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors items-center whitespace-nowrap"
             >
               Get Pro Access
