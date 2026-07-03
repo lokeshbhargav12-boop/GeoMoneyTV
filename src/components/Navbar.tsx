@@ -39,6 +39,7 @@ const NAV_LINKS = [
       { href: "/about/terms", label: "Terms & Conditions" },
       { href: "/about/privacy", label: "Privacy Policy" },
       { href: "/about/ai-guidelines", label: "Research Methodology" },
+      { href: "/about/refund-policy", label: "Refund Policy" },
       { href: "/about/contact", label: "Contact Us" },
     ],
   },
@@ -177,7 +178,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             )}
 
             <Link
-              href="/payment"
+              href="/membership"
               className="hidden lg:flex rounded-full bg-blue-600 px-4 py-1.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors items-center whitespace-nowrap"
             >
               Get Pro Access

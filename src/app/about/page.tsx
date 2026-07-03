@@ -5,6 +5,7 @@ import {
   BrainCircuit,
   MessageSquare,
   ChevronRight,
+  RefreshCcw,
 } from "lucide-react";
 
 export const metadata = {
@@ -44,14 +45,24 @@ const ABOUT_LINKS = [
     border: "border-purple-500/20",
   },
   {
+    href: "/about/refund-policy",
+    icon: RefreshCcw,
+    title: "Refund Policy",
+    description:
+      "Our refund terms, cancellation process, and eligibility guidelines.",
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/20",
+  },
+  {
     href: "/about/contact",
     icon: MessageSquare,
     title: "Contact Us",
     description:
       "Get in touch with the GeoMoney team for inquiries and support.",
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/20",
+    color: "text-rose-400",
+    bg: "bg-rose-500/10",
+    border: "border-rose-500/20",
   },
 ];
 
