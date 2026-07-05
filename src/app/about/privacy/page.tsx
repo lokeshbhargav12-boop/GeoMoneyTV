@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft, Shield } from 'lucide-react'
+import { ArrowLeft, Shield, Mail } from 'lucide-react'
 
 export default function PrivacyPolicyPage() {
   return (
@@ -20,6 +20,17 @@ export default function PrivacyPolicyPage() {
             <h1 className="text-3xl md:text-4xl font-bold">Privacy Policy</h1>
             <p className="text-gray-400 text-sm mt-1">Last updated: March 2026</p>
           </div>
+        </div>
+
+        <div className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
+          <p className="text-sm text-gray-300 leading-relaxed">
+            GeoMoney is owned and operated by{" "}
+            <strong className="text-amber-400">Vidyata Hub Inc.</strong>, a corporation
+            incorporated under the laws of Canada and the data controller for your personal
+            information. Payments are processed by{" "}
+            <strong className="text-amber-400">Paddle</strong>, which acts as Merchant of
+            Record.
+          </p>
         </div>
 
         <div className="prose prose-invert prose-lg max-w-none space-y-8">
@@ -47,28 +58,38 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
-            <h2 className="text-xl font-bold text-blue-400">3. Data Sharing</h2>
+            <h2 className="text-xl font-bold text-blue-400">3. Data Sharing & Processors</h2>
             <p className="text-gray-300 leading-relaxed">
-              We do not sell, rent, or share your personal information with third parties for their marketing purposes.
-              We may share data with service providers who assist in operating the Platform (e.g., email delivery services)
-              under strict confidentiality agreements.
+              We do not sell, rent, or share your personal information with third parties
+              for their marketing purposes. We may share data with service providers who
+              assist in operating the Platform (e.g., email delivery services, analytics
+              providers, and our payment processor) under strict confidentiality
+              agreements.
+            </p>
+            <p className="text-gray-300 leading-relaxed">
+              <strong className="text-blue-400">Paddle:</strong> Subscription payments are
+              processed by Paddle, which acts as Merchant of Record. Paddle collects the
+              payment information required to process your subscription. We do not directly
+              store full payment card details on our servers.
             </p>
           </section>
 
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
             <h2 className="text-xl font-bold text-blue-400">4. Cookies & Tracking</h2>
             <p className="text-gray-300 leading-relaxed">
-              We use essential cookies for Platform functionality (e.g., language preferences, authentication).
-              We may use analytics tools to understand how visitors interact with our Platform.
-              You can control cookie preferences through your browser settings.
+              We use essential cookies for Platform functionality (e.g., language
+              preferences, authentication). We may use analytics tools to understand how
+              visitors interact with our Platform. You can control cookie preferences
+              through your browser settings.
             </p>
           </section>
 
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
             <h2 className="text-xl font-bold text-blue-400">5. Data Security</h2>
             <p className="text-gray-300 leading-relaxed">
-              We implement industry-standard security measures to protect your personal information. However, no method of
-              transmission over the Internet is 100% secure, and we cannot guarantee absolute security.
+              We implement industry-standard security measures to protect your personal
+              information. However, no method of transmission over the Internet is 100%
+              secure, and we cannot guarantee absolute security.
             </p>
           </section>
 
@@ -86,17 +107,19 @@ export default function PrivacyPolicyPage() {
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
             <h2 className="text-xl font-bold text-blue-400">7. Data Retention</h2>
             <p className="text-gray-300 leading-relaxed">
-              We retain your information only for as long as necessary to provide our services and fulfill the purposes
-              described in this policy. Newsletter subscriber data is retained until you unsubscribe.
+              We retain your information only for as long as necessary to provide our
+              services and fulfill the purposes described in this policy. Newsletter
+              subscriber data is retained until you unsubscribe.
             </p>
           </section>
 
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
             <h2 className="text-xl font-bold text-blue-400">8. International Users</h2>
             <p className="text-gray-300 leading-relaxed">
-              If you are accessing GeoMoney TV from the European Union or other regions with data protection laws,
-              please note that your data may be processed in jurisdictions with different data protection standards.
-              By using the Platform, you consent to such transfer.
+              If you are accessing GeoMoney from the European Union or other regions with
+              data protection laws, please note that your data may be processed in
+              jurisdictions with different data protection standards. By using the
+              Platform, you consent to such transfer.
             </p>
           </section>
 
@@ -104,7 +127,10 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-xl font-bold text-blue-400">9. Contact</h2>
             <p className="text-gray-300 leading-relaxed">
               For privacy-related inquiries, contact us at{' '}
-              <a href="mailto:support@geomoney.tv" className="text-blue-400 hover:underline">support@geomoneytv.com</a>.
+              <a href="mailto:info@geomoney.com" className="text-blue-400 hover:underline inline-flex items-center gap-1">
+                <Mail className="w-4 h-4" />
+                info@geomoney.com
+              </a>.
             </p>
           </section>
         </div>

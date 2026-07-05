@@ -146,8 +146,8 @@ export default function NewsAnalysis({ title, text, articleId, className }: News
         <div className="p-12 flex flex-col items-center justify-center text-gray-400 gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-geo-gold" />
           <div className="text-center">
-            <p className="font-semibold text-white">Analyzing System Signals...</p>
-            <p className="text-xs text-gray-500 mt-1">Political Bias • Sentiment • Market Signals • Scenario Projections</p>
+<p className="font-semibold text-white">Analyzing System Indicators...</p>
+<p className="text-xs text-gray-500 mt-1">Political Bias • Sentiment • Market Conditions Indicators • Scenario Projections</p>
           </div>
         </div>
       )}

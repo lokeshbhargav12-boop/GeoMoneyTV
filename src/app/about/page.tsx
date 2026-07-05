@@ -79,32 +79,41 @@ export default function AboutPage() {
           </h1>
           <div className="space-y-4">
             <p className="text-lg text-gray-300 leading-relaxed">
-              GeoMoney is a geopolitical analysis and market intelligence
-              platform focused on the intersection of energy systems, resources,
-              and global power.
+              GeoMoney is a subscription-based geopolitical, energy, industrial, and
+              critical-materials SaaS platform focused on the intersection of energy
+              systems, resources, and global power.
             </p>
             <p className="text-base text-gray-400 leading-relaxed">
-              We analyze how shifts in energy flows, commodity supply chains,
-              financial systems, and policy decisions shape markets, economies,
-              and geopolitical outcomes. Our work focuses on structured analysis
-              across complex global dynamics.
+              We analyze how shifts in energy flows, commodity supply chains, financial
+              systems, and policy decisions shape markets, economies, and geopolitical
+              outcomes. Our work focuses on structured analysis across complex global
+              dynamics.
             </p>
             <p className="text-base text-gray-400 leading-relaxed">
-              The platform brings together multiple layers of analysis,
-              including The GeoMoney Brief, the GeoMoney Intelligence Report,
-              analytical tools, and AI-assisted research systems. Each component
-              is designed to provide analytical perspectives on underlying
-              global systems.
+              The platform brings together multiple layers of analysis, including The
+              GeoMoney Brief, the GeoMoney Intelligence Report, analytical tools, and
+              AI-assisted research systems. Each component is designed to provide
+              analytical perspectives on underlying global systems.
             </p>
             <p className="text-base text-gray-400 leading-relaxed">
-              GeoMoney is the video and media arm of the GeoMoney platform. It
-              delivers visual briefings and analysis across geopolitics,
-              markets, and energy systems.
+              GeoMoney TV is the video and media arm of the GeoMoney platform. It delivers
+              visual briefings and analysis across geopolitics, markets, and energy
+              systems.
             </p>
+
+            {/* Ownership Section */}
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 mt-6">
+              <p className="text-sm text-gray-300 leading-relaxed">
+                GeoMoney is owned and operated by{" "}
+                <strong className="text-amber-400">Vidyata Hub Inc.</strong>, a corporation
+                incorporated under the laws of Canada.
+              </p>
+            </div>
+
             <p className="text-sm text-gray-500 leading-relaxed italic mt-6 border-l-2 border-geo-gold/30 pl-4">
-              All content is provided for informational and analytical purposes
-              only and does not constitute financial, investment, legal, or
-              other professional advice.
+              All content is provided for informational and analytical purposes only and
+              does not constitute financial, investment, legal, or other professional
+              advice.
             </p>
           </div>
         </div>
@@ -136,16 +145,15 @@ export default function AboutPage() {
           ))}
         </div>
 
-        {/* Compliance Footer */}
+        {/* Global Disclaimer */}
         <div className="mt-16 border-t border-white/10 pt-8">
           <p className="text-gray-500 text-sm leading-relaxed max-w-3xl">
-            GeoMoney provides geopolitical and market analysis for informational
-            purposes only. This content does not constitute financial,
-            investment, legal, or other professional advice and is not intended
-            to guide decision-making. The content is based on publicly available
-            information and analytical interpretation and may not be complete or
-            accurate. Any actions taken based on this information are solely at
-            your own risk. Some content may incorporate AI-assisted analysis as
+            GeoMoney provides geopolitical, energy, commodity, industrial, and
+            macroeconomic intelligence for informational and research purposes only. It
+            does NOT provide financial, investment, legal, or tax advice. The content is
+            based on publicly available information and analytical interpretation and may
+            not be complete or accurate. Any actions taken based on this information are
+            solely at your own risk. Some content may incorporate AI-assisted analysis as
             part of the research process.
           </p>
         </div>

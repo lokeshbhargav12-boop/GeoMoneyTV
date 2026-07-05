@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft, RefreshCcw } from 'lucide-react'
+import { ArrowLeft, RefreshCcw, Mail } from 'lucide-react'
 
 export default function RefundPolicyPage() {
   return (
@@ -22,67 +22,92 @@ export default function RefundPolicyPage() {
           </div>
         </div>
 
+        <div className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
+          <p className="text-sm text-gray-300 leading-relaxed">
+            GeoMoney is owned and operated by{" "}
+            <strong className="text-amber-400">Vidyata Hub Inc.</strong>, a corporation
+            incorporated under the laws of Canada. Payments are processed by{" "}
+            <strong className="text-amber-400">Paddle</strong>, which acts as Merchant of
+            Record.
+          </p>
+        </div>
+
         <div className="prose prose-invert prose-lg max-w-none space-y-8">
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
             <h2 className="text-xl font-bold text-emerald-400">1. Overview</h2>
             <p className="text-gray-300 leading-relaxed">
-              At GeoMoney TV, we strive to deliver high-quality geopolitical analysis and market intelligence.
-              If you are not satisfied with your Pro Membership purchase, you may request a refund under the terms outlined below.
+              GeoMoney provides digital access to geopolitical, energy, commodity,
+              industrial, and macroeconomic intelligence through a subscription-based SaaS
+              platform. Because our product is delivered digitally, all purchases are
+              generally final and non-refundable except where required by applicable law.
             </p>
           </section>
 
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
-            <h2 className="text-xl font-bold text-emerald-400">2. Subscription Refunds</h2>
+            <h2 className="text-xl font-bold text-emerald-400">2. Digital Product Refunds</h2>
             <p className="text-gray-300 leading-relaxed">
-              Pro Memberships are billed on a monthly basis. You may request a full refund within 7 days of your initial purchase
-              or within 7 days of any automatic renewal if you have not substantially used the premium features during that billing period.
+              GeoMoney Pro subscriptions grant immediate access to digital content,
+              reports, analytics, and tools. As a digital product, subscriptions are
+              non-refundable once access has been granted, except where required by law.
             </p>
             <p className="text-gray-300 leading-relaxed">
-              Refund requests made after the 7-day window will be reviewed on a case-by-case basis, but are not guaranteed.
-            </p>
-          </section>
-
-          <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
-            <h2 className="text-xl font-bold text-emerald-400">3. Non-Refundable Items</h2>
-            <p className="text-gray-300 leading-relaxed">
-              The following are generally not eligible for refunds:
-            </p>
-            <ul className="text-gray-300 space-y-2 ml-4">
-              <li className="flex items-start gap-2"><span className="text-emerald-400 mt-1">•</span> Partially used subscription periods</li>
-              <li className="flex items-start gap-2"><span className="text-emerald-400 mt-1">•</span> Promotional or discounted purchases unless otherwise stated</li>
-              <li className="flex items-start gap-2"><span className="text-emerald-400 mt-1">•</span> Any third-party fees or currency conversion charges</li>
-            </ul>
-          </section>
-
-          <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
-            <h2 className="text-xl font-bold text-emerald-400">4. How to Request a Refund</h2>
-            <p className="text-gray-300 leading-relaxed">
-              To request a refund, please contact us at{' '}
-              <a href="mailto:support@geomoneytv.com" className="text-emerald-400 hover:underline">support@geomoneytv.com</a>{' '}
-              with your account email, transaction details, and the reason for your request. We aim to process refund requests within 5-7 business days.
+              If you believe you have a valid legal basis for a refund (for example, a
+              defect that prevents meaningful access), please contact us and we will
+              review your request in accordance with applicable consumer protection laws.
             </p>
           </section>
 
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
-            <h2 className="text-xl font-bold text-emerald-400">5. Cancellation</h2>
+            <h2 className="text-xl font-bold text-emerald-400">3. Cancellation</h2>
             <p className="text-gray-300 leading-relaxed">
-              You may cancel your Pro Membership at any time from your account settings or by contacting support.
-              Cancellation will stop future billing; you will continue to have access to premium features until the end of your current billing period.
+              You may cancel your GeoMoney Pro subscription at any time through your
+              account settings or by contacting support. Cancellation will stop future
+              billing at the end of the current billing period. You will continue to have
+              access to premium features until the end of your current billing period.
+            </p>
+            <p className="text-gray-300 leading-relaxed">
+              Subscriptions automatically renew unless cancelled before the renewal date.
+              It is your responsibility to manage your subscription and cancel before the
+              next billing cycle if you do not wish to renew.
             </p>
           </section>
 
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
-            <h2 className="text-xl font-bold text-emerald-400">6. Disputes & Chargebacks</h2>
+            <h2 className="text-xl font-bold text-emerald-400">4. Delivery Issues</h2>
             <p className="text-gray-300 leading-relaxed">
-              We encourage you to contact us directly before initiating a chargeback or payment dispute.
-              Unresolved disputes may result in suspension of your account and access to the Platform.
+              If you experience technical issues that prevent you from accessing your
+              subscription, please contact our support team. We will work to resolve the
+              issue promptly. Refunds for delivery issues are handled on a case-by-case
+              basis and may be issued where access cannot be restored within a reasonable
+              time.
+            </p>
+          </section>
+
+          <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
+            <h2 className="text-xl font-bold text-emerald-400">5. Duplicate Charges</h2>
+            <p className="text-gray-300 leading-relaxed">
+              If you believe you have been charged more than once for the same subscription
+              period, please contact us with your transaction details. Verified duplicate
+              charges will be refunded in full.
+            </p>
+          </section>
+
+          <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
+            <h2 className="text-xl font-bold text-emerald-400">6. Paddle as Merchant of Record</h2>
+            <p className="text-gray-300 leading-relaxed">
+              Payments are processed by Paddle, which acts as Merchant of Record for
+              GeoMoney. Paddle handles billing, tax collection, and payment processing on
+              our behalf. Depending on your jurisdiction, your payment statement may show
+              a charge from Paddle or Paddle.com.
             </p>
           </section>
 
           <section className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-4">
             <h2 className="text-xl font-bold text-emerald-400">7. Changes to This Policy</h2>
             <p className="text-gray-300 leading-relaxed">
-              GeoMoney TV reserves the right to modify this Refund Policy at any time. Changes will be posted on this page with an updated revision date.
+              GeoMoney reserves the right to modify this Refund Policy at any time.
+              Changes will be posted on this page with an updated revision date.
+              Continued use of the Platform constitutes acceptance of any modifications.
             </p>
           </section>
 
@@ -90,7 +115,10 @@ export default function RefundPolicyPage() {
             <h2 className="text-xl font-bold text-emerald-400">8. Contact</h2>
             <p className="text-gray-300 leading-relaxed">
               For refund-related inquiries, contact us at{' '}
-              <a href="mailto:support@geomoneytv.com" className="text-emerald-400 hover:underline">support@geomoneytv.com</a>.
+              <a href="mailto:info@geomoney.com" className="text-emerald-400 hover:underline inline-flex items-center gap-1">
+                <Mail className="w-4 h-4" />
+                info@geomoney.com
+              </a>.
             </p>
           </section>
         </div>

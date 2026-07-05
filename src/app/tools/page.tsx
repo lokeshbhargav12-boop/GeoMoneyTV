@@ -258,7 +258,7 @@ export default function ToolsPage() {
   const [targetMetal, setTargetMetal] = useState("gold");
   const [equivalentGrade, setEquivalentGrade] = useState<string>("");
 
-  // Project NPV Calculator State
+  // Project Economics Scenario Calculator State
   const [initialInvestment, setInitialInvestment] = useState<string>("");
   const [annualCashFlow, setAnnualCashFlow] = useState<string>("");
   const [discountRate, setDiscountRate] = useState<string>("10");
@@ -342,7 +342,7 @@ export default function ToolsPage() {
     }
   };
 
-  // Project NPV Calculator
+  // Project Economics Scenario Calculator
   const calculateNPV = () => {
     const investment = parseFloat(initialInvestment) || 0;
     const cashFlow = parseFloat(annualCashFlow) || 0;
@@ -668,7 +668,7 @@ export default function ToolsPage() {
           </div>
         </motion.section>
 
-        {/* Project NPV Calculator (Analytical Tool) */}
+        {/* Project Economics Scenario Calculator (Analytical Tool) */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -677,13 +677,16 @@ export default function ToolsPage() {
         >
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <TrendingUp className="w-6 h-6 text-geo-gold" />
-            Project NPV Calculator (Analytical Tool)
+            Project Economics Scenario Calculator (Analytical Tool)
           </h2>
 
           <div className="bg-white/5 rounded-xl border border-white/10 p-6">
             <p className="text-gray-400 text-sm mb-6">
               Calculate Net Present Value for mining projects with customizable
               discount rates.
+            </p>
+            <p className="text-xs text-gray-500 italic mb-4">
+              Scenario outputs are exploratory estimates based on selected assumptions and available data. They are not trading signals or guarantees.
             </p>
             <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
@@ -774,13 +777,16 @@ export default function ToolsPage() {
         >
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <Bell className="w-6 h-6 text-geo-gold" />
-            Price Monitoring Alerts
+Commodity Threshold Notifications
           </h2>
 
           <div className="bg-white/5 rounded-xl border border-white/10 p-6">
             <p className="text-gray-400 text-sm mb-6">
-              Set custom alerts for commodity price thresholds. Alerts are saved
+Set custom notifications for commodity price thresholds. Notifications are saved
               locally.
+            </p>
+            <p className="text-xs text-gray-500 italic mb-4">
+              Notifications report user-selected thresholds and do not constitute trading recommendations.
             </p>
             <div className="grid md:grid-cols-4 gap-4">
               <div>
@@ -833,14 +839,14 @@ export default function ToolsPage() {
                   onClick={addAlert}
                   className="w-full bg-geo-gold text-black font-bold py-3 rounded-lg hover:bg-yellow-500 transition-colors"
                 >
-                  Add Alert
+                  Add Notification
                 </button>
               </div>
             </div>
 
             {alerts.length > 0 && (
               <div className="mt-6 space-y-2">
-                <div className="text-sm text-gray-400 mb-2">Active Alerts:</div>
+                <div className="text-sm text-gray-400 mb-2">Active Notifications:</div>
                 {alerts.map((alert, idx) => (
                   <div
                     key={idx}
@@ -889,6 +895,9 @@ export default function ToolsPage() {
             <p className="text-gray-400 text-sm mb-6">
               Estimate mineral resources based on tonnage, grade, recovery rate,
               and commodity price.
+            </p>
+            <p className="text-xs text-gray-500 italic mb-4">
+              Results depend on user assumptions and are not valuations or financial advice.
             </p>
             <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>

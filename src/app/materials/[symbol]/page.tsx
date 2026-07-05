@@ -305,11 +305,11 @@ export default function MaterialDetailPage() {
                                     <p className="text-sm text-gray-400">Detailed global supply chain mapping</p>
                                 </div>
                                 <div className="p-4 bg-black/30 rounded-lg border border-white/10">
-                                    <h3 className="font-semibold mb-1">Market Outlook (Analytical View)</h3>
+<h3 className="font-semibold mb-1">Market Conditions Overview</h3>
                                     <p className="text-sm text-gray-400">Analytical market overview</p>
                                 </div>
                                 <div className="p-4 bg-black/30 rounded-lg border border-white/10">
-                                    <h3 className="font-semibold mb-1">Price Alerts</h3>
+<h3 className="font-semibold mb-1">Commodity Threshold Notifications</h3>
                                     <p className="text-sm text-gray-400">Real-time notifications</p>
                                 </div>
                             </div>

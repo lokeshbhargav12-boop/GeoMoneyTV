@@ -238,10 +238,10 @@ export default async function Home({
               <p>
                 For any queries or feedback, please contact us at{" "}
                 <a
-                  href="mailto:support@geomoneytv.com"
+                  href="mailto:info@geomoney.com"
                   className="text-geo-gold hover:text-yellow-400 transition-colors"
                 >
-                  support@geomoneytv.com
+                  info@geomoney.com
                 </a>
               </p>
             </div>
@@ -280,6 +280,14 @@ export default async function Home({
                     className="hover:text-geo-gold transition-colors"
                   >
                     Terms & Conditions
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/about/refund-policy"
+                    className="hover:text-geo-gold transition-colors"
+                  >
+                    Refund Policy
                   </Link>
                 </li>
               </ul>
@@ -333,8 +341,9 @@ export default async function Home({
             </div>
           </div>
 
-          <div className="mt-12 pt-8 border-t border-white/10 text-center text-xs">
-            <p>© 2026 GeoMoney TV. All rights reserved.</p>
+          <div className="mt-12 pt-8 border-t border-white/10 text-center text-xs space-y-2">
+            <p>GeoMoney Intelligence Platform is operated by Vidyata Hub Inc.</p>
+            <p>© 2026 GeoMoney. All rights reserved.</p>
           </div>
         </div>
       </footer>

@@ -1,77 +1,87 @@
-'use client'
+import Link from "next/link";
+import { CheckCircle, Crown, ArrowRight, Shield, Zap, Globe, BarChart3, Lock, Sparkles, Mail } from "lucide-react";
 
-import Link from 'next/link'
-import { CheckCircle, Crown, ArrowRight, Shield, Zap, Globe, BarChart3, Lock, Sparkles, Mail } from 'lucide-react'
+export const metadata = {
+  title: "Pricing | GeoMoney",
+  description:
+    "GeoMoney subscription plans and pricing. Pre-launch access — join the waitlist.",
+};
 
 const FEATURES = [
   {
     icon: BarChart3,
-    title: 'Advanced Analytics',
-    description: 'Access global macro dashboards, commodity trackers, and market intelligence tools.',
+    title: "Advanced Analytics",
+    description:
+      "Access global macro dashboards, commodity trackers, and market intelligence tools.",
   },
   {
     icon: Globe,
-    title: 'Geopolitical Briefings',
-    description: 'Receive in-depth analysis on energy flows, supply chains, and international policy shifts.',
+    title: "Geopolitical Briefings",
+    description:
+      "Receive in-depth analysis on energy flows, supply chains, and international policy shifts.",
   },
   {
     icon: Zap,
-    title: 'Exclusive Reports',
-    description: 'Unlock The GeoMoney Intelligence Report and members-only weekly briefings.',
+    title: "Exclusive Reports",
+    description:
+      "Unlock The GeoMoney Intelligence Report and members-only weekly briefings.",
   },
   {
     icon: Lock,
-    title: 'Ad-Free Experience',
-    description: 'Enjoy uninterrupted access to all content without advertisements or paywalls.',
+    title: "Ad-Free Experience",
+    description:
+      "Enjoy uninterrupted access to all content without advertisements or paywalls.",
   },
   {
     icon: Shield,
-    title: 'Priority Support',
-    description: 'Get faster responses from our team and early access to new features and tools.',
+    title: "Priority Support",
+    description:
+      "Get faster responses from our team and early access to new features and tools.",
   },
   {
     icon: Crown,
-    title: 'Member Perks',
-    description: 'Participate in exclusive webinars, Q&A sessions, and community discussions.',
+    title: "Member Perks",
+    description:
+      "Participate in exclusive webinars, Q&A sessions, and community discussions.",
   },
-]
+];
 
 const PLANS = [
   {
-    name: 'Monthly',
-    price: '$29',
-    period: '/ month',
-    billing: 'Billed monthly',
-    description: 'Flexible monthly access to all Pro features.',
+    name: "Monthly",
+    price: "$29",
+    period: "/ month",
+    billing: "Billed monthly",
+    description: "Flexible monthly access to all Pro features.",
     features: [
-      'Full analytics dashboard',
-      'Weekly intelligence reports',
-      'Energy & materials data',
-      'Priority support',
-      'Cancel anytime',
+      "Full analytics dashboard",
+      "Weekly intelligence reports",
+      "Energy & materials data",
+      "Priority support",
+      "Cancel anytime",
     ],
-    cta: 'Join Waitlist',
+    cta: "Join Waitlist",
     highlighted: true,
   },
   {
-    name: 'Annual',
-    price: '$290',
-    period: '/ year',
-    billing: 'Billed annually',
-    description: 'Save two months with annual billing.',
+    name: "Annual",
+    price: "$290",
+    period: "/ year",
+    billing: "Billed annually",
+    description: "Save two months with annual billing.",
     features: [
-      'Everything in Monthly',
-      'Exclusive annual member briefings',
-      'Early access to new features',
-      'Dedicated support channel',
-      'Best value',
+      "Everything in Monthly",
+      "Exclusive annual member briefings",
+      "Early access to new features",
+      "Dedicated support channel",
+      "Best value",
     ],
-    cta: 'Join Waitlist',
+    cta: "Join Waitlist",
     highlighted: false,
   },
-]
+];
 
-export default function MembershipPage() {
+export default function PricingPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-geo-dark via-black to-geo-dark text-white pt-32 pb-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -96,7 +106,7 @@ export default function MembershipPage() {
             GeoMoney Pro Membership
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-            Unlock{' '}
+            Unlock{" "}
             <span className="bg-gradient-to-r from-geo-gold to-yellow-600 bg-clip-text text-transparent">
               Premium Intelligence
             </span>
@@ -119,22 +129,26 @@ export default function MembershipPage() {
                 <feature.icon className="w-6 h-6 text-geo-gold" />
               </div>
               <h3 className="text-lg font-bold text-white mb-2">{feature.title}</h3>
-              <p className="text-gray-400 leading-relaxed text-sm">{feature.description}</p>
+              <p className="text-gray-400 leading-relaxed text-sm">
+                {feature.description}
+              </p>
             </div>
           ))}
         </div>
 
         {/* Pricing */}
         <div className="max-w-4xl mx-auto mb-20">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-10">Choose Your Plan</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-center mb-10">
+            Choose Your Plan
+          </h2>
           <div className="grid md:grid-cols-2 gap-6">
             {PLANS.map((plan) => (
               <div
                 key={plan.name}
                 className={`relative rounded-2xl border p-8 transition-all ${
                   plan.highlighted
-                    ? 'border-geo-gold/40 bg-geo-gold/5'
-                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                    ? "border-geo-gold/40 bg-geo-gold/5"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
                 }`}
               >
                 {plan.highlighted && (
@@ -151,7 +165,10 @@ export default function MembershipPage() {
                 <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((item) => (
-                    <li key={item} className="flex items-start gap-3 text-sm text-gray-300">
+                    <li
+                      key={item}
+                      className="flex items-start gap-3 text-sm text-gray-300"
+                    >
                       <CheckCircle className="w-5 h-5 text-geo-gold shrink-0" />
                       <span>{item}</span>
                     </li>
@@ -161,8 +178,8 @@ export default function MembershipPage() {
                   href="/about/contact"
                   className={`flex items-center justify-center gap-2 w-full rounded-lg px-6 py-3 font-bold transition-colors ${
                     plan.highlighted
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "bg-white/10 hover:bg-white/20 text-white"
                   }`}
                 >
                   {plan.cta}
@@ -177,11 +194,11 @@ export default function MembershipPage() {
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-gray-500 text-sm leading-relaxed mb-6">
             All memberships will include flexible cancellation options once checkout is live.
-            For questions, review our{' '}
+            For questions, review our{" "}
             <Link href="/about/refund-policy" className="text-geo-gold hover:underline">
               Refund Policy
-            </Link>{' '}
-            or{' '}
+            </Link>{" "}
+            or{" "}
             <Link href="/about/contact" className="text-geo-gold hover:underline">
               contact us
             </Link>.
@@ -205,11 +222,12 @@ export default function MembershipPage() {
         {/* Global Disclaimer */}
         <div className="mt-20 border-t border-white/10 pt-8">
           <p className="text-gray-500 text-sm leading-relaxed max-w-3xl mx-auto text-center">
-            GeoMoney provides geopolitical, energy, commodity, industrial, and macroeconomic intelligence
-            for informational and research purposes only. It does NOT provide financial, investment, legal, or tax advice.
+            GeoMoney provides geopolitical, energy, commodity, industrial, and macroeconomic
+            intelligence for informational and research purposes only. It does NOT provide
+            financial, investment, legal, or tax advice.
           </p>
         </div>
       </div>
     </main>
-  )
+  );
 }

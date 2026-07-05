@@ -178,10 +178,10 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             )}
 
             <Link
-              href="/membership"
+              href="/pricing"
               className="hidden lg:flex rounded-full bg-blue-600 px-4 py-1.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors items-center whitespace-nowrap"
             >
-              Get Pro Access
+              Pricing
             </Link>
 
             {/* Mobile Hamburger */}

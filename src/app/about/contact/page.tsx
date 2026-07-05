@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowLeft, Mail, MapPin, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Mail, MessageSquare } from 'lucide-react'
 
 export const metadata = {
   title: 'Contact GeoMoney',
@@ -35,21 +35,19 @@ export default function ContactPage() {
               <Mail className="w-5 h-5 text-geo-gold" />
               <h3 className="font-bold text-lg">Email</h3>
             </div>
-            <a href="mailto:support@geomoneytv.com" className="text-geo-gold hover:text-yellow-400 transition-colors text-lg">
-              support@geomoneytv.com
+            <a href="mailto:info@geomoney.com" className="text-geo-gold hover:text-yellow-400 transition-colors text-lg">
+              info@geomoney.com
             </a>
           </div>
 
-          {/* Location Card */}
-          {/* <div className="bg-white/5 rounded-xl border border-white/10 p-6 hover:border-geo-gold/30 transition-all">
-            <div className="flex items-center gap-3 mb-3">
-              <MapPin className="w-5 h-5 text-geo-gold" />
-              <h3 className="font-bold text-lg">Headquarters</h3>
-            </div>
-            <p className="text-gray-400">
-              GeoMoney is operated by [Your Corporation Name], Canada.
+          {/* Ownership Notice */}
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-5">
+            <p className="text-sm text-gray-300 leading-relaxed">
+              GeoMoney is owned and operated by{" "}
+              <strong className="text-amber-400">Vidyata Hub Inc.</strong>, a corporation
+              incorporated under the laws of Canada.
             </p>
-          </div> */}
+          </div>
         </div>
       </div>
     </main>
