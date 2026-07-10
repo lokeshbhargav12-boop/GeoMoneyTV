@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -148,6 +148,16 @@ const ENERGY_SOURCES = [
     desc: "Enhanced geothermal systems unlocking new potential. 24/7 baseload power.",
   },
 ];
+
+interface LiveHubData {
+  timestamp: string;
+  commodities: any[];
+  storage: any[];
+  grid: any[];
+  climate: any[];
+  osint: any[];
+  shipCounts: any[];
+}
 
 // ─── CRITICAL ENERGY COMMODITIES ──────────────────────────────
 const ENERGY_COMMODITIES = [
@@ -405,6 +415,28 @@ export default function EnergyPage() {
     confidence: string;
   } | null>(null);
   const [aiError, setAiError] = useState("");
+
+  // Live hub data
+  const [live, setLive] = useState<LiveHubData | null>(null);
+  const [liveLoading, setLiveLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLive = async () => {
+      try {
+        const res = await fetch("/api/energy/infrastructure", { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to load live data");
+        const data = await res.json();
+        setLive(data);
+      } catch (e) {
+        console.warn("[Energy Hub] Live data unavailable", e);
+      } finally {
+        setLiveLoading(false);
+      }
+    };
+    fetchLive();
+    const id = setInterval(fetchLive, 60000);
+    return () => clearInterval(id);
+  }, []);
 
   // ─── CALCULATORS ──────────────────────────────────────────
   const calculateSolarROI = () => {
@@ -942,6 +974,12 @@ export default function EnergyPage() {
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <Battery className="w-6 h-6 text-emerald-400" />
             Critical Energy Commodities
+            {live && (
+              <span className="text-[10px] text-gray-500 font-normal ml-2 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live
+              </span>
+            )}
           </h2>
 
           <div className="bg-white/5 rounded-xl border border-white/10 p-6">
@@ -950,31 +988,43 @@ export default function EnergyPage() {
               energy transition.
             </p>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {ENERGY_COMMODITIES.map((commodity) => (
-                <div
-                  key={commodity.symbol}
-                  className="bg-black/30 rounded-lg p-4 border border-white/10 hover:border-emerald-500/30 transition-all group"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-emerald-400 font-bold text-lg">
-                      {commodity.symbol}
-                    </span>
-                    <span
-                      className={`text-xs font-medium ${commodity.change >= 0 ? "text-green-400" : "text-red-400"}`}
-                    >
-                      {commodity.change >= 0 ? "+" : ""}
-                      {commodity.change}%
-                    </span>
+              {ENERGY_COMMODITIES.map((commodity) => {
+                const liveCommodity = live?.commodities?.find(
+                  (c: any) =>
+                    c.label?.toLowerCase().includes(commodity.name.toLowerCase().split(" ")[0]) ||
+                    (commodity.symbol === "Cu" && c.symbol === "COPPER") ||
+                    (commodity.symbol === "Ag" && c.symbol === "SILVER") ||
+                    (commodity.symbol === "U₃O₈" && c.symbol === "URANIUM") ||
+                    (commodity.symbol === "Li" && c.symbol === "LITHIUM")
+                );
+                const price = liveCommodity ? liveCommodity.price : commodity.price;
+                const change = liveCommodity ? liveCommodity.changePercent : commodity.change;
+                return (
+                  <div
+                    key={commodity.symbol}
+                    className="bg-black/30 rounded-lg p-4 border border-white/10 hover:border-emerald-500/30 transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-emerald-400 font-bold text-lg">
+                        {commodity.symbol}
+                      </span>
+                      <span
+                        className={`text-xs font-medium ${change >= 0 ? "text-green-400" : "text-red-400"}`}
+                      >
+                        {change >= 0 ? "+" : ""}
+                        {typeof change === "number" ? change.toFixed(2) : change}%
+                      </span>
+                    </div>
+                    <div className="text-white font-semibold">
+                      ${typeof price === "number" ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : price}
+                    </div>
+                    <div className="text-gray-500 text-xs">{commodity.name}</div>
+                    <div className="mt-2 text-[10px] text-emerald-400/70 font-medium uppercase tracking-wider">
+                      {commodity.use}
+                    </div>
                   </div>
-                  <div className="text-white font-semibold">
-                    ${commodity.price.toLocaleString()}
-                  </div>
-                  <div className="text-gray-500 text-xs">{commodity.name}</div>
-                  <div className="mt-2 text-[10px] text-emerald-400/70 font-medium uppercase tracking-wider">
-                    {commodity.use}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </motion.section>

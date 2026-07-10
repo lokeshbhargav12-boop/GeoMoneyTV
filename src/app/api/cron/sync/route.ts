@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { syncNewsToDatabase } from '@/lib/news-service';
 import { updateTickerData } from '@/lib/ticker-service';
 import { syncVideosToDatabase } from '@/lib/video-service';
+import { getEnergyInfrastructureData, clearEnergyInfrastructureCache } from '@/lib/energy-infrastructure-service';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow 60 seconds (Vercel max for Hobby/Pro limits vary)
@@ -29,12 +30,25 @@ export async function GET(req: Request) {
         const videoResult = await syncVideosToDatabase();
         console.log(`Synced ${videoResult.added} new videos (${videoResult.total} total fetched).`);
 
+        // 4. Warm Energy Infrastructure cache
+        clearEnergyInfrastructureCache();
+        const energyData = await getEnergyInfrastructureData();
+        console.log(`Warmed energy infrastructure cache: ${energyData.commodities.length} commodities, ${energyData.storage.length} storage series.`);
+
         return NextResponse.json({
             success: true,
             synced: {
                 news: newsCount,
                 tickers: tickersCount,
-                videos: videoResult
+                videos: videoResult,
+                energy: {
+                    commodities: energyData.commodities.length,
+                    storage: energyData.storage.length,
+                    grid: energyData.grid.length,
+                    climate: energyData.climate.length,
+                    osint: energyData.osint.length,
+                    shipCounts: energyData.shipCounts.length,
+                }
             },
             timestamp: new Date().toISOString()
         });
