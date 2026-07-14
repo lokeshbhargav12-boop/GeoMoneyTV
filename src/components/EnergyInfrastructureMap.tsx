@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -8,7 +8,9 @@ import {
   Popup,
   CircleMarker,
   Polyline,
+  Rectangle,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
 // @ts-ignore: Leaflet CSS side-effect import
@@ -27,6 +29,11 @@ import {
   AlertTriangle,
   Mountain,
   Ship,
+  BoxSelect,
+  Route,
+  Wind,
+  Zap,
+  Thermometer,
 } from "lucide-react";
 
 // ─── TYPES ────────────────────────────────────────────────────
@@ -48,9 +55,11 @@ export type MapOverlay =
   | "weather"
   | "ships"
   | "climate"
-  | "osint";
+  | "osint"
+  | "flows"
+  | "grid-stress";
 
-interface MapAsset {
+export interface MapAsset {
   id: string;
   name: string;
   layer: InfraLayer;
@@ -63,7 +72,7 @@ interface MapAsset {
   region: string;
 }
 
-interface MapCorridor {
+export interface MapCorridor {
   id: string;
   name: string;
   kind: "pipeline" | "transmission" | "shipping" | "rail";
@@ -72,7 +81,7 @@ interface MapCorridor {
   status: string;
 }
 
-interface MapEvent {
+export interface MapEvent {
   id: string;
   title: string;
   type: string;
@@ -83,7 +92,7 @@ interface MapEvent {
   timestamp?: string;
 }
 
-interface MapShip {
+export interface MapShip {
   mmsi: string;
   name?: string;
   type: string;
@@ -91,6 +100,26 @@ interface MapShip {
   longitude: number;
   speed?: number;
   destination?: string;
+}
+
+export interface FlowRoute {
+  id: string;
+  origin: [number, number];
+  destination: [number, number];
+  label: string;
+  volume: string;
+  commodity: string;
+  color?: string;
+}
+
+export interface GridStressNode {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  loadPercent: number;
+  capacityGW: number;
+  alert: "normal" | "elevated" | "critical";
 }
 
 interface EnergyInfrastructureMapProps {
@@ -101,12 +130,17 @@ interface EnergyInfrastructureMapProps {
   climate?: MapEvent[];
   osint?: MapEvent[];
   ships?: MapShip[];
+  flows?: FlowRoute[];
+  gridStress?: GridStressNode[];
   height?: string;
+  bboxMode?: boolean;
   onAssetClick?: (asset: MapAsset) => void;
   onCorridorClick?: (corridor: MapCorridor) => void;
+  onBboxChange?: (bounds: L.LatLngBounds | null) => void;
+  onMapClick?: (lat: number, lng: number) => void;
 }
 
-// ─── MOCK ASSET DATASET (OpenGrid-style global energy nodes) ──
+// ─── MOCK DATASETS ────────────────────────────────────────────
 
 const DEFAULT_ASSETS: MapAsset[] = [
   // Extraction / Generation
@@ -167,6 +201,25 @@ const DEFAULT_CORRIDORS: MapCorridor[] = [
   { id: "magistral-route", name: "Central Asia Gas", kind: "pipeline", path: [[41.0, 65.0], [45.0, 60.0], [50.0, 40.0]], throughput: "55 BCM", status: "Operating" },
 ];
 
+const DEFAULT_FLOWS: FlowRoute[] = [
+  { id: "saudi-china", origin: [25.9, 49.6], destination: [37.5, 105.0], label: "Crude to NE Asia", volume: "5.2 MMBPD", commodity: "Oil", color: "#ef4444" },
+  { id: "qatar-eu", origin: [25.9, 51.5], destination: [51.3, 3.2], label: "LNG to Europe", volume: "2.1 mtpa", commodity: "LNG", color: "#8b5cf6" },
+  { id: "us-gulf-eu", origin: [29.9, -93.9], destination: [51.3, 3.2], label: "LNG trans-Atlantic", volume: "8.4 mtpa", commodity: "LNG", color: "#8b5cf6" },
+  { id: "aus-china", origin: [-32.9, 151.8], destination: [37.5, 105.0], label: "Coal to China", volume: "210 mtpa", commodity: "Coal", color: "#f59e0b" },
+  { id: "sa-us", origin: [43.6, -105.9], destination: [35.9, -96.7], label: "Coal to Cushing", volume: "45 mtpa", commodity: "Coal", color: "#f59e0b" },
+  { id: "norway-uk", origin: [61.3, 2.0], destination: [52.5, -1.5], label: "Gas to UK", volume: "35 BCM", commodity: "Gas", color: "#06b6d4" },
+  { id: "uk-germany", origin: [58.0, 7.0], destination: [52.6, 8.5], label: "NordLink HVDC", volume: "1.4 GW", commodity: "Electricity", color: "#10b981" },
+];
+
+const DEFAULT_GRID_STRESS: GridStressNode[] = [
+  { id: "ercot", name: "ERCOT", lat: 31.0, lng: -99.0, loadPercent: 88, capacityGW: 78, alert: "elevated" },
+  { id: "caiso", name: "CAISO", lat: 37.5, lng: -121.5, loadPercent: 72, capacityGW: 52, alert: "normal" },
+  { id: "pjm", name: "PJM", lat: 39.9, lng: -77.6, loadPercent: 81, capacityGW: 185, alert: "elevated" },
+  { id: "texas-south", name: "South Texas", lat: 29.0, lng: -96.0, loadPercent: 94, capacityGW: 42, alert: "critical" },
+  { id: "uk-grid", name: "National Grid UK", lat: 52.5, lng: -1.5, loadPercent: 65, capacityGW: 60, alert: "normal" },
+  { id: "germany-north", name: "DE North", lat: 53.0, lng: 9.0, loadPercent: 78, capacityGW: 55, alert: "elevated" },
+];
+
 // ─── MAP CONTROLLER ───────────────────────────────────────────
 
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
@@ -174,6 +227,63 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   useEffect(() => {
     map.setView(center, zoom, { animate: true, duration: 1 });
   }, [center, zoom, map]);
+  return null;
+}
+
+// ─── BBOX DRAWER ──────────────────────────────────────────────
+
+function BboxDrawer({
+  active,
+  onBboxChange,
+}: {
+  active: boolean;
+  onBboxChange?: (bounds: L.LatLngBounds | null) => void;
+}) {
+  const map = useMap();
+  const [start, setStart] = useState<L.LatLng | null>(null);
+  const [end, setEnd] = useState<L.LatLng | null>(null);
+  const [currentBbox, setCurrentBbox] = useState<L.LatLngBounds | null>(null);
+
+  useEffect(() => {
+    if (active) {
+      map.dragging.disable();
+    } else {
+      map.dragging.enable();
+      setStart(null);
+      setEnd(null);
+      setCurrentBbox(null);
+      onBboxChange?.(null);
+    }
+  }, [active, map, onBboxChange]);
+
+  useMapEvents({
+    mousedown(e) {
+      if (!active) return;
+      setStart(e.latlng);
+      setEnd(e.latlng);
+      setCurrentBbox(null);
+      onBboxChange?.(null);
+    },
+    mousemove(e) {
+      if (!active || !start) return;
+      setEnd(e.latlng);
+    },
+    mouseup(e) {
+      if (!active || !start) return;
+      const bounds = L.latLngBounds(start, e.latlng);
+      setCurrentBbox(bounds);
+      onBboxChange?.(bounds);
+      setStart(null);
+      setEnd(null);
+    },
+  });
+
+  if (start && end) {
+    return <Rectangle bounds={L.latLngBounds(start, end)} pathOptions={{ color: "#06b6d4", weight: 2, fillOpacity: 0.15 }} />;
+  }
+  if (currentBbox) {
+    return <Rectangle bounds={currentBbox} pathOptions={{ color: "#06b6d4", weight: 2, fillOpacity: 0.08 }} />;
+  }
   return null;
 }
 
@@ -231,13 +341,7 @@ function AssetMarker({ asset, onClick }: { asset: MapAsset; onClick?: (a: MapAss
   );
 
   return (
-    <Marker
-      position={[asset.lat, asset.lng]}
-      icon={icon}
-      eventHandlers={{
-        click: () => onClick?.(asset),
-      }}
-    >
+    <Marker position={[asset.lat, asset.lng]} icon={icon} eventHandlers={{ click: () => onClick?.(asset) }}>
       <Popup className="geo-popup" autoPan={false}>
         <div className="bg-black/90 border border-white/10 p-3 rounded-xl text-white text-xs min-w-[220px]">
           <div className="flex items-center gap-2 mb-2">
@@ -284,9 +388,7 @@ function CorridorLayer({ corridors, onClick }: { corridors: MapCorridor[]; onCli
           weight={corridor.kind === "shipping" ? 2 : 3}
           opacity={0.7}
           dashArray={corridor.status === "Disrupted" ? "6,6" : corridor.status === "Permitting" ? "4,4" : "0"}
-          eventHandlers={{
-            click: () => onClick?.(corridor),
-          }}
+          eventHandlers={{ click: () => onClick?.(corridor) }}
         >
           <Popup className="geo-popup" autoPan={false}>
             <div className="bg-black/90 border border-white/10 p-3 rounded-xl text-white text-xs min-w-[180px]">
@@ -368,15 +470,101 @@ function ShipLayer({ ships }: { ships: MapShip[] }) {
   );
 }
 
+function FlowLayer({ flows }: { flows: FlowRoute[] }) {
+  return (
+    <svg className="absolute inset-0 w-full h-full pointer-events-none z-[400]">
+      <defs>
+        {flows.map((flow) => (
+          <marker key={`arrow-${flow.id}`} id={`arrow-${flow.id}`} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L6,3 z" fill={flow.color || "#3b82f6"} />
+          </marker>
+        ))}
+      </defs>
+      {flows.map((flow) => {
+        // We render flows as curved polylines via Leaflet below; this SVG is a fallback visual placeholder.
+        return null;
+      })}
+    </svg>
+  );
+}
+
+function FlowArcs({ flows }: { flows: FlowRoute[] }) {
+  // Leaflet-based curved flow arcs using quadratic bezier approximation
+  const map = useMap();
+  const [paths, setPaths] = useState<{ id: string; d: string; color: string }[]>([]);
+
+  useEffect(() => {
+    const update = () => {
+      const newPaths = flows.map((flow) => {
+        const start = map.latLngToLayerPoint(L.latLng(flow.origin));
+        const end = map.latLngToLayerPoint(L.latLng(flow.destination));
+        const midX = (start.x + end.x) / 2;
+        const midY = (start.y + end.y) / 2 - 80; // arc height
+        const d = `M ${start.x} ${start.y} Q ${midX} ${midY} ${end.x} ${end.y}`;
+        return { id: flow.id, d, color: flow.color || "#3b82f6" };
+      });
+      setPaths(newPaths);
+    };
+    update();
+    map.on("move zoom", update);
+    return () => {
+      map.off("move zoom", update);
+    };
+  }, [flows, map]);
+
+  return (
+    <svg className="absolute inset-0 w-full h-full pointer-events-none z-[400] overflow-visible">
+      {paths.map((p) => (
+        <g key={p.id}>
+          <path d={p.d} fill="none" stroke={p.color} strokeWidth="2" opacity="0.6" strokeDasharray="4 4">
+            <animate attributeName="stroke-dashoffset" from="100" to="0" dur="2s" repeatCount="indefinite" />
+          </path>
+          <circle r="3" fill={p.color} opacity="0.9">
+            <animateMotion dur="2s" repeatCount="indefinite" path={p.d} />
+          </circle>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function GridStressLayer({ nodes }: { nodes: GridStressNode[] }) {
+  return (
+    <>
+      {nodes.map((node) => {
+        const color = node.alert === "critical" ? "#ef4444" : node.alert === "elevated" ? "#f59e0b" : "#10b981";
+        const radius = 8 + node.loadPercent / 6;
+        return (
+          <CircleMarker
+            key={node.id}
+            center={[node.lat, node.lng]}
+            radius={radius}
+            pathOptions={{ fillColor: color, color: color, fillOpacity: 0.25, weight: 2 }}
+          >
+            <Popup className="geo-popup" autoPan={false}>
+              <div className="bg-black/90 border border-white/10 p-3 rounded-xl text-white text-xs min-w-[180px]">
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap className="w-4 h-4" style={{ color }} />
+                  <span className="font-bold text-sm">{node.name}</span>
+                </div>
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex justify-between"><span className="text-gray-500">Load:</span><span style={{ color }}>{node.loadPercent}%</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Capacity:</span><span className="text-gray-200">{node.capacityGW} GW</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Alert:</span><span style={{ color }} className="capitalize">{node.alert}</span></div>
+                </div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        );
+      })}
+    </>
+  );
+}
+
 function WeatherTileLayer() {
   const owmKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
   if (!owmKey) return null;
-  return (
-    <TileLayer
-      url={`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${owmKey}`}
-      opacity={0.45}
-    />
-  );
+  return <TileLayer url={`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${owmKey}`} opacity={0.45} />;
 }
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────
@@ -389,9 +577,14 @@ export default function EnergyInfrastructureMap({
   climate = [],
   osint = [],
   ships = [],
+  flows = DEFAULT_FLOWS,
+  gridStress = DEFAULT_GRID_STRESS,
   height = "600px",
+  bboxMode = false,
   onAssetClick,
   onCorridorClick,
+  onBboxChange,
+  onMapClick,
 }: EnergyInfrastructureMapProps) {
   const [mapCenter, setMapCenter] = useState<[number, number]>([25, 10]);
   const [mapZoom, setMapZoom] = useState(3);
@@ -425,14 +618,14 @@ export default function EnergyInfrastructureMap({
         attributionControl={false}
       >
         <MapController center={mapCenter} zoom={mapZoom} />
+        <BboxDrawer active={bboxMode} onBboxChange={onBboxChange} />
 
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
-          attribution=""
-        />
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" attribution="" />
 
         {overlays.includes("weather") && <WeatherTileLayer />}
         {overlays.includes("corridors") && <CorridorLayer corridors={corridors} onClick={onCorridorClick} />}
+        {overlays.includes("flows") && <FlowArcs flows={flows} />}
+        {overlays.includes("grid-stress") && <GridStressLayer nodes={gridStress} />}
         {overlays.includes("assets") && filteredAssets.map((asset) => (
           <AssetMarker key={asset.id} asset={asset} onClick={handleAssetClick} />
         ))}
@@ -469,4 +662,4 @@ export default function EnergyInfrastructureMap({
   );
 }
 
-export { DEFAULT_ASSETS, DEFAULT_CORRIDORS };
+export { DEFAULT_ASSETS, DEFAULT_CORRIDORS, DEFAULT_FLOWS, DEFAULT_GRID_STRESS };

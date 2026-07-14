@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -24,7 +24,6 @@ import {
   Warehouse,
   Cable,
   TrendingUp,
-  TrendingDown,
   Loader2,
   Server,
   RefreshCw,
@@ -39,12 +38,28 @@ import {
   Thermometer,
   CloudRain,
   Ship,
+  BoxSelect,
+  Route,
+  Activity,
+  MoveRight,
+  Scan,
+  Radar,
 } from "lucide-react";
 
 const EnergyInfrastructureMap = dynamic(
   () => import("@/components/EnergyInfrastructureMap"),
   { ssr: false },
 );
+
+const DEFAULT_FLOWS = [
+  { id: "saudi-china", label: "Crude to NE Asia", volume: "5.2 MMBPD", commodity: "Oil", color: "#ef4444" },
+  { id: "qatar-eu", label: "LNG to Europe", volume: "2.1 mtpa", commodity: "LNG", color: "#8b5cf6" },
+  { id: "us-gulf-eu", label: "LNG trans-Atlantic", volume: "8.4 mtpa", commodity: "LNG", color: "#8b5cf6" },
+  { id: "aus-china", label: "Coal to China", volume: "210 mtpa", commodity: "Coal", color: "#f59e0b" },
+  { id: "sa-us", label: "Coal to Cushing", volume: "45 mtpa", commodity: "Coal", color: "#f59e0b" },
+  { id: "norway-uk", label: "Gas to UK", volume: "35 BCM", commodity: "Gas", color: "#06b6d4" },
+  { id: "uk-germany", label: "NordLink HVDC", volume: "1.4 GW", commodity: "Electricity", color: "#10b981" },
+];
 
 const MAP_LAYERS = [
   { id: "all", label: "All Layers", icon: Globe2 },
@@ -61,6 +76,8 @@ const MAP_LAYERS = [
 const MAP_OVERLAYS = [
   { id: "assets", label: "Energy Assets", icon: Factory, desc: "Global infrastructure nodes" },
   { id: "corridors", label: "Corridors", icon: Cable, desc: "Pipelines, shipping lanes, HVDC" },
+  { id: "flows", label: "Trade Flows", icon: MoveRight, desc: "Origin-destination energy flows" },
+  { id: "grid-stress", label: "Grid Stress", icon: Activity, desc: "Real-time load & capacity alerts" },
   { id: "ships", label: "Live Vessels", icon: Ship, desc: "AIS tanker & LNG traffic" },
   { id: "climate", label: "Climate Events", icon: CloudRain, desc: "Severe weather & hazards" },
   { id: "osint", label: "OSINT Alerts", icon: AlertTriangle, desc: "Geopolitical & supply-chain signals" },
@@ -84,6 +101,14 @@ const TECH_CATS = [
   { id: "renewable", label: "Renewables" },
   { id: "storage", label: "Storage" },
   { id: "grid", label: "Grid" },
+];
+
+const DISRUPTION_SCENARIOS = [
+  { id: "hormuz-closure", label: "Strait of Hormuz Closure", severity: "Critical", affected: ["Oil", "LNG", "Shipping"], fallbackImpact: "21 MMBPD of seaborne oil and LNG transits would be forced around Africa, spiking freight rates and Brent/WTI spreads." },
+  { id: "panama-restriction", label: "Panama Canal Water Restrictions", severity: "High", affected: ["LNG", "Coal", "Shipping"], fallbackImpact: "LNG and coal routes from US Gulf to Asia lengthen, raising delivered costs and shifting arbitrage to Europe." },
+  { id: "north-sea-outage", label: "North Sea Pipeline Outage", severity: "High", affected: ["Gas", "Oil"], fallbackImpact: "UK and continental gas prices spike; Brent crude tightens as 1+ MMBPD of oil and gas output is curtailed." },
+  { id: "heatwave-grid", label: "Continental Heatwave", severity: "High", affected: ["Grid", "Gas", "Coal"], fallbackImpact: "Cooling demand lifts gas/coal burn while nuclear and hydro output may fall due to river temperature limits." },
+  { id: "hurricane-gulf", label: "Gulf of Mexico Hurricane", severity: "Critical", affected: ["Oil", "Gas", "LNG"], fallbackImpact: "Offshore production shut-ins, refinery outages, and LNG export curtailments tighten global balances." },
 ];
 
 type MV = "Core" | "Supporting" | "Conditional" | "Limited" | "N/A";
@@ -171,6 +196,17 @@ export default function EnergyInfrastructurePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Advanced GIS module states
+  const [bboxMode, setBboxMode] = useState(false);
+  const [bbox, setBbox] = useState<any>(null);
+  const [bboxSummary, setBboxSummary] = useState<string | null>(null);
+  const [bboxLoading, setBboxLoading] = useState(false);
+  const [routeScenario, setRouteScenario] = useState<string | null>(null);
+  const [routeImpact, setRouteImpact] = useState<string | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
+  const [flowDetail, setFlowDetail] = useState<string | null>(null);
+
   const fetchLive = async () => {
     try {
       const res = await fetch("/api/energy/infrastructure", { cache: "no-store" });
@@ -213,6 +249,68 @@ export default function EnergyInfrastructurePage() {
     } finally {
       setImpactLoading(false);
     }
+  };
+
+  const handleBboxChange = async (bounds: any) => {
+    setBbox(bounds);
+    if (!bounds) {
+      setBboxSummary(null);
+      return;
+    }
+    setBboxLoading(true);
+    try {
+      const res = await fetch("/api/ai/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `Summarize energy infrastructure inside bounding box ${JSON.stringify(bounds)}. Include asset types, capacities, and any visible risks. Keep under 120 words.`,
+        }),
+      });
+      const data = await res.json();
+      setBboxSummary(data.summary || "Spatial summary unavailable.");
+    } catch {
+      setBboxSummary("Spatial summary unavailable.");
+    } finally {
+      setBboxLoading(false);
+    }
+  };
+
+  const handleRouteScenario = async (id: string) => {
+    if (routeScenario === id) {
+      setRouteScenario(null);
+      setRouteImpact(null);
+      return;
+    }
+    setRouteScenario(id);
+    setRouteImpact(null);
+    setRouteLoading(true);
+    const scenario = DISRUPTION_SCENARIOS.find((s) => s.id === id);
+    try {
+      const res = await fetch("/api/ai/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `Model the supply-chain impact of ${scenario?.label}. Affected commodities: ${scenario?.affected.join(", ")}. Estimate rerouting, price, and inventory effects in under 120 words.`,
+        }),
+      });
+      const data = await res.json();
+      setRouteImpact(data.summary || scenario?.fallbackImpact || "Route impact unavailable.");
+    } catch {
+      setRouteImpact(scenario?.fallbackImpact || "Route impact unavailable.");
+    } finally {
+      setRouteLoading(false);
+    }
+  };
+
+  const handleFlowClick = (id: string) => {
+    if (selectedFlow === id) {
+      setSelectedFlow(null);
+      setFlowDetail(null);
+      return;
+    }
+    setSelectedFlow(id);
+    const flow = DEFAULT_FLOWS.find((f) => f.id === id);
+    setFlowDetail(flow ? `${flow.label}: ${flow.volume} of ${flow.commodity} per year. Disruption would force alternative routes and reprice regional spreads.` : null);
   };
 
   const filtered = tech === "all" ? ASSETS : ASSETS.filter((a) => {
@@ -278,9 +376,9 @@ export default function EnergyInfrastructurePage() {
 
         {/* QUICK NAV */}
         <div className="flex overflow-x-auto gap-3 mb-12 pb-2" style={{ scrollbarWidth: "none" }}>
-          {["layer-map", "matrix", "assets", "constraints", "storage", "grid", "resilience", "scenarios"].map((h) => (
+          {["operating-picture", "spatial-query", "route-risk", "trade-flows", "grid-stress", "matrix", "assets", "constraints", "storage", "grid", "resilience", "scenarios"].map((h) => (
             <a key={h} href={"#" + h} className="px-4 py-2 whitespace-nowrap bg-white/5 border border-white/10 rounded-full hover:bg-amber-500/20 hover:text-amber-400 transition-all text-sm">
-              {h.charAt(0).toUpperCase() + h.slice(1)}
+              {h.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
             </a>
           ))}
         </div>
@@ -307,7 +405,7 @@ export default function EnergyInfrastructurePage() {
         )}
 
         {/* 0. OPENGRID-STYLE GLOBAL MAP */}
-        <section className="mb-16">
+        <section id="operating-picture" className="mb-16">
           <div className="flex items-center justify-between gap-4 mb-6">
             <h2 className="text-2xl font-bold flex items-center gap-3">
               <Map className="w-6 h-6 text-amber-400" /> Global Infrastructure Operating Picture
@@ -397,7 +495,232 @@ export default function EnergyInfrastructurePage() {
           </div>
         </section>
 
-        {/* 1. LAYER MAP */}
+        {/* 1. SPATIAL QUERY MODULE */}
+        <section id="spatial-query" className="mb-16">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <BoxSelect className="w-6 h-6 text-cyan-400" /> Spatial Query & AI Summary
+            </h2>
+            <span className="text-xs uppercase tracking-widest text-gray-500">Draw a region on the map</span>
+          </div>
+          <p className="text-gray-400 text-sm mb-6 max-w-3xl">
+            Activate bounding-box mode, drag a rectangle on the map, and get an AI-generated summary of energy assets, corridors, and risks inside that region.
+          </p>
+
+          <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <aside className="space-y-5">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                <button
+                  onClick={() => setBboxMode((v) => !v)}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${bboxMode ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" : "bg-white/5 text-gray-300 border border-white/10 hover:border-cyan-500/30"}`}
+                >
+                  <Scan className="w-4 h-4" />
+                  {bboxMode ? "Exit Draw Mode" : "Draw Bounding Box"}
+                </button>
+                <p className="text-[11px] text-gray-500 mt-3 leading-relaxed">
+                  {bboxMode ? "Drag on the map to define your AOI. Release to generate the summary." : "Enable draw mode to select an area of interest."}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                <div className="text-sm font-semibold text-white mb-3">Selected Region</div>
+                {bbox ? (
+                  <div className="space-y-1 text-xs text-gray-400">
+                    <div className="flex justify-between"><span>North:</span><span>{bbox._northEast?.lat?.toFixed(2)}°</span></div>
+                    <div className="flex justify-between"><span>South:</span><span>{bbox._southWest?.lat?.toFixed(2)}°</span></div>
+                    <div className="flex justify-between"><span>East:</span><span>{bbox._northEast?.lng?.toFixed(2)}°</span></div>
+                    <div className="flex justify-between"><span>West:</span><span>{bbox._southWest?.lng?.toFixed(2)}°</span></div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">No region selected.</p>
+                )}
+              </div>
+            </aside>
+
+            <div className="space-y-4">
+              <EnergyInfrastructureMap
+                activeLayer="all"
+                overlays={["assets", "corridors"]}
+                bboxMode={bboxMode}
+                onBboxChange={handleBboxChange}
+                height="500px"
+              />
+              {bboxLoading && (
+                <div className="flex items-center gap-2 text-cyan-400 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Generating spatial summary...
+                </div>
+              )}
+              {bboxSummary && !bboxLoading && (
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+                  <div className="text-sm font-semibold text-cyan-100 mb-2 flex items-center gap-2">
+                    <Radar className="w-4 h-4" /> AI Spatial Summary
+                  </div>
+                  <p className="text-sm text-gray-300 leading-relaxed">{bboxSummary}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* 2. ROUTE RISK SIMULATOR */}
+        <section id="route-risk" className="mb-16">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <Route className="w-6 h-6 text-rose-400" /> Route Risk Simulator
+            </h2>
+            <span className="text-xs uppercase tracking-widest text-gray-500">Corridor disruption modeling</span>
+          </div>
+          <p className="text-gray-400 text-sm mb-6 max-w-3xl">
+            Select a disruption scenario to model how corridor closures or restrictions cascade through energy trade routes, inventories, and prices.
+          </p>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="space-y-3">
+              {DISRUPTION_SCENARIOS.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => handleRouteScenario(s.id)}
+                  className={`w-full text-left rounded-xl border p-4 transition-all ${routeScenario === s.id ? "border-rose-500/50 bg-rose-500/10" : "border-white/10 bg-white/5 hover:border-white/20"}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-bold text-white">{s.label}</div>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {s.affected.map((a) => <span key={a} className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">{a}</span>)}
+                      </div>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${s.severity === "Critical" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                      {s.severity}
+                    </span>
+                  </div>
+                  {routeScenario === s.id && (
+                    <div className="mt-3 pt-3 border-t border-white/10">
+                      {routeLoading ? (
+                        <div className="flex items-center gap-2 text-[10px] text-gray-500"><Loader2 className="w-3 h-3 animate-spin" /> Modeling route impact...</div>
+                      ) : (
+                        <p className="text-xs text-gray-300 leading-relaxed">{routeImpact}</p>
+                      )}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+              <div className="text-sm font-semibold text-white mb-4">Live Corridor Status</div>
+              <div className="space-y-3">
+                {[
+                  { name: "Strait of Hormuz", status: "Open", risk: "Geopolitical", throughput: "21 MMBPD" },
+                  { name: "Suez Canal", status: "Open", risk: "Drought / Blockage", throughput: "10% trade" },
+                  { name: "Panama Canal", status: "Restricted", risk: "Water levels", throughput: "3% trade" },
+                  { name: "Druzhba Pipeline", status: "Disrupted", risk: "Sanctions", throughput: "1 MMBPD" },
+                  { name: "NordLink HVDC", status: "Operating", risk: "Price arbitrage", throughput: "1.4 GW" },
+                ].map((c) => (
+                  <div key={c.name} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 p-3">
+                    <div>
+                      <div className="text-sm font-medium text-white">{c.name}</div>
+                      <div className="text-[10px] text-gray-500">{c.risk} • {c.throughput}</div>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${c.status === "Open" ? "bg-emerald-500/20 text-emerald-400" : c.status === "Restricted" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"}`}>
+                      {c.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 3. TRADE FLOW MODULE */}
+        <section id="trade-flows" className="mb-16">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <MoveRight className="w-6 h-6 text-violet-400" /> Origin-Destination Trade Flows
+            </h2>
+            <span className="text-xs uppercase tracking-widest text-gray-500">Animated flow arcs</span>
+          </div>
+          <p className="text-gray-400 text-sm mb-6 max-w-3xl">
+            Visualize major energy trade routes from source basins to demand centers. Toggle the "Trade Flows" overlay on the operating picture or inspect routes below.
+          </p>
+
+          <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+            <EnergyInfrastructureMap
+              activeLayer="all"
+              overlays={["flows", "assets"]}
+              height="500px"
+            />
+            <div className="space-y-3">
+              {DEFAULT_FLOWS.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => handleFlowClick(f.id)}
+                  className={`w-full text-left rounded-xl border p-3 transition-all ${selectedFlow === f.id ? "border-violet-500/50 bg-violet-500/10" : "border-white/10 bg-white/5 hover:border-white/20"}`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: f.color }} />
+                    <span className="text-sm font-semibold text-white">{f.label}</span>
+                  </div>
+                  <div className="text-[10px] text-gray-500">{f.volume} • {f.commodity}</div>
+                  {selectedFlow === f.id && flowDetail && (
+                    <p className="mt-2 text-xs text-gray-300 border-t border-white/10 pt-2">{flowDetail}</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 4. GRID STRESS MODULE */}
+        <section id="grid-stress" className="mb-16">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <Activity className="w-6 h-6 text-emerald-400" /> Real-Time Grid Stress Overlay
+            </h2>
+            <span className="text-xs uppercase tracking-widest text-gray-500">Load vs capacity alerts</span>
+          </div>
+          <p className="text-gray-400 text-sm mb-6 max-w-3xl">
+            Monitor grid operator load percentages and capacity margins. Critical nodes are highlighted in red; elevated nodes in amber. Enable the overlay on the main map or inspect the dashboard below.
+          </p>
+
+          <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+            <EnergyInfrastructureMap
+              activeLayer="all"
+              overlays={["grid-stress"]}
+              height="500px"
+            />
+            <div className="space-y-3">
+              {[
+                { name: "ERCOT", load: 88, cap: 78, alert: "elevated" },
+                { name: "South Texas", load: 94, cap: 42, alert: "critical" },
+                { name: "PJM", load: 81, cap: 185, alert: "elevated" },
+                { name: "CAISO", load: 72, cap: 52, alert: "normal" },
+                { name: "National Grid UK", load: 65, cap: 60, alert: "normal" },
+                { name: "DE North", load: 78, cap: 55, alert: "elevated" },
+              ].map((g) => (
+                <div key={g.name} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-white">{g.name}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${g.alert === "critical" ? "bg-red-500/20 text-red-400" : g.alert === "elevated" ? "bg-yellow-500/20 text-yellow-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                      {g.alert}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                    <span>Load {g.load}%</span>
+                    <span>{g.cap} GW cap</span>
+                  </div>
+                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${g.alert === "critical" ? "bg-red-500" : g.alert === "elevated" ? "bg-yellow-500" : "bg-emerald-500"}`}
+                      style={{ width: `${Math.min(g.load, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 5. LAYER MAP */}
         <section id="layer-map" className="mb-16">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <Layers className="w-6 h-6 text-amber-400" /> Infrastructure Layer Map
@@ -434,7 +757,7 @@ export default function EnergyInfrastructurePage() {
           </div>
         </div>
 
-        {/* 2. MATRIX */}
+        {/* 6. MATRIX */}
         <section id="matrix" className="mb-16">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <BarChart3 className="w-6 h-6 text-amber-400" /> Technology Coverage Matrix
@@ -463,7 +786,7 @@ export default function EnergyInfrastructurePage() {
           </div>
         </section>
 
-        {/* 3. ASSET EXPLORER */}
+        {/* 7. ASSET EXPLORER */}
         <section id="assets" className="mb-16">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <Factory className="w-6 h-6 text-amber-400" /> Infrastructure Asset Explorer <span className="text-sm font-normal text-gray-500 ml-2">({layerFiltered.length})</span>
@@ -517,7 +840,7 @@ export default function EnergyInfrastructurePage() {
           {layerFiltered.length === 0 && <div className="text-center py-12 text-gray-500 text-sm">No assets match current filters.</div>}
         </section>
 
-        {/* 4. CONSTRAINTS */}
+        {/* 8. CONSTRAINTS */}
         <section id="constraints" className="mb-16">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <AlertTriangle className="w-6 h-6 text-red-400" /> Infrastructure Constraints
@@ -548,7 +871,7 @@ export default function EnergyInfrastructurePage() {
           </div>
         </section>
 
-        {/* 5. STORAGE */}
+        {/* 9. STORAGE */}
         <section id="storage" className="mb-16">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <Battery className="w-6 h-6 text-purple-400" /> Storage & Buffering Comparison
@@ -590,7 +913,7 @@ export default function EnergyInfrastructurePage() {
           </div>
         </section>
 
-        {/* 6. GRID */}
+        {/* 10. GRID */}
         <section id="grid" className="mb-16">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <Zap className="w-6 h-6 text-yellow-400" /> Grid & Integration
@@ -616,7 +939,7 @@ export default function EnergyInfrastructurePage() {
           </div>
         </section>
 
-        {/* 7. RESILIENCE */}
+        {/* 11. RESILIENCE */}
         <section id="resilience" className="mb-16">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <Shield className="w-6 h-6 text-emerald-400" /> Resilience & Vulnerability
@@ -644,7 +967,7 @@ export default function EnergyInfrastructurePage() {
           <p className="text-[10px] text-gray-600 mt-3 italic">Scores are derived from live EIA, climate, AIS, and OSINT feeds. Each dimension is backed by documented data sources and methodology notes.</p>
         </section>
 
-        {/* 8. SCENARIOS */}
+        {/* 12. SCENARIOS */}
         <section id="scenarios" className="mb-16">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <RefreshCw className="w-6 h-6 text-amber-400" /> Scenario Stress View
