@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   Zap,
@@ -33,7 +34,38 @@ import {
   Layers,
   CheckCircle2,
   XCircle,
+  Map,
+  Crosshair,
+  Thermometer,
+  CloudRain,
+  Ship,
 } from "lucide-react";
+
+const EnergyInfrastructureMap = dynamic(
+  () => import("@/components/EnergyInfrastructureMap"),
+  { ssr: false },
+);
+
+const MAP_LAYERS = [
+  { id: "all", label: "All Layers", icon: Globe2 },
+  { id: "resource-input", label: "Resource Input", icon: Globe2 },
+  { id: "extraction", label: "Extraction / Generation", icon: Factory },
+  { id: "processing", label: "Processing / Conversion", icon: Flame },
+  { id: "transport", label: "Transport / Transmission", icon: Container },
+  { id: "storage", label: "Storage / Buffering", icon: Warehouse },
+  { id: "import-export", label: "Import / Export", icon: Fuel },
+  { id: "distribution", label: "Distribution / Delivery", icon: Cable },
+  { id: "control", label: "Control & Operations", icon: Server },
+];
+
+const MAP_OVERLAYS = [
+  { id: "assets", label: "Energy Assets", icon: Factory, desc: "Global infrastructure nodes" },
+  { id: "corridors", label: "Corridors", icon: Cable, desc: "Pipelines, shipping lanes, HVDC" },
+  { id: "ships", label: "Live Vessels", icon: Ship, desc: "AIS tanker & LNG traffic" },
+  { id: "climate", label: "Climate Events", icon: CloudRain, desc: "Severe weather & hazards" },
+  { id: "osint", label: "OSINT Alerts", icon: AlertTriangle, desc: "Geopolitical & supply-chain signals" },
+  { id: "weather", label: "Temperature", icon: Thermometer, desc: "Global heat overlay" },
+];
 
 const INFRASTRUCTURE_LAYERS = [
   { id: "resource-input", label: "Resource Input", icon: Globe2, desc: "Physical energy sources before extraction.", color: "emerald" },
@@ -129,6 +161,8 @@ interface LiveData {
 export default function EnergyInfrastructurePage() {
   const [tech, setTech] = useState("all");
   const [layer, setLayer] = useState<string | null>(null);
+  const [mapLayer, setMapLayer] = useState<string>("all");
+  const [mapOverlays, setMapOverlays] = useState<string[]>(["assets", "corridors"]);
   const [selAsset, setSelAsset] = useState<string | null>(null);
   const [selScenario, setSelScenario] = useState<string | null>(null);
   const [scenarioImpact, setScenarioImpact] = useState<string | null>(null);
@@ -271,6 +305,97 @@ export default function EnergyInfrastructurePage() {
             </div>
           </section>
         )}
+
+        {/* 0. OPENGRID-STYLE GLOBAL MAP */}
+        <section className="mb-16">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <Map className="w-6 h-6 text-amber-400" /> Global Infrastructure Operating Picture
+            </h2>
+            <span className="text-xs uppercase tracking-widest text-gray-500">OpenGrid-style map view</span>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+            {/* Map Controls */}
+            <aside className="space-y-5">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white mb-4">
+                  <Layers className="w-4 h-4 text-amber-400" /> Asset Layer
+                </div>
+                <div className="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-1">
+                  {MAP_LAYERS.map((l) => {
+                    const Icon = l.icon;
+                    const active = mapLayer === l.id;
+                    return (
+                      <button
+                        key={l.id}
+                        onClick={() => setMapLayer(l.id)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-sm transition-all ${active ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-white/5 text-gray-400 border border-transparent hover:border-white/10"}`}
+                      >
+                        <Icon className={`w-4 h-4 ${active ? "text-amber-400" : "text-gray-500"}`} />
+                        {l.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white mb-4">
+                  <Crosshair className="w-4 h-4 text-cyan-400" /> Data Overlays
+                </div>
+                <div className="space-y-2">
+                  {MAP_OVERLAYS.map((o) => {
+                    const Icon = o.icon;
+                    const active = mapOverlays.includes(o.id);
+                    return (
+                      <button
+                        key={o.id}
+                        onClick={() =>
+                          setMapOverlays((prev) =>
+                            prev.includes(o.id) ? prev.filter((id) => id !== o.id) : [...prev, o.id]
+                          )
+                        }
+                        className={`w-full text-left px-3 py-2 rounded-xl border transition-all ${active ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-100" : "bg-white/5 border-transparent text-gray-400 hover:border-white/10"}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon className={`w-4 h-4 ${active ? "text-cyan-400" : "text-gray-500"}`} />
+                          <div>
+                            <div className="text-sm">{o.label}</div>
+                            <div className="text-[10px] text-gray-500">{o.desc}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                <div className="text-sm font-semibold text-white mb-3">Legend</div>
+                <div className="space-y-2 text-xs text-gray-400">
+                  <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-gradient-to-br from-red-400 to-orange-500" /> Oil</div>
+                  <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500" /> Gas / LNG</div>
+                  <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-gradient-to-br from-stone-400 to-amber-500" /> Coal</div>
+                  <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500" /> Solar</div>
+                  <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-gradient-to-br from-cyan-400 to-emerald-500" /> Wind / Hydro</div>
+                  <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-gradient-to-br from-purple-400 to-fuchsia-500" /> Storage</div>
+                  <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500" /> Grid</div>
+                </div>
+              </div>
+            </aside>
+
+            {/* Map */}
+            <EnergyInfrastructureMap
+              activeLayer={mapLayer as any}
+              overlays={mapOverlays as any}
+              climate={live?.climate?.map((c: any) => ({ id: c.id, title: c.title, type: c.type, severity: c.severity, lat: c.lat, lng: c.lng, region: c.region, timestamp: c.timestamp }))}
+              osint={live?.osint?.map((o: any) => ({ id: o.id, title: o.title, type: o.category, severity: o.threatScore, lat: 0, lng: 0, region: o.region, timestamp: o.timestamp }))}
+              ships={[]}
+              height="700px"
+            />
+          </div>
+        </section>
 
         {/* 1. LAYER MAP */}
         <section id="layer-map" className="mb-16">
