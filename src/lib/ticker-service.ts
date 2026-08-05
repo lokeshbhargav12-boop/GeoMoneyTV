@@ -27,6 +27,10 @@ const DEFAULT_SYMBOLS = [
     { label: "ASX200", symbol: "ASX200", type: "index" },
     { label: "URANIUM", symbol: "URANIUM", type: "commodity" },
     { label: "LITHIUM", symbol: "LITHIUM", type: "commodity" },
+    { label: "NEWCASTLE COAL", symbol: "NEWCASTLE", type: "commodity", sourceSymbol: "MTF=F" },
+    { label: "API2 COAL", symbol: "API2", type: "commodity", sourceSymbol: "ATW=F" },
+    { label: "ILLINOIS BASIN COAL", symbol: "ILLINOIS", type: "commodity", sourceSymbol: "ILB=F" },
+    { label: "MET COAL", symbol: "METCOAL", type: "commodity", sourceSymbol: "MCC=F" },
 ] satisfies TickerSymbolConfig[];
 
 interface BaseCommodityItem {

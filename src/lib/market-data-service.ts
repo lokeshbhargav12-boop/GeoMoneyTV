@@ -67,6 +67,18 @@ const YAHOO_SYMBOL_MAP: Record<string, string> = {
     NICKEL: "NICKEL.L",
     "TVC:US10Y": "^TNX",
     "CAPITALCOM:DXY": "DX-Y.NYB",
+    // Coal benchmarks
+    COAL: "MTF=F",
+    NEWCASTLE: "MTF=F",
+    "NEWCASTLE COAL": "MTF=F",
+    API2: "ATW=F",
+    "API2 COAL": "ATW=F",
+    ROTTERDAM: "ATW=F",
+    ILLINOIS: "ILB=F",
+    "ILLINOIS BASIN": "ILB=F",
+    METCOAL: "MCC=F",
+    "MET COAL": "MCC=F",
+    COKING: "MCC=F",
 };
 
 const HISTORY_CONFIG: Record<MarketInterval, HistoryIntervalConfig> = {

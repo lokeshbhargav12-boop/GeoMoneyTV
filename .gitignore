@@ -10,3 +10,4 @@ dist
 *.zip
 *.rar
 .DS_Store
+HOSTINGER_DEPLOY.md
