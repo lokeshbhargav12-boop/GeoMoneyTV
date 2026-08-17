@@ -616,11 +616,24 @@ export default function EnergyInfrastructureMap({
         dragging={true}
         className="h-full w-full bg-black/90"
         attributionControl={false}
+        worldCopyJump={false}
+        maxBounds={[
+          [-90, -180],
+          [90, 180],
+        ]}
       >
         <MapController center={mapCenter} zoom={mapZoom} />
         <BboxDrawer active={bboxMode} onBboxChange={onBboxChange} />
 
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" attribution="" />
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+          attribution=""
+          noWrap={true}
+          bounds={[
+            [-90, -180],
+            [90, 180],
+          ]}
+        />
 
         {overlays.includes("weather") && <WeatherTileLayer />}
         {overlays.includes("corridors") && <CorridorLayer corridors={corridors} onClick={onCorridorClick} />}

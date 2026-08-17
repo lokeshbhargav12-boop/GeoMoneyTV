@@ -46,6 +46,44 @@ import {
   Radar,
 } from "lucide-react";
 
+const EnergyInfrastructureGlobe = dynamic(
+  () => import("@/components/EnergyInfrastructureGlobe"),
+  { ssr: false },
+);
+
+import type {
+  GlobeArc,
+  GlobePolyline,
+} from "@/components/EnergyInfrastructureGlobe";
+
+const GLOBE_CORRIDORS: GlobePolyline[] = [
+  { id: "hormuz-route", label: "Hormuz Exit (shipping)", color: "#f59e0b", path: [[26.5, 56.2], [24.0, 58.0], [20.0, 60.0]] },
+  { id: "malacca-route", label: "Malacca Passage (shipping)", color: "#f59e0b", path: [[5.5, 98.0], [1.2, 103.5], [-5.0, 106.0]] },
+  { id: "suez-route", label: "Suez Canal (shipping)", color: "#f59e0b", path: [[29.9, 32.5], [27.7, 34.0], [25.0, 35.0]] },
+  { id: "panama-route", label: "Panama Canal (shipping)", color: "#f59e0b", subdued: true, path: [[9.0, -79.5], [8.5, -80.0], [8.0, -79.0]] },
+  { id: "transwest-route", label: "TransWest Express (HV)", color: "#38bdf8", subdued: true, path: [[41.5, -107.0], [39.0, -110.0], [36.0, -115.0]] },
+  { id: "nordlink-route", label: "NordLink (HV)", color: "#38bdf8", path: [[58.0, 7.0], [56.0, 8.0], [54.0, 9.0]] },
+  { id: "druzhba-route", label: "Druzhba Pipeline", color: "#fb7185", subdued: true, path: [[54.0, 37.0], [52.0, 20.0], [50.0, 14.0]] },
+  { id: "magistral-route", label: "Central Asia Gas", color: "#fb7185", path: [[41.0, 65.0], [45.0, 60.0], [50.0, 40.0]] },
+];
+const GLOBE_FLOWS: GlobeArc[] = [
+  { id: "saudi-china", from: [25.9, 49.6], to: [37.5, 105.0], label: "Crude to NE Asia", color: "#ef4444" },
+  { id: "qatar-eu", from: [25.9, 51.5], to: [51.3, 3.2], label: "LNG to Europe", color: "#8b5cf6" },
+  { id: "us-gulf-eu", from: [29.9, -93.9], to: [51.3, 3.2], label: "LNG trans-Atlantic", color: "#8b5cf6" },
+  { id: "aus-china", from: [-32.9, 151.8], to: [37.5, 105.0], label: "Coal to China", color: "#f59e0b" },
+  { id: "sa-us", from: [43.6, -105.9], to: [35.9, -96.7], label: "Coal to Cushing", color: "#f59e0b" },
+  { id: "norway-uk", from: [61.3, 2.0], to: [52.5, -1.5], label: "Gas to UK", color: "#06b6d4" },
+  { id: "uk-germany", from: [58.0, 7.0], to: [52.6, 8.5], label: "NordLink HVDC", color: "#10b981" },
+];
+const GLOBE_GRID_STRESS = [
+  { id: "ercot", name: "ERCOT", lat: 31.0, lng: -99.0, alert: "elevated" },
+  { id: "caiso", name: "CAISO", lat: 37.5, lng: -121.5, alert: "normal" },
+  { id: "pjm", name: "PJM", lat: 39.9, lng: -77.6, alert: "elevated" },
+  { id: "texas-south", name: "South Texas", lat: 29.0, lng: -96.0, alert: "critical" },
+  { id: "uk-grid", name: "National Grid UK", lat: 52.5, lng: -1.5, alert: "normal" },
+  { id: "germany-north", name: "DE North", lat: 53.0, lng: 9.0, alert: "elevated" },
+];
+
 const EnergyInfrastructureMap = dynamic(
   () => import("@/components/EnergyInfrastructureMap"),
   { ssr: false },
@@ -484,12 +522,36 @@ export default function EnergyInfrastructurePage() {
             </aside>
 
             {/* Map */}
-            <EnergyInfrastructureMap
-              activeLayer={mapLayer as any}
-              overlays={mapOverlays as any}
-              climate={live?.climate?.map((c: any) => ({ id: c.id, title: c.title, type: c.type, severity: c.severity, lat: c.lat, lng: c.lng, region: c.region, timestamp: c.timestamp }))}
-              osint={live?.osint?.map((o: any) => ({ id: o.id, title: o.title, type: o.category, severity: o.threatScore, lat: 0, lng: 0, region: o.region, timestamp: o.timestamp }))}
-              ships={[]}
+            <EnergyInfrastructureGlobe
+              plants={mapOverlays.includes("assets") ? {} : false}
+              polylines={mapOverlays.includes("corridors") ? GLOBE_CORRIDORS : []}
+              arcs={mapOverlays.includes("flows") ? GLOBE_FLOWS : []}
+              pointSets={[
+                ...(mapOverlays.includes("grid-stress") ? [{
+                  id: "grid-stress",
+                  label: "Grid stress",
+                  color: "#f59e0b",
+                  size: 0.05,
+                  points: GLOBE_GRID_STRESS.map((g) => ({
+                    id: g.id,
+                    title: `${g.name} • ${g.alert}`,
+                    lat: g.lat,
+                    lng: g.lng,
+                  })),
+                }] : []),
+                ...(mapOverlays.includes("climate") && live?.climate ? [{
+                  id: "climate",
+                  label: "Climate events",
+                  color: "#ef4444",
+                  size: 0.045,
+                  points: live.climate.map((c: any, i: number) => ({
+                    id: c.id ?? `c${i}`,
+                    title: c.title ?? "event",
+                    lat: c.lat,
+                    lng: c.lng,
+                  })),
+                }] : []),
+              ]}
               height="700px"
             />
           </div>
@@ -644,9 +706,12 @@ export default function EnergyInfrastructurePage() {
           </p>
 
           <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-            <EnergyInfrastructureMap
-              activeLayer="all"
-              overlays={["flows", "assets"]}
+            <EnergyInfrastructureGlobe
+              plants={false}
+              arcs={GLOBE_FLOWS.map((f) => ({
+                ...f,
+                highlight: selectedFlow === f.id,
+              }))}
               height="500px"
             />
             <div className="space-y-3">

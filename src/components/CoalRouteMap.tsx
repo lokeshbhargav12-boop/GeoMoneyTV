@@ -114,9 +114,22 @@ export default function CoalRouteMap({
         dragging={true}
         className="h-full w-full bg-black/90"
         attributionControl={false}
+        worldCopyJump={false}
+        maxBounds={[
+          [-90, -180],
+          [90, 180],
+        ]}
       >
         <MapController center={mapCenter} zoom={mapZoom} />
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" attribution="" />
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+          attribution=""
+          noWrap={true}
+          bounds={[
+            [-90, -180],
+            [90, 180],
+          ]}
+        />
 
         {routes.map((route) => (
           <Polyline

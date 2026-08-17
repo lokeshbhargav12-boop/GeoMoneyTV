@@ -79,7 +79,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
   if (pathname?.startsWith("/admin")) return null;
 
   return (
-    <nav className="fixed top-16 z-40 w-full bg-black/60 backdrop-blur-xl border-b border-white/5">
+    <nav className="fixed top-16 z-[100] w-full bg-black/60 backdrop-blur-xl border-b border-white/5">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}

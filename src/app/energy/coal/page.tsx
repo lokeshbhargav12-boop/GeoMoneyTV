@@ -27,7 +27,10 @@ import CoalArbitrage from "@/components/CoalArbitrage";
 import CoalBenchmarkChart from "@/components/CoalBenchmarkChart";
 import CoalIntelligenceFeed from "@/components/CoalIntelligenceFeed";
 
-const CoalRouteMap = dynamic(() => import("@/components/CoalRouteMap"), { ssr: false });
+const EnergyInfrastructureGlobe = dynamic(
+  () => import("@/components/EnergyInfrastructureGlobe"),
+  { ssr: false },
+);
 
 interface CoalMarketData {
   timestamp: string;
@@ -97,6 +100,46 @@ export default function CoalPage() {
     const id = setInterval(fetchData, 120000);
     return () => clearInterval(id);
   }, []);
+
+  const routeArcs = (data?.routes ?? []).map((r) => ({
+    id: r.id,
+    label: r.name,
+    from: r.origin,
+    to: r.destination,
+    color:
+      r.congestion === "high"
+        ? "#ef4444"
+        : r.congestion === "moderate"
+          ? "#f59e0b"
+          : "#10b981",
+    highlight: selectedRoute === r.id,
+  }));
+  const pointSets = [
+    {
+      id: "vessels",
+      label: "Live vessels",
+      color: "#fbbf24",
+      size: 0.04,
+      points: (data?.vessels ?? []).map((v: any, i: number) => ({
+        id: v.mmsi ?? `v${i}`,
+        title: v.name ?? v.type ?? "vessel",
+        lat: v.latitude ?? v.lat ?? 0,
+        lng: v.longitude ?? v.lng ?? 0,
+      })),
+    },
+    {
+      id: "climate",
+      label: "Climate events",
+      color: "#ef4444",
+      size: 0.045,
+      points: (data?.climate ?? []).map((c: any, i: number) => ({
+        id: c.id ?? `c${i}`,
+        title: c.title ?? "event",
+        lat: c.lat ?? c.latitude ?? 0,
+        lng: c.lng ?? c.longitude ?? 0,
+      })),
+    },
+  ];
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#090806] via-[#120d08] to-black text-white pt-32 pb-24">
@@ -285,13 +328,11 @@ export default function CoalPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-            <CoalRouteMap
-              routes={data?.routes || []}
-              vessels={data?.vessels || []}
-              climate={data?.climate || []}
+            <EnergyInfrastructureGlobe
+              plants={{ fuels: ["Coal"], minMW: 50 }}
+              arcs={routeArcs}
+              pointSets={pointSets}
               height="560px"
-              selectedRoute={selectedRoute}
-              onRouteClick={setSelectedRoute}
             />
             <div className="space-y-3">
               {(data?.routes || []).map((route) => (

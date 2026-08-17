@@ -20,6 +20,12 @@ import {
   Warehouse,
   Zap,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { REGION_BBOX, type FuelType, type PlantStatus } from "@/config/energyLayers";
+const EnergyInfrastructureGlobe = dynamic(
+  () => import("@/components/EnergyInfrastructureGlobe"),
+  { ssr: false },
+);
 
 type FossilPlant = {
   id: string;
@@ -314,6 +320,26 @@ export default function FossilEnergyPage() {
     );
   };
 
+  const plantQuery = useMemo(() => {
+    const techMap: Record<string, FuelType[]> = {
+      Coal: ["Coal"],
+      Gas: ["Gas"],
+      Oil: ["Oil"],
+      LNG: ["Gas"],
+    };
+    const statusMap: Record<string, PlantStatus[]> = {
+      Operating: ["operating"],
+      Construction: ["construction"],
+      Permitting: ["announced", "pre-construction"],
+    };
+    return {
+      fuels: technology === "All" ? undefined : techMap[technology],
+      statuses: statusMap[status] ?? ["operating"],
+      bbox: region === "Global" ? undefined : REGION_BBOX[region],
+      minMW: 50,
+    };
+  }, [technology, region, status]);
+
   return (
     <main className="min-h-screen bg-[#06080d] text-white pt-32 pb-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -502,203 +528,22 @@ export default function FossilEnergyPage() {
           </aside>
 
           <div className="space-y-5">
-            <div className="rounded-3xl border border-white/10 bg-[#08111c] overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 text-sm">
-                <div className="flex flex-wrap gap-2 text-gray-300">
-                  <span className="rounded-full bg-white/5 px-3 py-1.5 border border-white/10">
-                    Zoom 7.0
-                  </span>
-                  <span className="rounded-full bg-white/5 px-3 py-1.5 border border-white/10">
-                    Bubble size 1.0x
-                  </span>
-                  <span className="rounded-full bg-white/5 px-3 py-1.5 border border-white/10">
-                    {region}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-full bg-emerald-400/10 px-3 py-1.5 border border-emerald-400/20 text-emerald-200">
-                    Operating
-                  </span>
-                  <span className="rounded-full bg-orange-300/10 px-3 py-1.5 border border-orange-300/20 text-orange-100">
-                    Pipelines enabled
-                  </span>
-                </div>
+          <div className="rounded-3xl border border-white/10 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 text-sm">
+              <div className="flex flex-wrap gap-2 text-gray-300">
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-emerald-200">
+                  Live: WRI GPPD v1.3 · 34.9k plants
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{region}</span>
               </div>
-
-              <div className="relative min-h-[560px] bg-[radial-gradient(circle_at_top,_rgba(255,173,93,0.12),_transparent_35%),linear-gradient(180deg,#09101a_0%,#06080d_100%)]">
-                <div
-                  className="absolute inset-0 opacity-20"
-                  style={{
-                    backgroundImage:
-                      "linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)",
-                    backgroundSize: "56px 56px",
-                  }}
-                />
-
-                <svg
-                  className="absolute inset-0 h-full w-full"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                >
-                  {filteredCorridors.map((corridor) => (
-                    <line
-                      key={corridor.id}
-                      x1={corridor.x1}
-                      y1={corridor.y1}
-                      x2={corridor.x2}
-                      y2={corridor.y2}
-                      className={
-                        OVERLAY_STYLES[
-                          corridor.kind as (typeof OVERLAYS)[number]
-                        ]
-                      }
-                      strokeWidth="0.8"
-                      strokeDasharray={
-                        corridor.status === "Construction" ? "2.5 1.4" : "0"
-                      }
-                    />
-                  ))}
-                </svg>
-
-                <div className="absolute inset-0 p-5">
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4 backdrop-blur-sm">
-                      <div className="flex items-center gap-2 text-white mb-1 text-sm font-semibold">
-                        <Route className="w-4 h-4 text-cyan-300" /> Pipeline
-                        coverage
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        Modeled corridors stay tied to plant clusters so
-                        transport bottlenecks are visible inside the generation
-                        view.
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4 backdrop-blur-sm">
-                      <div className="flex items-center gap-2 text-white mb-1 text-sm font-semibold">
-                        <Factory className="w-4 h-4 text-orange-300" /> Fossil
-                        assets
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        Coal, gas, oil, and LNG are all filterable without
-                        losing cross-fuel corridor context.
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4 backdrop-blur-sm">
-                      <div className="flex items-center gap-2 text-white mb-1 text-sm font-semibold">
-                        <Layers className="w-4 h-4 text-emerald-300" /> System
-                        overlays
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        Rail, terminals, and tie-ins can be toggled
-                        independently to match the live operating question.
-                      </p>
-                    </div>
-                  </div>
-
-                  {filteredPlants.map((plant) => {
-                    const bubbleSize = 18 + plant.capacity / 170;
-                    const active = selectedPlant.id === plant.id;
-                    const plantColor =
-                      plant.tech === "Coal"
-                        ? "from-stone-300 to-orange-300"
-                        : plant.tech === "Gas"
-                          ? "from-cyan-300 to-sky-400"
-                          : plant.tech === "Oil"
-                            ? "from-red-300 to-orange-400"
-                            : "from-violet-300 to-fuchsia-400";
-
-                    return (
-                      <button
-                        key={plant.id}
-                        onClick={() => setSelectedPlantId(plant.id)}
-                        className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border transition-all ${active ? "border-white shadow-[0_0_25px_rgba(255,185,120,0.35)]" : "border-white/30 hover:border-white/70"}`}
-                        style={{
-                          left: `${plant.x}%`,
-                          top: `${plant.y}%`,
-                          width: `${bubbleSize}px`,
-                          height: `${bubbleSize}px`,
-                        }}
-                        aria-label={plant.name}
-                      >
-                        <span
-                          className={`block h-full w-full rounded-full bg-gradient-to-br ${plantColor} opacity-80`}
-                        />
-                      </button>
-                    );
-                  })}
-
-                  <div className="absolute bottom-5 left-5 max-w-sm rounded-3xl border border-white/10 bg-black/55 p-5 backdrop-blur-sm">
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-gray-500 mb-3">
-                      <Shield className="w-4 h-4 text-orange-300" /> Operating
-                      notes
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <div className="text-gray-500 text-xs">
-                          Corridors live
-                        </div>
-                        <div className="text-xl font-bold text-white mt-1">
-                          {filteredCorridors.length}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <div className="text-gray-500 text-xs">Filter mode</div>
-                        <div className="text-xl font-bold text-white mt-1">
-                          {technology}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="absolute right-5 bottom-5 max-w-md rounded-3xl border border-orange-300/20 bg-[#0d1520]/90 p-5 shadow-2xl backdrop-blur-sm">
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.22em] text-orange-200/80 mb-2">
-                          Selected asset
-                        </p>
-                        <h2 className="text-2xl font-bold text-white">
-                          {selectedPlant.name}
-                        </h2>
-                        <p className="text-sm text-gray-400 mt-1">
-                          {selectedPlant.region} • {selectedPlant.tech} •{" "}
-                          {selectedPlant.status}
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-white/5 px-3 py-1.5 text-sm border border-white/10 text-gray-200">
-                        {selectedPlant.capacity.toLocaleString()} MW
-                      </span>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2 mb-4 text-sm">
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <div className="text-gray-500 text-xs mb-1">
-                          Owner profile
-                        </div>
-                        <div className="text-white">{selectedPlant.owner}</div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <div className="text-gray-500 text-xs mb-1">
-                          Primary corridor
-                        </div>
-                        <div className="text-white">
-                          {selectedPlant.corridor}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-orange-300/10 bg-orange-300/5 p-4 mb-3">
-                      <div className="text-gray-500 text-xs uppercase tracking-[0.2em] mb-2">
-                        System pressure
-                      </div>
-                      <p className="text-sm text-orange-100">
-                        {selectedPlant.pressure}
-                      </p>
-                    </div>
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {selectedPlant.note}
-                    </p>
-                  </div>
-                </div>
+              <div className="flex flex-wrap gap-2 text-xs text-gray-400">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                  {technology} • {status}
+                </span>
               </div>
             </div>
+            <EnergyInfrastructureGlobe plants={plantQuery} height="560px" />
+          </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
               <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
