@@ -33,6 +33,8 @@ export interface GlobePointSet {
   color: string;
   size?: number; // world units (default 0.03)
   opacity?: number;
+  /** renders an animated halo ring that pulses (events, alerts) */
+  pulse?: boolean;
   points: GlobePoint[];
 }
 

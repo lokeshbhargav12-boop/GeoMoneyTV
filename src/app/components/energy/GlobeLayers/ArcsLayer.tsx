@@ -1,8 +1,11 @@
 "use client";
 
 // Route/flow arcs (great-circle, lifted) + corridor polylines (surface-hugging).
-import { useEffect, useMemo } from "react";
+// Arcs are interactive: hover raises opacity + reports tooltip position, click
+// bubbles to the page (route/flow selection).
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import {
   GLOBE_ARC_BASE_LIFT,
   GLOBE_ARC_LIFT_PER_RAD,
@@ -13,7 +16,13 @@ import type { GlobeArc, GlobePolyline } from "./types";
 
 const ARC_SEGMENTS = 48;
 
-function Arc({ arc }: { arc: GlobeArc }) {
+interface ArcCallbacks {
+  onArcHover?: (arc: GlobeArc | null, pos?: { x: number; y: number }) => void;
+  onArcClick?: (arc: GlobeArc) => void;
+}
+
+function Arc({ arc, onArcHover, onArcClick }: { arc: GlobeArc } & ArcCallbacks) {
+  const [hovered, setHovered] = useState(false);
   // Build a THREE.Line imperatively (avoids `<line>` colliding with the SVG
   // intrinsic JSX type) and dispose on change/unmount.
   const lineObj = useMemo(() => {
@@ -66,7 +75,35 @@ function Arc({ arc }: { arc: GlobeArc }) {
     };
   }, [lineObj]);
 
-  return <primitive object={lineObj} />;
+  // Hover emphasis without rebuilding geometry/material
+  useEffect(() => {
+    const mat = lineObj.material as THREE.LineBasicMaterial;
+    mat.opacity = arc.highlight || hovered ? 1 : arc.dashed ? 0.75 : 0.65;
+  }, [hovered, arc.highlight, arc.dashed, lineObj]);
+
+  return (
+    <primitive
+      object={lineObj}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (!onArcClick) return;
+        e.stopPropagation();
+        onArcClick(arc);
+      }}
+      onPointerMove={(e: ThreeEvent<PointerEvent>) => {
+        e.stopPropagation();
+        if (!hovered) {
+          setHovered(true);
+          document.documentElement.style.cursor = "pointer";
+        }
+        onArcHover?.(arc, { x: e.clientX, y: e.clientY });
+      }}
+      onPointerOut={() => {
+        setHovered(false);
+        document.documentElement.style.cursor = "";
+        onArcHover?.(null);
+      }}
+    />
+  );
 }
 
 function Polylines({ lines }: { lines: GlobePolyline[] }) {
@@ -117,19 +154,99 @@ function Polylines({ lines }: { lines: GlobePolyline[] }) {
   );
 }
 
+// Gliding glow particles along every arc — makes flows feel alive.
+function FlowParticles({ arcs }: { arcs: GlobeArc[] }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const data = useMemo(
+    () =>
+      arcs.map((a) => {
+        const a3 = latLngToVector3(a.from[0], a.from[1]);
+        const b3 = latLngToVector3(a.to[0], a.to[1]);
+        const angle = a3.angleTo(b3);
+        const lift = GLOBE_ARC_BASE_LIFT + GLOBE_ARC_LIFT_PER_RAD * angle;
+        const phase = (a.id.length * 0.137) % 1;
+        return { a3, b3, angle, lift, phase, color: a.color ?? "#f59e0b" };
+      }),
+    [arcs],
+  );
+
+  const tmp = useMemo(
+    () => ({
+      mat: new THREE.Matrix4(),
+      pos: new THREE.Vector3(),
+      va: new THREE.Vector3(),
+      vb: new THREE.Vector3(),
+    }),
+    [],
+  );
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    mesh.count = data.length;
+    const c = new THREE.Color();
+    data.forEach((d, i) => {
+      c.set(d.color);
+      mesh.setColorAt(i, c);
+    });
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [data]);
+
+  useFrame(({ clock }) => {
+    const mesh = meshRef.current;
+    if (!mesh || data.length === 0) return;
+    const t0 = clock.getElapsedTime();
+    data.forEach((d, i) => {
+      const t = (t0 * 0.18 + d.phase) % 1;
+      const sinTotal = Math.sin(d.angle) || 1;
+      tmp.pos
+        .copy(d.a3)
+        .multiplyScalar(Math.sin((1 - t) * d.angle) / sinTotal)
+        .add(
+          tmp.vb.copy(d.b3).multiplyScalar(Math.sin(t * d.angle) / sinTotal),
+        )
+        .normalize()
+        .multiplyScalar(GLOBE_RADIUS + d.lift * Math.sin(Math.PI * t));
+      tmp.mat.setPosition(tmp.pos.x, tmp.pos.y, tmp.pos.z);
+      mesh.setMatrixAt(i, tmp.mat);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  if (data.length === 0) return null;
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[undefined, undefined, Math.max(1, data.length)]}
+      frustumCulled={false}
+    >
+      <sphereGeometry args={[0.02, 10, 10]} />
+      <meshBasicMaterial
+        transparent
+        opacity={0.95}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  );
+}
+
 export default function ArcsLayer({
   arcs = [],
   polylines = [],
+  onArcHover,
+  onArcClick,
 }: {
   arcs?: GlobeArc[];
   polylines?: GlobePolyline[];
-}) {
+} & ArcCallbacks) {
   return (
     <group>
       {arcs.map((a) => (
-        <Arc key={a.id} arc={a} />
+        <Arc key={a.id} arc={a} onArcHover={onArcHover} onArcClick={onArcClick} />
       ))}
       {polylines.length > 0 && <Polylines lines={polylines} />}
+      {arcs.length > 0 && <FlowParticles arcs={arcs} />}
     </group>
   );
 }

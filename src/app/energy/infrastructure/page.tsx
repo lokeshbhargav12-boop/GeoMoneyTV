@@ -526,12 +526,15 @@ export default function EnergyInfrastructurePage() {
               plants={mapOverlays.includes("assets") ? {} : false}
               polylines={mapOverlays.includes("corridors") ? GLOBE_CORRIDORS : []}
               arcs={mapOverlays.includes("flows") ? GLOBE_FLOWS : []}
+              live={!!live}
+              updatedAt={live?.timestamp ?? null}
               pointSets={[
                 ...(mapOverlays.includes("grid-stress") ? [{
                   id: "grid-stress",
                   label: "Grid stress",
                   color: "#f59e0b",
                   size: 0.05,
+                  pulse: true,
                   points: GLOBE_GRID_STRESS.map((g) => ({
                     id: g.id,
                     title: `${g.name} • ${g.alert}`,
@@ -544,6 +547,7 @@ export default function EnergyInfrastructurePage() {
                   label: "Climate events",
                   color: "#ef4444",
                   size: 0.045,
+                  pulse: true,
                   points: live.climate.map((c: any, i: number) => ({
                     id: c.id ?? `c${i}`,
                     title: c.title ?? "event",
@@ -713,6 +717,7 @@ export default function EnergyInfrastructurePage() {
                 highlight: selectedFlow === f.id,
               }))}
               height="500px"
+              onArcClick={(a) => handleFlowClick(a.id)}
             />
             <div className="space-y-3">
               {DEFAULT_FLOWS.map((f) => (

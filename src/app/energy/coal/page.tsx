@@ -132,6 +132,7 @@ export default function CoalPage() {
       label: "Climate events",
       color: "#ef4444",
       size: 0.045,
+      pulse: true,
       points: (data?.climate ?? []).map((c: any, i: number) => ({
         id: c.id ?? `c${i}`,
         title: c.title ?? "event",
@@ -333,6 +334,11 @@ export default function CoalPage() {
               arcs={routeArcs}
               pointSets={pointSets}
               height="560px"
+              live={!!data}
+              updatedAt={data?.timestamp ?? null}
+              onArcClick={(a) =>
+                setSelectedRoute(selectedRoute === a.id ? null : a.id)
+              }
             />
             <div className="space-y-3">
               {(data?.routes || []).map((route) => (

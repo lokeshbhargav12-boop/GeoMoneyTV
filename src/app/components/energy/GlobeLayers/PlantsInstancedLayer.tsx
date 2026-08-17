@@ -29,14 +29,26 @@ interface PlantFeature {
 interface Props {
   query: PlantLayerQuery;
   onPlantClick?: (p: PlantClickInfo) => void;
+  /** hover feedback for the HTML tooltip (null = nothing hovered) */
+  onPlantHover?: (
+    p: PlantClickInfo | null,
+    pos?: { x: number; y: number },
+  ) => void;
   sizeScale?: number;
 }
 
-export default function PlantsInstancedLayer({ query, onPlantClick, sizeScale = 1 }: Props) {
+export default function PlantsInstancedLayer({
+  query,
+  onPlantClick,
+  onPlantHover,
+  sizeScale = 1,
+}: Props) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const plantsRef = useRef<PlantClickInfo[]>([]);
   const [features, setFeatures] = useState<PlantFeature[]>([]);
   const [lodGlobal, setLodGlobal] = useState(true);
+  const [hoverId, setHoverId] = useState<number | null>(null);
+  const hoverPrev = useRef<number | null>(null);
   const queryKey = JSON.stringify(query ?? {});
 
   // Fetch on query change (abortable)
@@ -109,6 +121,32 @@ export default function PlantsInstancedLayer({ query, onPlantClick, sizeScale = 
     plantsRef.current = plants;
   }, [visible, sizeScale]);
 
+  // Hover highlight — scale the hovered instance, restore the previous one
+  useEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const quat = new THREE.Quaternion();
+    const scl = new THREE.Vector3();
+    const mat = new THREE.Matrix4();
+    const zAxis = new THREE.Vector3(0, 0, 1);
+    const apply = (index: number, factor: number) => {
+      const f = visible[index];
+      if (!f) return;
+      const [lng, lat] = f.geometry.coordinates;
+      const p = latLngToVector3(lat, lng, GLOBE_RADIUS + GLOBE_POINT_ALTITUDE);
+      quat.setFromUnitVectors(zAxis, p.clone().normalize());
+      const r = plantRadiusMW(f.properties.capacityMW, sizeScale) * factor;
+      scl.set(r, r, r);
+      mat.compose(p, quat, scl);
+      mesh.setMatrixAt(index, mat);
+      mesh.instanceMatrix.needsUpdate = true;
+    };
+    if (hoverPrev.current !== null && hoverPrev.current !== hoverId)
+      apply(hoverPrev.current, 1);
+    if (hoverId !== null && hoverId < visible.length) apply(hoverId, 1.7);
+    hoverPrev.current = hoverId;
+  }, [hoverId, visible, sizeScale]);
+
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     const i = e.instanceId;
@@ -117,12 +155,30 @@ export default function PlantsInstancedLayer({ query, onPlantClick, sizeScale = 
     if (plant) onPlantClick(plant);
   };
 
+  const handleMove = (e: ThreeEvent<PointerEvent>) => {
+    const i = e.instanceId ?? null;
+    if (i !== hoverId) {
+      setHoverId(i);
+      document.documentElement.style.cursor = i != null ? "pointer" : "";
+    }
+    const plant = i != null ? plantsRef.current[i] ?? null : null;
+    onPlantHover?.(plant, { x: e.clientX, y: e.clientY });
+  };
+
+  const handleOut = () => {
+    setHoverId(null);
+    document.documentElement.style.cursor = "";
+    onPlantHover?.(null);
+  };
+
   return (
     <instancedMesh
       ref={meshRef}
       args={[undefined, undefined, CAPACITY]}
       frustumCulled={false}
       onClick={handleClick}
+      onPointerMove={handleMove}
+      onPointerOut={handleOut}
     >
       <circleGeometry args={[1, 16]} />
       <meshBasicMaterial

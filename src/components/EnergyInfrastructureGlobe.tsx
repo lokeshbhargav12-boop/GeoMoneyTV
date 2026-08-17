@@ -2,9 +2,10 @@
 
 // Shared energy-infrastructure globe (OpenGrid-style). One Canvas, instancing
 // only, filterable plant queries, centralized colors via energyLayers.ts.
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
+import { Pause, Play, RotateCcw } from "lucide-react";
 import EarthSphere from "@/app/components/energy/GlobeLayers/EarthSphere";
 import BoundaryLines from "@/app/components/energy/GlobeLayers/BoundaryLines";
 import PlantsInstancedLayer from "@/app/components/energy/GlobeLayers/PlantsInstancedLayer";
@@ -15,6 +16,7 @@ import { FUEL_COLORS, STATUS_COLORS, type FuelType } from "@/config/energyLayers
 import { verifyCoordinateMath } from "@/lib/globe/coordinates";
 import type {
   GlobeArc,
+  GlobePoint,
   GlobePointSet,
   GlobePolyline,
   PlantClickInfo,
@@ -23,6 +25,7 @@ import type {
 
 export type {
   GlobeArc,
+  GlobePoint,
   GlobePointSet,
   GlobePolyline,
   PlantClickInfo,
@@ -41,6 +44,14 @@ export interface EnergyInfrastructureGlobeProps {
   legend?: boolean; // default true
   sizeScale?: number; // bubble-size multiplier
   onPlantClick?: (p: PlantClickInfo) => void;
+  /** fires when a route/flow arc is clicked on the globe */
+  onArcClick?: (a: GlobeArc) => void;
+  /** fires when a point (vessel, event, node) is clicked on the globe */
+  onPointClick?: (p: GlobePoint, set: GlobePointSet) => void;
+  /** shows a pulsing LIVE badge (top-right) */
+  live?: boolean;
+  /** timestamp of the last data refresh — rendered as "updated Xs ago" */
+  updatedAt?: string | number | Date | null;
 }
 
 const DEFAULT_PLANT_FUELS: FuelType[] = [
@@ -60,13 +71,56 @@ export default function EnergyInfrastructureGlobe({
   polylines = [],
   pointSets = [],
   height = "560px",
-  autoRotate = false,
+  autoRotate = true,
   legend = true,
   sizeScale = 1,
   onPlantClick,
+  onArcClick,
+  onPointClick,
+  live = false,
+  updatedAt = null,
 }: EnergyInfrastructureGlobeProps) {
   const [ready, setReady] = useState(false);
   const [selected, setSelected] = useState<PlantClickInfo | null>(null);
+  const [hoverTip, setHoverTip] = useState<{
+    plant: PlantClickInfo;
+    x: number;
+    y: number;
+  } | null>(null);
+  // Shared hover tooltip for arcs + point sets (label-driven, no plant data)
+  const [metaTip, setMetaTip] = useState<{
+    title: string;
+    subtitle?: string;
+    color: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [interacting, setInteracting] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const controlsRef = useRef<any>(null);
+
+  // Ticking clock for the LIVE badge ("updated Xs ago")
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, [live]);
+
+  const updatedAgo = useMemo(() => {
+    if (!updatedAt) return null;
+    const t = new Date(updatedAt).getTime();
+    if (Number.isNaN(t)) return null;
+    const s = Math.max(0, Math.round((now - t) / 1000));
+    if (s < 5) return "just now";
+    if (s < 60) return `${s}s ago`;
+    const m = Math.round(s / 60);
+    if (m < 60) return `${m}m ago`;
+    return `${Math.round(m / 60)}h ago`;
+  }, [updatedAt, now]);
 
   // Spec §17 dev verification (runs once)
   useEffect(() => {
@@ -84,10 +138,65 @@ export default function EnergyInfrastructureGlobe({
     onPlantClick?.(p);
   };
 
+  const handleArcHover = (a: GlobeArc | null, pos?: { x: number; y: number }) => {
+    if (!a || !pos) {
+      setMetaTip(null);
+      return;
+    }
+    setHoverTip(null);
+    setMetaTip({
+      title: a.label ?? a.id,
+      subtitle: "Route / flow — click to inspect",
+      color: a.color ?? "#f59e0b",
+      x: pos.x,
+      y: pos.y,
+    });
+  };
+
+  const handlePointHover = (
+    p: GlobePoint | null,
+    set?: GlobePointSet,
+    pos?: { x: number; y: number },
+  ) => {
+    if (!p || !pos) {
+      setMetaTip(null);
+      return;
+    }
+    setHoverTip(null);
+    setMetaTip({
+      title: p.title ?? p.id,
+      subtitle: set?.label,
+      color: set?.color ?? "#f59e0b",
+      x: pos.x,
+      y: pos.y,
+    });
+  };
+
   const plantQuery = plants === false ? undefined : (plants ?? {});
+
+  // Viewport → container-relative tooltip coordinates (shared by all tooltips)
+  const activeTipPos = hoverTip
+    ? { x: hoverTip.x, y: hoverTip.y }
+    : metaTip
+      ? { x: metaTip.x, y: metaTip.y }
+      : null;
+  const rect = activeTipPos
+    ? containerRef.current?.getBoundingClientRect()
+    : null;
+  const tipPos =
+    activeTipPos && rect
+      ? {
+          left: Math.min(
+            Math.max(activeTipPos.x - rect.left + 12, 8),
+            rect.width - 240,
+          ),
+          top: Math.max(activeTipPos.y - rect.top - 64, 8),
+        }
+      : null;
 
   return (
     <div
+      ref={containerRef}
       className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-[#04060c]"
       style={{ height }}
     >
@@ -95,6 +204,14 @@ export default function EnergyInfrastructureGlobe({
         camera={{ position: [0, 0.5, 5.2], fov: 42 }}
         dpr={[1, 2]}
         gl={{ antialias: true }}
+        // Tight world-unit pick thresholds so thin arcs + small points are
+        // hoverable without hijacking the whole scene (defaults are 1.0).
+        raycaster={{
+          params: {
+            Line: { threshold: 0.05 },
+            Points: { threshold: 0.06 },
+          } as never,
+        }}
         onCreated={() => setReady(true)}
       >
         <color attach="background" args={["#04060c"]} />
@@ -106,20 +223,42 @@ export default function EnergyInfrastructureGlobe({
             <PlantsInstancedLayer
               query={plantQuery}
               onPlantClick={handlePlantClick}
+              onPlantHover={(p, pos) => {
+                setMetaTip(null);
+                setHoverTip(p && pos ? { plant: p, x: pos.x, y: pos.y } : null);
+              }}
               sizeScale={sizeScale}
             />
           )}
-          <ArcsLayer arcs={arcs} polylines={polylines} />
-          <PointsLayer sets={pointSets} />
+          <ArcsLayer
+            arcs={arcs}
+            polylines={polylines}
+            onArcHover={handleArcHover}
+            onArcClick={onArcClick}
+          />
+          <PointsLayer
+            sets={pointSets}
+            onPointHover={handlePointHover}
+            onPointClick={onPointClick}
+          />
         </Suspense>
         <OrbitControls
+          ref={controlsRef}
           enablePan={false}
           minDistance={2.7}
           maxDistance={8.5}
           dampingFactor={0.08}
           enableDamping
-          autoRotate={autoRotate}
-          autoRotateSpeed={0.25}
+          autoRotate={autoRotate && !interacting && !paused}
+          autoRotateSpeed={0.3}
+          onStart={() => {
+            if (resumeTimer.current) clearTimeout(resumeTimer.current);
+            setInteracting(true);
+          }}
+          onEnd={() => {
+            if (resumeTimer.current) clearTimeout(resumeTimer.current);
+            resumeTimer.current = setTimeout(() => setInteracting(false), 1500);
+          }}
         />
       </Canvas>
 
@@ -137,6 +276,84 @@ export default function EnergyInfrastructureGlobe({
           hasBoundaries={boundaries}
           hasArcs={arcs.length > 0 || polylines.length > 0}
         />
+      )}
+
+      {live && (
+        <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-2 rounded-full border border-emerald-400/30 bg-black/70 px-2.5 py-1 backdrop-blur-md">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+            Live
+          </span>
+          {updatedAgo && (
+            <span className="text-[10px] text-gray-400">{updatedAgo}</span>
+          )}
+        </div>
+      )}
+
+      {/* Viewer controls — pause/resume rotation, reset camera */}
+      <div className="absolute bottom-3 right-3 z-10 flex gap-1.5">
+        <button
+          onClick={() => setPaused((p) => !p)}
+          className="rounded-lg border border-white/10 bg-black/60 p-1.5 text-gray-300 backdrop-blur-md transition-colors hover:border-white/25 hover:text-white"
+          title={paused ? "Resume rotation" : "Pause rotation"}
+          aria-label={paused ? "Resume rotation" : "Pause rotation"}
+        >
+          {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          onClick={() => controlsRef.current?.reset()}
+          className="rounded-lg border border-white/10 bg-black/60 p-1.5 text-gray-300 backdrop-blur-md transition-colors hover:border-white/25 hover:text-white"
+          title="Reset view"
+          aria-label="Reset view"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {hoverTip && tipPos && !selected && (
+        <div
+          className="pointer-events-none absolute z-20 max-w-[220px] rounded-lg border border-white/15 bg-black/85 px-3 py-2 backdrop-blur-md"
+          style={{ left: tipPos.left, top: tipPos.top }}
+        >
+          <div className="truncate text-xs font-bold text-white">
+            {hoverTip.plant.name}
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-gray-400">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{
+                backgroundColor: FUEL_COLORS[hoverTip.plant.fuel],
+              }}
+            />
+            {hoverTip.plant.fuel}
+            {hoverTip.plant.capacityMW != null && (
+              <span>• {hoverTip.plant.capacityMW.toLocaleString()} MW</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!hoverTip && metaTip && tipPos && !selected && (
+        <div
+          className="pointer-events-none absolute z-20 max-w-[220px] rounded-lg border border-white/15 bg-black/85 px-3 py-2 backdrop-blur-md"
+          style={{ left: tipPos.left, top: tipPos.top }}
+        >
+          <div className="truncate text-xs font-bold text-white">
+            {metaTip.title}
+          </div>
+          {metaTip.subtitle && (
+            <div className="flex items-center gap-2 text-[10px] text-gray-400">
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ backgroundColor: metaTip.color }}
+              />
+              {metaTip.subtitle}
+            </div>
+          )}
+        </div>
       )}
 
       {selected && (
