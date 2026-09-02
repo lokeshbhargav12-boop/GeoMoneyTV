@@ -83,6 +83,16 @@ export default function CoalPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
+  const [activeLayers, setActiveLayers] = useState<string[]>([
+    "plants",
+    "routes",
+    "vessels",
+    "climate",
+  ]);
+  const toggleLayer = (id: string) =>
+    setActiveLayers((prev) =>
+      prev.includes(id) ? prev.filter((l) => l !== id) : [...prev, id],
+    );
 
   const fetchData = async () => {
     setLoading(true);
@@ -144,7 +154,7 @@ export default function CoalPage() {
         lng: c.lng ?? c.longitude ?? 0,
       })),
     },
-  ];
+  ].filter((s) => activeLayers.includes(s.id));
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#090806] via-[#120d08] to-black text-white pt-32 pb-24">
@@ -335,12 +345,46 @@ export default function CoalPage() {
             <span className="text-xs uppercase tracking-widest text-gray-500">Live vessel positions</span>
           </div>
 
+          {/* Layer toggles */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {(
+              [
+                { id: "plants", label: "Coal plants", Icon: Factory },
+                { id: "routes", label: "Routes", Icon: Route },
+                { id: "vessels", label: "Vessels", Icon: Ship },
+                { id: "climate", label: "Climate", Icon: AlertTriangle },
+              ] as const
+            ).map(({ id, label, Icon }) => {
+              const active = activeLayers.includes(id);
+              return (
+                <button
+                  key={id}
+                  onClick={() => toggleLayer(id)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                    active
+                      ? "border-amber-400/40 bg-amber-400/15 text-amber-200"
+                      : "border-white/10 bg-white/5 text-gray-500 hover:border-white/20 hover:text-gray-300"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
             <EnergyInfrastructureGlobe
-              plants={{ fuels: ["Coal"], minMW: 50 }}
-              arcs={routeArcs}
+              plants={
+                activeLayers.includes("plants")
+                  ? { fuels: ["Coal"], minMW: 50 }
+                  : false
+              }
+              arcs={activeLayers.includes("routes") ? routeArcs : []}
               pointSets={pointSets}
               height="560px"
+              sizeScale={0.8}
+              plantOpacity={0.55}
               live={!!data}
               updatedAt={data?.timestamp ?? null}
               onArcClick={(a) =>

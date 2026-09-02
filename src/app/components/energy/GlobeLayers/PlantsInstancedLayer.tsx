@@ -35,6 +35,8 @@ interface Props {
     pos?: { x: number; y: number },
   ) => void;
   sizeScale?: number;
+  /** marker fill opacity (0–1); default 0.7 — lower = more map visible */
+  opacity?: number;
 }
 
 export default function PlantsInstancedLayer({
@@ -42,6 +44,7 @@ export default function PlantsInstancedLayer({
   onPlantClick,
   onPlantHover,
   sizeScale = 1,
+  opacity = 0.7,
 }: Props) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const plantsRef = useRef<PlantClickInfo[]>([]);
@@ -180,10 +183,10 @@ export default function PlantsInstancedLayer({
       onPointerMove={handleMove}
       onPointerOut={handleOut}
     >
-      <circleGeometry args={[1, 16]} />
+      <ringGeometry args={[0.55, 1, 28]} />
       <meshBasicMaterial
         transparent
-        opacity={0.92}
+        opacity={opacity}
         side={THREE.DoubleSide}
         depthWrite={false}
         toneMapped={false}

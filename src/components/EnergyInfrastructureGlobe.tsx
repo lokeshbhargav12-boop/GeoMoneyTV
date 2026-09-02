@@ -43,6 +43,8 @@ export interface EnergyInfrastructureGlobeProps {
   autoRotate?: boolean; // default false
   legend?: boolean; // default true
   sizeScale?: number; // bubble-size multiplier
+  /** override the plant-layer marker opacity (0–1); default 0.7 */
+  plantOpacity?: number;
   onPlantClick?: (p: PlantClickInfo) => void;
   /** fires when a route/flow arc is clicked on the globe */
   onArcClick?: (a: GlobeArc) => void;
@@ -74,6 +76,7 @@ export default function EnergyInfrastructureGlobe({
   autoRotate = true,
   legend = true,
   sizeScale = 1,
+  plantOpacity,
   onPlantClick,
   onArcClick,
   onPointClick,
@@ -228,6 +231,7 @@ export default function EnergyInfrastructureGlobe({
                 setHoverTip(p && pos ? { plant: p, x: pos.x, y: pos.y } : null);
               }}
               sizeScale={sizeScale}
+              opacity={plantOpacity}
             />
           )}
           <ArcsLayer
