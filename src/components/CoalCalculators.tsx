@@ -8,6 +8,11 @@ import {
   Flame,
   Scale,
 } from "lucide-react";
+import {
+  EGRID_COAL_EMISSION_FACTORS,
+  US_COAL_EMISSION_FACTOR_AVG,
+  getEmissionFactor,
+} from "@/data/coal/emission-factors";
 
 const PRESETS = [
   { label: "500 MW", capacity: "500", load: "72", heatRate: "9800", heatContent: "24" },
@@ -39,7 +44,10 @@ export default function CoalCalculators() {
 
   const [emissionsCapacity, setEmissionsCapacity] = useState("850");
   const [emissionsLoad, setEmissionsLoad] = useState("72");
-  const [emissionsFactor, setEmissionsFactor] = useState("0.98");
+  const [emissionsFactor, setEmissionsFactor] = useState(
+    String(US_COAL_EMISSION_FACTOR_AVG),
+  );
+  const [emissionsSubregion, setEmissionsSubregion] = useState("US");
 
   const applyPreset = (preset: typeof PRESETS[0]) => {
     setPlantCapacity(preset.capacity);
@@ -228,7 +236,6 @@ export default function CoalCalculators() {
             {[
               { label: "Capacity (MW)", value: emissionsCapacity, setter: setEmissionsCapacity },
               { label: "Capacity Factor (%)", value: emissionsLoad, setter: setEmissionsLoad },
-              { label: "Emission Factor (tCO₂/MWh)", value: emissionsFactor, setter: setEmissionsFactor },
             ].map((field) => (
               <div key={field.label}>
                 <label className="text-sm text-gray-400 block mb-1.5">{field.label}</label>
@@ -239,6 +246,34 @@ export default function CoalCalculators() {
                 />
               </div>
             ))}
+            <div>
+              <label className="text-sm text-gray-400 block mb-1.5">eGRID Subregion (Emission Factor)</label>
+              <select
+                value={emissionsSubregion}
+                onChange={(e) => {
+                  setEmissionsSubregion(e.target.value);
+                  setEmissionsFactor(String(getEmissionFactor(e.target.value)));
+                }}
+                className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-300"
+              >
+                {EGRID_COAL_EMISSION_FACTORS.map((ef) => (
+                  <option key={ef.subregion} value={ef.subregion}>
+                    {ef.name} — {ef.factor.toFixed(2)} tCO₂/MWh
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-gray-500 mt-1">
+                EPA eGRID annual average. Override below with plant-specific data if available.
+              </p>
+            </div>
+            <div>
+              <label className="text-sm text-gray-400 block mb-1.5">Emission Factor override (tCO₂/MWh)</label>
+              <input
+                value={emissionsFactor}
+                onChange={(e) => setEmissionsFactor(e.target.value)}
+                className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-300"
+              />
+            </div>
           </div>
           <div className="mt-5 grid gap-3">
             <div className="rounded-xl border border-red-400/20 bg-red-400/10 p-4">

@@ -11,6 +11,7 @@ interface CoalCommentary {
   watchpoints: string[];
   confidence: "Low" | "Moderate" | "High";
   timestamp?: string;
+  fetchedAt?: string;
 }
 
 export default function CoalAiBrief() {
@@ -126,13 +127,20 @@ export default function CoalAiBrief() {
             </ul>
           </div>
 
-          <div className="flex items-center justify-between">
-            <button
-              onClick={fetchCommentary}
-              className="text-xs px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-gray-300 hover:text-amber-300 hover:border-amber-300/30 transition-colors"
-            >
-              Regenerate briefing
-            </button>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={fetchCommentary}
+                className="text-xs px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-gray-300 hover:text-amber-300 hover:border-amber-300/30 transition-colors"
+              >
+                Regenerate briefing
+              </button>
+              {(commentary.fetchedAt || commentary.timestamp) && (
+                <span className="text-[10px] text-gray-500">
+                  Briefing updated {new Date(commentary.fetchedAt || commentary.timestamp || "").toLocaleString()}
+                </span>
+              )}
+            </div>
             <span className={`text-[10px] px-2 py-1 rounded-full border font-bold ${confidenceClass(commentary.confidence)}`}>
               Confidence: {commentary.confidence}
             </span>

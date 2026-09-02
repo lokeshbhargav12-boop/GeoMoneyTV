@@ -1,4 +1,6 @@
 import { callOpenRouterJson } from "@/lib/openrouter";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { join } from "path";
 
 // ─── TYPES ──────────────────────────────────────────────────
 
@@ -11,6 +13,7 @@ export interface CoalBenchmark {
   unit: string;
   note: string;
   live: boolean;
+  asOf?: string;
 }
 
 export interface CoalRouteStatus {
@@ -84,6 +87,36 @@ const COAL_BENCHMARK_CONFIG: CoalBenchmark[] = [
     note: "Steelmaking benchmark sensitive to mine outages and rail flows.",
     live: false,
   },
+  {
+    label: "Central Appalachia",
+    symbol: "CAPP",
+    price: null,
+    change: null,
+    changePercent: null,
+    unit: "$/t",
+    note: "EIA weekly coal spot price. EIA publishes weekly; refreshed daily.",
+    live: false,
+  },
+  {
+    label: "Powder River Basin",
+    symbol: "PRB",
+    price: null,
+    change: null,
+    changePercent: null,
+    unit: "$/t",
+    note: "EIA weekly coal spot price. EIA publishes weekly; refreshed daily.",
+    live: false,
+  },
+  {
+    label: "Uinta Basin",
+    symbol: "UINTA",
+    price: null,
+    change: null,
+    changePercent: null,
+    unit: "$/t",
+    note: "EIA weekly coal spot price. EIA publishes weekly; refreshed daily.",
+    live: false,
+  },
 ];
 
 // ─── COAL ROUTES ────────────────────────────────────────────
@@ -151,10 +184,14 @@ const EIA_COAL_SERIES: { id: string; name: string; unit: string }[] = [
 const EIA_API_KEY = process.env.EIA_API_KEY || "";
 const EIA_BASE = "https://api.eia.gov/v2";
 
-async function fetchEiaSeries(seriesId: string): Promise<any | null> {
+async function fetchEiaSeries(
+  seriesId: string,
+  frequency: string = "monthly",
+  length: number = 2,
+): Promise<any | null> {
   if (!EIA_API_KEY) return null;
   try {
-    const url = `${EIA_BASE}/seriesid/${seriesId}?api_key=${EIA_API_KEY}&frequency=monthly&data[0]=value&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=2`;
+    const url = `${EIA_BASE}/seriesid/${seriesId}?api_key=${EIA_API_KEY}&frequency=${frequency}&data[0]=value&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=${length}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error(`EIA ${seriesId} HTTP ${res.status}`);
     return await res.json();
@@ -162,6 +199,55 @@ async function fetchEiaSeries(seriesId: string): Promise<any | null> {
     console.warn(`[CoalMarket] EIA ${seriesId} failed:`, error);
     return null;
   }
+}
+
+// ─── EIA COAL BASIN SPOT PRICES ───────────────────────────────
+// EIA publishes weekly coal spot prices by basin. EIA itself only refreshes
+// these weekly, so the as-of date is surfaced to users (honest staleness) — we
+// refresh the cache daily but never imply higher-than-weekly freshness.
+// Series IDs are EIA v2 weekly coal-spot series; if any is mis-keyed the
+// fetch degrades gracefully (returns null → benchmarks keep ticker/Yahoo).
+
+interface EiaBasinPrice {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  asOf: string;
+}
+
+const COAL_BASIN_SERIES: { symbol: string; seriesId: string }[] = [
+  { symbol: "CAPP", seriesId: "COAL.SPOT.CAPP.W" },
+  { symbol: "PRB", seriesId: "COAL.SPOT.PRBS.W" },
+  { symbol: "ILLINOIS", seriesId: "COAL.SPOT.ILB.W" },
+  { symbol: "UINTA", seriesId: "COAL.SPOT.UINTA.W" },
+];
+
+async function fetchEiaBasinPrices(): Promise<Map<string, EiaBasinPrice>> {
+  const out = new Map<string, EiaBasinPrice>();
+  if (!EIA_API_KEY) return out;
+  await Promise.all(
+    COAL_BASIN_SERIES.map(async (series) => {
+      const data = await fetchEiaSeries(series.seriesId, "weekly", 2);
+      const items = data?.response?.data || [];
+      const current = items[0];
+      const previous = items[1];
+      if (!current) return;
+      const price = Number(current.value);
+      if (!Number.isFinite(price)) return;
+      const prevPrice = previous ? Number(previous.value) : price;
+      const change = Number.isFinite(prevPrice) ? price - prevPrice : 0;
+      const changePercent = prevPrice ? (change / prevPrice) * 100 : 0;
+      out.set(series.symbol, {
+        symbol: series.symbol,
+        price,
+        change,
+        changePercent,
+        asOf: String(current.period || ""),
+      });
+    }),
+  );
+  return out;
 }
 
 async function fetchEiaCoalData() {
@@ -184,12 +270,14 @@ async function fetchEiaCoalData() {
 // ─── TICKER BENCHMARKS ──────────────────────────────────────
 
 async function fetchCoalBenchmarks(): Promise<CoalBenchmark[]> {
+  let benchmarks: CoalBenchmark[];
+
   try {
     const res = await fetch("http://localhost:3000/api/ticker", { cache: "no-store" });
     if (!res.ok) throw new Error("Ticker API failed");
     const data = (await res.json()) as any[];
 
-    return COAL_BENCHMARK_CONFIG.map((base) => {
+    benchmarks = COAL_BENCHMARK_CONFIG.map((base) => {
       const live = data.find(
         (item) =>
           item.symbol?.toUpperCase() === base.symbol.toUpperCase() ||
@@ -216,7 +304,7 @@ async function fetchCoalBenchmarks(): Promise<CoalBenchmark[]> {
       METCOAL: "MCC=F",
     };
     const yahooFinance = (await import("yahoo-finance2")).default;
-    const results = await Promise.all(
+    benchmarks = await Promise.all(
       COAL_BENCHMARK_CONFIG.map(async (base) => {
         const yahooSymbol = directSymbols[base.symbol];
         if (!yahooSymbol) return base;
@@ -235,8 +323,31 @@ async function fetchCoalBenchmarks(): Promise<CoalBenchmark[]> {
         return base;
       }),
     );
-    return results;
   }
+
+  // ─── EIA basin spot prices fill any benchmark still without a price ───────
+  // EIA publishes weekly; we keep these non-live and surface the as-of date so
+  // staleness is honest rather than hidden.
+  const eiaBasin = await fetchEiaBasinPrices();
+  if (eiaBasin.size > 0) {
+    benchmarks = benchmarks.map((base) => {
+      if (base.price !== null) return base;
+      const eia = eiaBasin.get(base.symbol);
+      if (!eia) return base;
+      return {
+        ...base,
+        price: eia.price,
+        change: eia.change,
+        changePercent: eia.changePercent,
+        asOf: eia.asOf,
+        note: eia.asOf
+          ? `EIA weekly spot price (as of ${eia.asOf}). EIA publishes weekly; refreshed daily.`
+          : base.note,
+      };
+    });
+  }
+
+  return benchmarks;
 }
 
 // ─── VESSEL ROUTE COUNTS ────────────────────────────────────
@@ -447,6 +558,44 @@ export function clearCoalMarketCache() {
   cache = null;
 }
 
+// ─── AI BRIEF CACHE (stale-if-error) ──────────────────────────
+// The brief is regenerated on a schedule (not per pageview) to protect the
+// shared free-model OpenRouter rate limit. On failure we serve the last good
+// brief from memory (then a flat JSON file) so the UI never breaks, and we
+// surface its own fetchedAt so staleness is honest rather than hidden.
+
+const AI_BRIEF_TTL = 4 * 60 * 60 * 1000; // 4 hours
+let aiBriefCache: { data: CoalCommentary; ts: number } | null = null;
+
+const CACHE_DIR = join(process.cwd(), "cache");
+const BRIEF_CACHE_FILE = join(CACHE_DIR, "coal-ai-brief.json");
+
+function readBriefCacheFile(): CoalCommentary | null {
+  try {
+    if (!existsSync(BRIEF_CACHE_FILE)) return null;
+    const raw = readFileSync(BRIEF_CACHE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object"
+      ? (parsed as CoalCommentary)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeBriefCacheFile(data: CoalCommentary): void {
+  try {
+    if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true });
+    writeFileSync(BRIEF_CACHE_FILE, JSON.stringify(data), "utf8");
+  } catch (error) {
+    console.warn("[CoalMarket] Failed to write AI brief cache file:", error);
+  }
+}
+
+export function clearCoalAiBriefCache() {
+  aiBriefCache = null;
+}
+
 // ─── AI COAL COMMENTARY ─────────────────────────────────────
 
 export interface CoalCommentary {
@@ -455,11 +604,18 @@ export interface CoalCommentary {
   routeRisks: { route: string; risk: string; severity: "low" | "moderate" | "high" }[];
   watchpoints: string[];
   confidence: "Low" | "Moderate" | "High";
+  fetchedAt?: string;
 }
 
 export async function generateCoalCommentary(
   payload: CoalMarketPayload,
 ): Promise<CoalCommentary> {
+  // Serve a fresh cached brief within the TTL so we don't hit OpenRouter per
+  // pageview (protects the shared free-model rate limit, ~20 req/min).
+  if (aiBriefCache && Date.now() - aiBriefCache.ts < AI_BRIEF_TTL) {
+    return { ...aiBriefCache.data };
+  }
+
   const benchmarkSummary = payload.benchmarks
     .map(
       (b) =>
@@ -513,15 +669,25 @@ Respond with ONLY a JSON object in this exact shape:
       maxTokens: 800,
       caller: "coal-commentary",
     });
-    return {
+    const normalized: CoalCommentary = {
       summary: data.summary || "Coal market briefing unavailable.",
       priceOutlook: data.priceOutlook || "Outlook unavailable.",
       routeRisks: Array.isArray(data.routeRisks) ? data.routeRisks : [],
       watchpoints: Array.isArray(data.watchpoints) ? data.watchpoints : [],
       confidence: data.confidence || "Low",
+      fetchedAt: new Date().toISOString(),
     };
+    aiBriefCache = { data: normalized, ts: Date.now() };
+    writeBriefCacheFile(normalized);
+    return normalized;
   } catch (error) {
     console.warn("[CoalMarket] AI commentary failed:", error);
+    // Stale-if-error: serve the last good brief (memory, then file) with its
+    // own fetchedAt so staleness is honest rather than hidden.
+    const stale = aiBriefCache?.data ?? readBriefCacheFile();
+    if (stale) {
+      return { ...stale };
+    }
     return {
       summary: "AI commentary is temporarily unavailable. Live data above remains current.",
       priceOutlook: "Please check live benchmarks and route status for the latest signals.",
@@ -532,6 +698,7 @@ Respond with ONLY a JSON object in this exact shape:
       })),
       watchpoints: ["Monitor benchmark price action", "Watch coal corridor vessel counts", "Track EIA coal stocks and generation"],
       confidence: "Low",
+      fetchedAt: new Date().toISOString(),
     };
   }
 }

@@ -43,6 +43,7 @@ interface CoalMarketData {
     unit: string;
     note: string;
     live: boolean;
+    asOf?: string;
   }[];
   eia: {
     coalGeneration: number | null;
@@ -72,6 +73,9 @@ const BENCHMARK_COLORS: Record<string, string> = {
   API2: "#f97316",
   ILLINOIS: "#84cc16",
   METCOAL: "#ef4444",
+  CAPP: "#a78bfa",
+  PRB: "#22d3ee",
+  UINTA: "#fb7185",
 };
 
 export default function CoalPage() {
@@ -263,6 +267,9 @@ export default function CoalPage() {
                 <div className="text-2xl font-bold text-amber-200 mb-2">
                   {benchmark.price !== null ? `$${benchmark.price.toFixed(2)}${benchmark.unit.replace("$", "")}` : "—"}
                 </div>
+                {benchmark.asOf && (
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">As of {benchmark.asOf}</p>
+                )}
                 <p className="text-sm text-gray-400 leading-relaxed">{benchmark.note}</p>
               </div>
             ))}

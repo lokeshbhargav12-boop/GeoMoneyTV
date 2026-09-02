@@ -328,6 +328,10 @@ async function fetchGDELT(): Promise<OsintEvent[]> {
             'China Taiwan OR South China Sea',
             'Russia Ukraine OR NATO',
             'Iran Israel OR Middle East crisis',
+            // Coal-specific signals — feed the /energy/coal Intelligence Feed
+            // (filtered downstream by coal-relevance keywords).
+            'coal mine OR coal export OR coal port OR coal strike OR thermal coal OR coking coal',
+            'coal plant closure OR coal tariff OR coal import ban OR Indonesia coal OR Australia coal',
         ]
         const fetches = queries.map(async (query) => {
             try {

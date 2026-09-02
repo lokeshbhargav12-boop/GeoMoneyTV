@@ -106,6 +106,39 @@ function runTickerSync() {
   req.end();
 }
 
+function runCoalSync() {
+  console.log(`[Scheduler] Running coal sync at ${new Date().toISOString()}`);
+  const options = {
+    hostname: "127.0.0.1",
+    port: port,
+    path: "/api/cron/coal",
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${process.env.CRON_SECRET || ""}`,
+    },
+  };
+  const req = require("http").request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => {
+      data += chunk;
+    });
+    res.on("end", () => {
+      try {
+        const result = JSON.parse(data);
+        console.log(
+          `[Scheduler] Coal sync complete — benchmarks: ${result.warmed?.benchmarks ?? "?"} (${result.warmed?.liveBenchmarks ?? "?"} live, ${result.warmed?.eiaBenchmarks ?? "?"} EIA), routes: ${result.warmed?.routes ?? "?"}, brief: ${result.warmed?.briefFetchedAt ?? "n/a"}`,
+        );
+      } catch {
+        console.log("[Scheduler] Coal sync response:", data.slice(0, 200));
+      }
+    });
+  });
+  req.on("error", (err) =>
+    console.error("[Scheduler] Coal sync failed:", err.message),
+  );
+  req.end();
+}
+
 function runIntelligenceReport(type = "daily") {
   console.log(
     `[Scheduler] Running ${type} intelligence report at ${new Date().toISOString()}`,
@@ -231,6 +264,14 @@ app.prepare().then(() => {
     runNewsSync();
     setInterval(runNewsSync, 60 * 60 * 1000);
   }, 15000); // wait 15s after boot before first sync
+
+  // Coal desk sync — refresh EIA basin benchmarks + force-regenerate the AI
+  // brief cache. EIA publishes weekly; the AI brief TTL is 4 hours. Vessels
+  // and GDELT stay fresh per /api/coal/market request (2-minute cache).
+  setTimeout(() => {
+    runCoalSync();
+    setInterval(runCoalSync, 4 * 60 * 60 * 1000);
+  }, 20000);
 
   // Daily Intelligence Report — 11:20 AM IST = 05:50 UTC
   scheduleDailyAt(5, 50, "Daily Intelligence Report", () =>
