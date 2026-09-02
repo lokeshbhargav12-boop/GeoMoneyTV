@@ -68,7 +68,7 @@ export default function CoalBenchmarkChart({
       setError(null);
       try {
         const res = await fetch(
-          `/api/alpha-vantage?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}`,
+          `/api/coal/chart-history?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}`,
           { signal: controller.signal },
         );
         if (!res.ok) throw new Error(`Request failed with status ${res.status}`);

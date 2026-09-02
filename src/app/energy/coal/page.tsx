@@ -44,6 +44,7 @@ interface CoalMarketData {
     note: string;
     live: boolean;
     asOf?: string;
+    yahooSymbol?: string;
   }[];
   eia: {
     coalGeneration: number | null;
@@ -288,7 +289,7 @@ export default function CoalPage() {
           {data && (
             <div className="grid gap-4 md:grid-cols-2">
               {data.benchmarks
-                .filter((b) => b.live && b.price !== null)
+                .filter((b) => b.yahooSymbol)
                 .map((benchmark) => (
                   <CoalBenchmarkChart
                     key={benchmark.symbol}

@@ -14,6 +14,8 @@ export interface CoalBenchmark {
   note: string;
   live: boolean;
   asOf?: string;
+  /** Yahoo Finance ticker for historical chart data (if available) */
+  yahooSymbol?: string;
 }
 
 export interface CoalRouteStatus {
@@ -56,6 +58,7 @@ const COAL_BENCHMARK_CONFIG: CoalBenchmark[] = [
     unit: "$/t",
     note: "Asia-Pacific benchmark for seaborne thermal coal.",
     live: false,
+    yahooSymbol: "MTF=F",
   },
   {
     label: "API2 Rotterdam",
@@ -66,6 +69,7 @@ const COAL_BENCHMARK_CONFIG: CoalBenchmark[] = [
     unit: "$/t",
     note: "European delivered benchmark tied to power and carbon spreads.",
     live: false,
+    yahooSymbol: "ATW=F",
   },
   {
     label: "Illinois Basin",
@@ -76,6 +80,7 @@ const COAL_BENCHMARK_CONFIG: CoalBenchmark[] = [
     unit: "$/t",
     note: "US inland benchmark for domestic utility procurement.",
     live: false,
+    yahooSymbol: "ILB=F",
   },
   {
     label: "Met Coal FOB Australia",
@@ -86,6 +91,7 @@ const COAL_BENCHMARK_CONFIG: CoalBenchmark[] = [
     unit: "$/t",
     note: "Steelmaking benchmark sensitive to mine outages and rail flows.",
     live: false,
+    yahooSymbol: "MCC=F",
   },
   {
     label: "Central Appalachia",
