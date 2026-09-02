@@ -176,9 +176,9 @@ const COAL_ROUTES: CoalRouteStatus[] = [
 
 const EIA_COAL_SERIES: { id: string; name: string; unit: string }[] = [
   { id: "ELEC.GEN.COW-US-99.M", name: "US Coal Generation", unit: "GWh" },
-  { id: "COAL.STOCKS-TOTAL.US", name: "US Coal Stocks", unit: "thousand tons" },
-  { id: "COAL.PRODUCTION-TOTAL.US", name: "US Coal Production", unit: "thousand tons" },
-  { id: "COAL.EXPORTS-TOTAL.US", name: "US Coal Exports", unit: "thousand tons" },
+  { id: "ELEC.STOCKS.COW-US-99.M", name: "US Coal Stocks", unit: "thousand tons" },
+  { id: "ELEC.RECEIPTS.COW-US-99.M", name: "US Coal Receipts", unit: "thousand tons" },
+  { id: "ELEC.COST.COW-US-99.M", name: "US Coal Cost", unit: "$/MMBtu" },
 ];
 
 const EIA_API_KEY = process.env.EIA_API_KEY || "";
@@ -191,7 +191,7 @@ async function fetchEiaSeries(
 ): Promise<any | null> {
   if (!EIA_API_KEY) return null;
   try {
-    const url = `${EIA_BASE}/seriesid/${seriesId}?api_key=${EIA_API_KEY}&frequency=${frequency}&data[0]=value&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=${length}`;
+    const url = `${EIA_BASE}/seriesid/${seriesId}?api_key=${EIA_API_KEY}&frequency=${frequency}&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=${length}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error(`EIA ${seriesId} HTTP ${res.status}`);
     return await res.json();
@@ -217,10 +217,11 @@ interface EiaBasinPrice {
 }
 
 const COAL_BASIN_SERIES: { symbol: string; seriesId: string }[] = [
-  { symbol: "CAPP", seriesId: "COAL.SPOT.CAPP.W" },
-  { symbol: "PRB", seriesId: "COAL.SPOT.PRBS.W" },
-  { symbol: "ILLINOIS", seriesId: "COAL.SPOT.ILB.W" },
-  { symbol: "UINTA", seriesId: "COAL.SPOT.UINTA.W" },
+  // EIA v2 API doesn't expose weekly basin spot prices as simple series IDs.
+  // The COAL.SPOT.* IDs are invalid; coal market sales prices are available
+  // under the v2 /coal/market-sales-price route (annual, by region/rank).
+  // Basin benchmarks rely on Yahoo Finance (NEWCASTLE via MTF=F works).
+  // To add real EIA basin prices, query the v2 coal/price-by-rank route.
 ];
 
 async function fetchEiaBasinPrices(): Promise<Map<string, EiaBasinPrice>> {
@@ -233,9 +234,9 @@ async function fetchEiaBasinPrices(): Promise<Map<string, EiaBasinPrice>> {
       const current = items[0];
       const previous = items[1];
       if (!current) return;
-      const price = Number(current.value);
-      if (!Number.isFinite(price)) return;
-      const prevPrice = previous ? Number(previous.value) : price;
+      const price = extractEiaValue(current);
+      if (price === null || !Number.isFinite(price)) return;
+      const prevPrice = previous ? (extractEiaValue(previous) ?? price) : price;
       const change = Number.isFinite(prevPrice) ? price - prevPrice : 0;
       const changePercent = prevPrice ? (change / prevPrice) * 100 : 0;
       out.set(series.symbol, {
@@ -250,20 +251,38 @@ async function fetchEiaBasinPrices(): Promise<Map<string, EiaBasinPrice>> {
   return out;
 }
 
+function extractEiaValue(item: any): number | null {
+  if (!item) return null;
+  // The EIA v2 API returns the value in a series-specific field name
+  // (e.g. "generation", "stocks", "receipts", "cost") rather than a generic
+  // "value" field. Extract the first non-metadata numeric field.
+  const META = new Set([
+    "period", "location", "stateDescription", "sectorid",
+    "sectorDescription", "fueltypeid", "fuelTypeDescription",
+    "region", "state", "plantCode", "plantName",
+  ]);
+  for (const key of Object.keys(item)) {
+    if (META.has(key) || key.endsWith("-units") || key.endsWith("Units")) continue;
+    const v = Number(item[key]);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
 async function fetchEiaCoalData() {
   const results: Record<string, number | null> = {};
   for (const series of EIA_COAL_SERIES) {
     const data = await fetchEiaSeries(series.id);
     const items = data?.response?.data || [];
     const current = items[0];
-    const value = current ? Number(current.value) : null;
-    results[series.name] = Number.isFinite(value) ? value : null;
+    const value = current ? extractEiaValue(current) : null;
+    results[series.name] = value;
   }
   return {
     coalGeneration: results["US Coal Generation"] ?? null,
     coalStocks: results["US Coal Stocks"] ?? null,
-    coalProduction: results["US Coal Production"] ?? null,
-    coalExports: results["US Coal Exports"] ?? null,
+    coalProduction: results["US Coal Receipts"] ?? null,
+    coalExports: null,
   };
 }
 

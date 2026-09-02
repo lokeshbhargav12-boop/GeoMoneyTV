@@ -46,15 +46,14 @@ function urlOf(input: RequestInfo | URL): URL {
 }
 
 // EIA v2 series-shaped payloads keyed by seriesId.
+// These are the VALID series IDs (verified against the live EIA API).
+// The EIA v2 API returns series-specific field names (generation, stocks,
+// receipts, cost) — the mock uses "value" which extractEiaValue() picks up.
 const EIA_MOCK: Record<string, { response: { data: { period: string; value: string }[] } }> = {
-  "COAL.SPOT.CAPP.W": { response: { data: [{ period: "2026-08-28", value: "62.4" }, { period: "2026-08-21", value: "61.0" }] } },
-  "COAL.SPOT.PRBS.W": { response: { data: [{ period: "2026-08-28", value: "13.2" }, { period: "2026-08-21", value: "13.0" }] } },
-  "COAL.SPOT.ILB.W": { response: { data: [{ period: "2026-08-28", value: "40.5" }, { period: "2026-08-21", value: "40.0" }] } },
-  "COAL.SPOT.UINTA.W": { response: { data: [{ period: "2026-08-28", value: "33.0" }, { period: "2026-08-21", value: "32.8" }] } },
   "ELEC.GEN.COW-US-99.M": { response: { data: [{ period: "2026-08", value: "80000" }] } },
-  "COAL.STOCKS-TOTAL.US": { response: { data: [{ period: "2026-08", value: "120000" }] } },
-  "COAL.PRODUCTION-TOTAL.US": { response: { data: [{ period: "2026-08", value: "95000" }] } },
-  "COAL.EXPORTS-TOTAL.US": { response: { data: [{ period: "2026-08", value: "15000" }] } },
+  "ELEC.STOCKS.COW-US-99.M": { response: { data: [{ period: "2026-08", value: "120000" }] } },
+  "ELEC.RECEIPTS.COW-US-99.M": { response: { data: [{ period: "2026-08", value: "95000" }] } },
+  "ELEC.COST.COW-US-99.M": { response: { data: [{ period: "2026-08", value: "48.35" }] } },
 };
 const EIA_DEFAULT = { response: { data: [] } };
 
@@ -135,8 +134,8 @@ describe("emission-factors", () => {
   });
 });
 
-// ─── 2. EIA basin spot-price normalization ───────────────────
-describe("getCoalMarketData — EIA basin normalization", () => {
+// ─── 2. EIA aggregate data (generation, stocks, receipts) ───
+describe("getCoalMarketData — EIA aggregate normalization", () => {
   beforeEach(() => {
     globalThis.fetch = eiaDispatchFetch as typeof fetch;
     clearCoalMarketCache();
@@ -145,34 +144,19 @@ describe("getCoalMarketData — EIA basin normalization", () => {
     globalThis.fetch = ORIG_FETCH;
   });
 
-  it("fills CAPP/PRB/UINTA benchmarks from EIA weekly series with asOf", async () => {
-    const data = await getCoalMarketData();
-    const capp = data.benchmarks.find((b) => b.symbol === "CAPP");
-    assert.ok(capp, "CAPP benchmark missing");
-    assert.equal(capp!.price, 62.4);
-    assert.equal(capp!.asOf, "2026-08-28");
-    assert.ok(Math.abs((capp!.change ?? 0) - 1.4) < 1e-6, `change ${capp!.change}`);
-    assert.ok(Math.abs((capp!.changePercent ?? 0) - 2.29508) < 0.01, `changePercent ${capp!.changePercent}`);
-    assert.match(capp!.note, /EIA weekly/i);
-
-    const prb = data.benchmarks.find((b) => b.symbol === "PRB");
-    assert.ok(prb && prb.price === 13.2 && prb.asOf === "2026-08-28");
-
-    const uinta = data.benchmarks.find((b) => b.symbol === "UINTA");
-    assert.ok(uinta && uinta.price === 33.0 && uinta.asOf === "2026-08-28");
-  });
-
-  it("populates the EIA aggregate fields from the monthly series", async () => {
+  it("populates EIA aggregate fields (generation, stocks, receipts) from valid series", async () => {
     const data = await getCoalMarketData();
     assert.equal(data.eia.coalGeneration, 80000);
     assert.equal(data.eia.coalStocks, 120000);
-    assert.equal(data.eia.coalProduction, 95000);
-    assert.equal(data.eia.coalExports, 15000);
+    assert.equal(data.eia.coalProduction, 95000);  // receipts → production proxy
+    assert.equal(data.eia.coalExports, null);      // no valid EIA export series
   });
 
-  it("does NOT mark EIA basin benchmarks as live (EIA is weekly-published)", async () => {
+  it("leaves basin benchmarks null when no data source provides a price", async () => {
     const data = await getCoalMarketData();
     const capp = data.benchmarks.find((b) => b.symbol === "CAPP");
+    assert.ok(capp, "CAPP benchmark missing");
+    assert.equal(capp!.price, null);
     assert.equal(capp!.live, false);
   });
 });
