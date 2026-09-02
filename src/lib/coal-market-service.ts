@@ -296,33 +296,46 @@ async function fetchCoalBenchmarks(): Promise<CoalBenchmark[]> {
     });
   } catch (error) {
     console.warn("[CoalMarket] Benchmark fetch failed:", error);
-    // Fallback: try direct Yahoo Finance quote for each coal symbol
-    const directSymbols: Record<string, string> = {
-      NEWCASTLE: "MTF=F",
-      API2: "ATW=F",
-      ILLINOIS: "ILB=F",
-      METCOAL: "MCC=F",
-    };
-    const yahooFinance = (await import("yahoo-finance2")).default;
-    benchmarks = await Promise.all(
-      COAL_BENCHMARK_CONFIG.map(async (base) => {
-        const yahooSymbol = directSymbols[base.symbol];
-        if (!yahooSymbol) return base;
-        try {
-          const quote = (await yahooFinance.quote(yahooSymbol)) as Record<string, unknown>;
-          const price = Number(quote.regularMarketPrice) || Number(quote.postMarketPrice) || Number(quote.preMarketPrice) || null;
-          const change = Number(quote.regularMarketChange) || 0;
-          const previousClose = Number(quote.regularMarketPreviousClose) || price || 0;
-          const changePercent = previousClose && price ? ((price - previousClose) / previousClose) * 100 : 0;
-          if (price && Number.isFinite(price)) {
-            return { ...base, price, change, changePercent, live: true };
+    benchmarks = COAL_BENCHMARK_CONFIG.map((b) => ({ ...b }));
+  }
+
+  // ─── Direct Yahoo Finance for any benchmark still without a price ────────
+  // The ticker API often doesn't include coal symbols (they may not be synced
+  // to the DB), so we fetch live Yahoo quotes directly for the ones it missed.
+  // This runs regardless of whether the ticker call succeeded or failed.
+  const directSymbols: Record<string, string> = {
+    NEWCASTLE: "MTF=F",
+    API2: "ATW=F",
+    ILLINOIS: "ILB=F",
+    METCOAL: "MCC=F",
+  };
+  const needsYahoo = benchmarks.filter((b) => b.price === null && directSymbols[b.symbol]);
+  if (needsYahoo.length > 0) {
+    try {
+      const YahooFinance = (await import("yahoo-finance2")).default;
+      const yahooFinance = new YahooFinance();
+      const yahooResults = await Promise.all(
+        needsYahoo.map(async (base) => {
+          try {
+            const quote = (await yahooFinance.quote(directSymbols[base.symbol])) as Record<string, unknown>;
+            const price = Number(quote.regularMarketPrice) || Number(quote.postMarketPrice) || Number(quote.preMarketPrice) || null;
+            const change = Number(quote.regularMarketChange) || 0;
+            const previousClose = Number(quote.regularMarketPreviousClose) || price || 0;
+            const changePercent = previousClose && price ? ((price - previousClose) / previousClose) * 100 : 0;
+            if (price && Number.isFinite(price)) {
+              return { ...base, price, change, changePercent, live: true };
+            }
+          } catch (e) {
+            console.warn(`[CoalMarket] Direct quote failed for ${base.symbol}:`, e);
           }
-        } catch (e) {
-          console.warn(`[CoalMarket] Direct quote failed for ${base.symbol}:`, e);
-        }
-        return base;
-      }),
-    );
+          return base;
+        }),
+      );
+      const yahooMap = new Map(yahooResults.map((b) => [b.symbol, b]));
+      benchmarks = benchmarks.map((b) => yahooMap.get(b.symbol) ?? b);
+    } catch (error) {
+      console.warn("[CoalMarket] Yahoo Finance fallback failed:", error);
+    }
   }
 
   // ─── EIA basin spot prices fill any benchmark still without a price ───────
@@ -425,7 +438,7 @@ async function fetchVesselsAndComputeRoutes(): Promise<{
 
     const bulkVessels = vessels.filter(
       (v) =>
-        (v.type || "").toLowerCase() === "bulk" ||
+        ["bulk", "cargo"].includes((v.type || "").toLowerCase()) ||
         (v.destination || "").toLowerCase().includes("coal") ||
         (v.name || "").toLowerCase().includes("coal"),
     );
