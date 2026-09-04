@@ -45,6 +45,9 @@ export interface EnergyInfrastructureGlobeProps {
   sizeScale?: number; // bubble-size multiplier
   /** override the plant-layer marker opacity (0–1); default 0.7 */
   plantOpacity?: number;
+  /** colour plant rings by capacity (thermal ramp) instead of flat fuel
+   *  colour — use on single-fuel desks like coal so rings aren't monotonous. */
+  plantColorByCapacity?: boolean;
   onPlantClick?: (p: PlantClickInfo) => void;
   /** fires when a route/flow arc is clicked on the globe */
   onArcClick?: (a: GlobeArc) => void;
@@ -77,6 +80,7 @@ export default function EnergyInfrastructureGlobe({
   legend = true,
   sizeScale = 1,
   plantOpacity,
+  plantColorByCapacity = false,
   onPlantClick,
   onArcClick,
   onPointClick,
@@ -232,6 +236,7 @@ export default function EnergyInfrastructureGlobe({
               }}
               sizeScale={sizeScale}
               opacity={plantOpacity}
+              colorByCapacity={plantColorByCapacity}
             />
           )}
           <ArcsLayer
@@ -279,6 +284,7 @@ export default function EnergyInfrastructureGlobe({
           pointSets={pointSets}
           hasBoundaries={boundaries}
           hasArcs={arcs.length > 0 || polylines.length > 0}
+          capacityScale={plantColorByCapacity && plants !== false}
         />
       )}
 

@@ -9,6 +9,7 @@ import {
   FUEL_COLORS,
   LOD,
   MAP_API,
+  plantColorByCapacity,
   plantRadiusMW,
   type FuelType,
 } from "@/config/energyLayers";
@@ -37,6 +38,9 @@ interface Props {
   sizeScale?: number;
   /** marker fill opacity (0–1); default 0.7 — lower = more map visible */
   opacity?: number;
+  /** colour each ring by plant capacity (thermal ramp) instead of flat fuel
+   *  colour — breaks the monotony on single-fuel views like the coal desk. */
+  colorByCapacity?: boolean;
 }
 
 export default function PlantsInstancedLayer({
@@ -45,6 +49,7 @@ export default function PlantsInstancedLayer({
   onPlantHover,
   sizeScale = 1,
   opacity = 0.7,
+  colorByCapacity = false,
 }: Props) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const plantsRef = useRef<PlantClickInfo[]>([]);
@@ -114,7 +119,10 @@ export default function PlantsInstancedLayer({
       scl.set(r, r, r);
       mat.compose(p, quat, scl);
       mesh.setMatrixAt(i, mat);
-      color.set(FUEL_COLORS[f.properties.fuel as FuelType] ?? FUEL_COLORS.Other);
+      const ringHex = colorByCapacity
+        ? plantColorByCapacity(f.properties.capacityMW)
+        : (FUEL_COLORS[f.properties.fuel as FuelType] ?? FUEL_COLORS.Other);
+      color.set(ringHex);
       mesh.setColorAt(i, color);
       plants.push(f.properties);
     }
@@ -122,7 +130,7 @@ export default function PlantsInstancedLayer({
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     plantsRef.current = plants;
-  }, [visible, sizeScale]);
+  }, [visible, sizeScale, colorByCapacity]);
 
   // Hover highlight — scale the hovered instance, restore the previous one
   useEffect(() => {

@@ -150,6 +150,55 @@ export function plantRadiusMW(
   return Math.min(Math.max(r, PLANT_SIZING.minRadius), PLANT_SIZING.maxRadius);
 }
 
+// ── Capacity heat ramp (colour-code single-fuel rings, e.g. the coal desk) ──
+// When a plant layer is filtered to one fuel (coal), every ring would share the
+// flat FUEL_COLORS[coal] grey and look monotonous. Instead the
+// PlantsInstancedLayer can colour each ring by capacity on this thermal ramp:
+// dim ember → glowing amber → hot red. Stops are in MW and interpolation is
+// log10-spaced to mirror the logarithmic marker sizing (capacity spans several
+// orders of magnitude, so a linear ramp would crush everything into one hue).
+export const PLANT_CAPACITY_STOPS = [
+  { mw: 50, color: "#57534e" }, // dim ember (small plants)
+  { mw: 200, color: "#a8a29e" }, // base coal grey
+  { mw: 600, color: "#f59e0b" }, // amber — warming up
+  { mw: 1500, color: "#ea580c" }, // orange — hot
+  { mw: 4000, color: "#dc2626" }, // red — intense / very large
+] as const;
+
+function _hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+const _CAP_STOPS_LOG = PLANT_CAPACITY_STOPS.map((s) => ({
+  log: Math.log10(s.mw),
+  rgb: _hexToRgb(s.color),
+}));
+
+/** Capacity-based ring colour for single-fuel plant layers (returns #rrggbb). */
+export function plantColorByCapacity(
+  capacityMW: number | null | undefined,
+): string {
+  const mw = Math.max(capacityMW ?? 0, 0);
+  const first = PLANT_CAPACITY_STOPS[0];
+  const last = PLANT_CAPACITY_STOPS[PLANT_CAPACITY_STOPS.length - 1];
+  if (mw <= first.mw) return first.color;
+  if (mw >= last.mw) return last.color;
+  const lm = Math.log10(mw);
+  for (let i = 0; i < _CAP_STOPS_LOG.length - 1; i++) {
+    const a = _CAP_STOPS_LOG[i];
+    const b = _CAP_STOPS_LOG[i + 1];
+    if (lm >= a.log && lm <= b.log) {
+      const t = (lm - a.log) / (b.log - a.log || 1);
+      const r = Math.round(a.rgb.r + (b.rgb.r - a.rgb.r) * t);
+      const g = Math.round(a.rgb.g + (b.rgb.g - a.rgb.g) * t);
+      const bl = Math.round(a.rgb.b + (b.rgb.b - a.rgb.b) * t);
+      return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${bl.toString(16).padStart(2, "0")}`;
+    }
+  }
+  return last.color;
+}
+
 // ── Level-of-detail thresholds (spec §33 step 2) ────────────────────────────
 export const LOD = {
   globalMinCapacityMW: 50, // hide below 50 MW in global view

@@ -1,7 +1,12 @@
 // Legend overlay for the energy globe. ALL colors come from
 // src/config/energyLayers.ts via props — nothing hardcoded here.
 import Link from "next/link";
-import { FUEL_COLORS, FUEL_LABELS, type FuelType } from "@/config/energyLayers";
+import {
+  FUEL_COLORS,
+  FUEL_LABELS,
+  PLANT_CAPACITY_STOPS,
+  type FuelType,
+} from "@/config/energyLayers";
 import type { GlobePointSet } from "./types";
 
 interface Props {
@@ -9,24 +14,42 @@ interface Props {
   pointSets?: GlobePointSet[];
   hasBoundaries?: boolean;
   hasArcs?: boolean;
+  /** render a capacity heat-ramp instead of the fuel swatches (coal desk) */
+  capacityScale?: boolean;
 }
 
-export default function LayerLegend({ fuels, pointSets, hasBoundaries, hasArcs }: Props) {
+export default function LayerLegend({ fuels, pointSets, hasBoundaries, hasArcs, capacityScale }: Props) {
   return (
     <div className="pointer-events-auto absolute left-3 top-3 z-10 max-w-[220px] rounded-xl border border-white/10 bg-black/60 p-3 backdrop-blur-md">
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
         Layers
       </div>
       <div className="space-y-1">
-        {fuels?.map((f) => (
-          <div key={f} className="flex items-center gap-2 text-xs text-gray-300">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: FUEL_COLORS[f] }}
+        {capacityScale ? (
+          <div className="space-y-1">
+            <div className="text-[10px] text-gray-400">Plant capacity (MW)</div>
+            <div
+              className="h-2 w-full rounded-full"
+              style={{
+                background: `linear-gradient(to right, ${PLANT_CAPACITY_STOPS.map((s) => s.color).join(", ")})`,
+              }}
             />
-            {FUEL_LABELS[f]}
+            <div className="flex justify-between text-[9px] text-gray-500">
+              <span>{PLANT_CAPACITY_STOPS[0].mw}</span>
+              <span>{PLANT_CAPACITY_STOPS[PLANT_CAPACITY_STOPS.length - 1].mw}+</span>
+            </div>
           </div>
-        ))}
+        ) : (
+          fuels?.map((f) => (
+            <div key={f} className="flex items-center gap-2 text-xs text-gray-300">
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: FUEL_COLORS[f] }}
+              />
+              {FUEL_LABELS[f]}
+            </div>
+          ))
+        )}
         {pointSets?.filter((s) => s.points.length > 0).map((s) => (
           <div key={s.id} className="flex items-center gap-2 text-xs text-gray-300">
             <span

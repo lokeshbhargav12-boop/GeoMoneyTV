@@ -386,6 +386,7 @@ export default function CoalPage() {
               height="560px"
               sizeScale={0.8}
               plantOpacity={0.55}
+              plantColorByCapacity
               live={!!data}
               updatedAt={data?.timestamp ?? null}
               onArcClick={(a) =>
