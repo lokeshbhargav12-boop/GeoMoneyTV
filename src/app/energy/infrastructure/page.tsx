@@ -219,6 +219,7 @@ interface LiveData {
   constraints: any[];
   resilience: any[];
   scenarios: any[];
+  gridStress: any[];
 }
 
 export default function EnergyInfrastructurePage() {
@@ -535,9 +536,9 @@ export default function EnergyInfrastructurePage() {
                   color: "#f59e0b",
                   size: 0.05,
                   pulse: true,
-                  points: GLOBE_GRID_STRESS.map((g) => ({
+                  points: (live?.gridStress ?? GLOBE_GRID_STRESS).map((g: any) => ({
                     id: g.id,
-                    title: `${g.name} • ${g.alert}`,
+                    title: `${g.name} • ${g.alert}${g.loadPercent != null ? ` (${Math.round(g.loadPercent)}%)` : ""}`,
                     lat: g.lat,
                     lng: g.lng,
                   })),
@@ -756,36 +757,45 @@ export default function EnergyInfrastructurePage() {
             <EnergyInfrastructureMap
               activeLayer="all"
               overlays={["grid-stress"]}
+              gridStress={(live?.gridStress ?? []) as any}
               height="500px"
             />
             <div className="space-y-3">
-              {[
-                { name: "ERCOT", load: 88, cap: 78, alert: "elevated" },
-                { name: "South Texas", load: 94, cap: 42, alert: "critical" },
-                { name: "PJM", load: 81, cap: 185, alert: "elevated" },
-                { name: "CAISO", load: 72, cap: 52, alert: "normal" },
-                { name: "National Grid UK", load: 65, cap: 60, alert: "normal" },
-                { name: "DE North", load: 78, cap: 55, alert: "elevated" },
-              ].map((g) => (
-                <div key={g.name} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-white">{g.name}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${g.alert === "critical" ? "bg-red-500/20 text-red-400" : g.alert === "elevated" ? "bg-yellow-500/20 text-yellow-400" : "bg-emerald-500/20 text-emerald-400"}`}>
-                      {g.alert}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-                    <span>Load {g.load}%</span>
-                    <span>{g.cap} GW cap</span>
-                  </div>
-                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${g.alert === "critical" ? "bg-red-500" : g.alert === "elevated" ? "bg-yellow-500" : "bg-emerald-500"}`}
-                      style={{ width: `${Math.min(g.load, 100)}%` }}
-                    />
-                  </div>
+              {loading && !live?.gridStress ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-gray-500 flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading live grid load…
                 </div>
-              ))}
+              ) : (live?.gridStress ?? []).length > 0 ? (
+                (live?.gridStress ?? []).map((g: any) => {
+                  const pct = g.loadPercent;
+                  const noLive = pct == null;
+                  return (
+                    <div key={g.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-white">{g.name}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${g.alert === "critical" ? "bg-red-500/20 text-red-400" : g.alert === "elevated" ? "bg-yellow-500/20 text-yellow-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                          {noLive ? "no live feed" : g.alert}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                        <span>{noLive ? "Load —" : `Load ${Math.round(pct)}%`}</span>
+                        <span>{g.capacityGW} GW cap{noLive ? "" : ` · ${g.loadGW.toFixed(1)} GW`}</span>
+                      </div>
+                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${g.alert === "critical" ? "bg-red-500" : g.alert === "elevated" ? "bg-yellow-500" : "bg-emerald-500"} ${noLive ? "opacity-30" : ""}`}
+                          style={{ width: `${noLive ? 0 : Math.min(Math.round(pct), 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-[9px] text-gray-600 mt-1">
+                        {g.source === "EIA" && g.asOf ? `EIA hourly · ${new Date(g.asOf).toLocaleString()}` : "Reference capacity (no live load feed)"}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-gray-500">Live grid load unavailable.</div>
+              )}
             </div>
           </div>
         </section>

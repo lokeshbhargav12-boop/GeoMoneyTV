@@ -91,6 +91,19 @@ export interface ScenarioLiveData {
   impact?: string;
 }
 
+export interface GridStressPoint {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  loadGW: number | null;       // live hourly demand (GW); null = no live feed
+  capacityGW: number;          // reference nameplate capacity (GW)
+  loadPercent: number | null;  // derived 0-100; null if load unknown
+  alert: "normal" | "elevated" | "critical";
+  asOf: string | null;          // ISO timestamp of latest demand reading
+  source: string;               // "EIA" | "reference"
+}
+
 export interface EnergyInfrastructurePayload {
   timestamp: string;
   commodities: LiveCommodity[];
@@ -103,6 +116,7 @@ export interface EnergyInfrastructurePayload {
   constraints: ConstraintLiveData[];
   resilience: ResilienceLiveData[];
   scenarios: ScenarioLiveData[];
+  gridStress: GridStressPoint[];
 }
 
 // ─── CACHE ──────────────────────────────────────────────────
@@ -227,6 +241,82 @@ async function fetchEiaGrid(): Promise<EiaGrid[]> {
     });
   }
   return results;
+}
+
+// ─── GRID STRESS (per-ISO live load) ────────────────────────────
+// Live hourly demand comes from the EIA Electricity Grid Monitor (EBA series).
+// Capacity is nameplate (it does not change hourly), so capacityGW is a static
+// reference value per balancing authority — only the LOAD is live. Non-US grids
+// (UK / DE) have no EIA feed and are shown honestly with loadGW = null rather
+// than fabricated numbers.
+
+const GRID_STRESS_NODES = [
+  { id: "ercot", name: "ERCOT", lat: 31.0, lng: -99.0, ba: "ERCO", capacityGW: 85 },
+  { id: "caiso", name: "CAISO", lat: 37.5, lng: -121.5, ba: "CISO", capacityGW: 55 },
+  { id: "pjm", name: "PJM", lat: 39.9, lng: -77.6, ba: "PJM", capacityGW: 185 },
+  { id: "isone", name: "ISO-NE", lat: 42.3, lng: -71.6, ba: "ISNE", capacityGW: 32 },
+  { id: "miso", name: "MISO", lat: 41.5, lng: -89.5, ba: "MISO", capacityGW: 210 },
+  { id: "uk-grid", name: "National Grid UK", lat: 52.5, lng: -1.5, ba: null, capacityGW: 60 },
+  { id: "germany-north", name: "DE North", lat: 53.0, lng: 9.0, ba: null, capacityGW: 55 },
+] as const;
+
+function alertFromLoad(pct: number | null): GridStressPoint["alert"] {
+  if (pct == null) return "normal"; // no live feed → not flagged
+  if (pct >= 90) return "critical";
+  if (pct >= 85) return "elevated"; // PRD threshold: >85% → elevated
+  return "normal";
+}
+
+async function fetchEiaHourlyDemand(
+  ba: string,
+): Promise<{ loadGW: number; asOf: string } | null> {
+  if (!EIA_API_KEY) return null;
+  try {
+    const url = `${EIA_BASE}/seriesid/EBA.EBA-${ba}-ALL.D.H?api_key=${EIA_API_KEY}&frequency=hourly&data[0]=value&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=1`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`EIA EBA ${ba} HTTP ${res.status}`);
+    const data = await res.json();
+    const item = data?.response?.data?.[0];
+    if (!item) return null;
+    const mwh = toFiniteNumber(item.value);
+    if (mwh == null) return null;
+    return { loadGW: mwh / 1000, asOf: formatDate(item.period) };
+  } catch (error) {
+    console.warn(`[EnergyInfra] EIA EBA ${ba} failed:`, error);
+    return null;
+  }
+}
+
+async function fetchEiaGridStress(): Promise<GridStressPoint[]> {
+  return Promise.all(
+    GRID_STRESS_NODES.map(async (n) => {
+      let loadGW: number | null = null;
+      let asOf: string | null = null;
+      let source = "reference";
+      if (n.ba) {
+        const d = await fetchEiaHourlyDemand(n.ba);
+        if (d) {
+          loadGW = d.loadGW;
+          asOf = d.asOf;
+          source = "EIA";
+        }
+      }
+      const loadPercent =
+        loadGW != null ? (loadGW / n.capacityGW) * 100 : null;
+      return {
+        id: n.id,
+        name: n.name,
+        lat: n.lat,
+        lng: n.lng,
+        loadGW,
+        capacityGW: n.capacityGW,
+        loadPercent,
+        alert: alertFromLoad(loadPercent),
+        asOf,
+        source,
+      } satisfies GridStressPoint;
+    }),
+  );
 }
 
 // ─── CLIMATE ────────────────────────────────────────────────
@@ -608,13 +698,14 @@ export async function getEnergyInfrastructureData(): Promise<EnergyInfrastructur
     return cache.data;
   }
 
-  const [commodities, storage, grid, climate, osint, shipCounts] = await Promise.all([
+  const [commodities, storage, grid, climate, osint, shipCounts, gridStress] = await Promise.all([
     fetchCommodities(),
     fetchEiaStorage(),
     fetchEiaGrid(),
     fetchClimate(),
     fetchOsint(),
     fetchShipCounts(),
+    fetchEiaGridStress(),
   ]);
 
   const assets = ASSET_IDS.map((id) => buildAssetLiveData(id, commodities, storage, climate, shipCounts, osint));
@@ -634,6 +725,7 @@ export async function getEnergyInfrastructureData(): Promise<EnergyInfrastructur
     constraints,
     resilience,
     scenarios,
+    gridStress,
   };
 
   cache = { data, ts: Date.now() };

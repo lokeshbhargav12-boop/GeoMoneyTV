@@ -117,7 +117,7 @@ export interface GridStressNode {
   name: string;
   lat: number;
   lng: number;
-  loadPercent: number;
+  loadPercent: number | null;
   capacityGW: number;
   alert: "normal" | "elevated" | "critical";
 }
@@ -532,14 +532,15 @@ function GridStressLayer({ nodes }: { nodes: GridStressNode[] }) {
   return (
     <>
       {nodes.map((node) => {
+        const noLive = node.loadPercent == null;
         const color = node.alert === "critical" ? "#ef4444" : node.alert === "elevated" ? "#f59e0b" : "#10b981";
-        const radius = 8 + node.loadPercent / 6;
+        const radius = noLive ? 8 : 8 + (node.loadPercent ?? 0) / 6;
         return (
           <CircleMarker
             key={node.id}
             center={[node.lat, node.lng]}
             radius={radius}
-            pathOptions={{ fillColor: color, color: color, fillOpacity: 0.25, weight: 2 }}
+            pathOptions={{ fillColor: color, color: color, fillOpacity: noLive ? 0.12 : 0.25, weight: 2 }}
           >
             <Popup className="geo-popup" autoPan={false}>
               <div className="bg-black/90 border border-white/10 p-3 rounded-xl text-white text-xs min-w-[180px]">
@@ -548,9 +549,9 @@ function GridStressLayer({ nodes }: { nodes: GridStressNode[] }) {
                   <span className="font-bold text-sm">{node.name}</span>
                 </div>
                 <div className="space-y-1 text-[11px]">
-                  <div className="flex justify-between"><span className="text-gray-500">Load:</span><span style={{ color }}>{node.loadPercent}%</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Load:</span><span style={{ color }}>{noLive ? "no live feed" : `${Math.round(node.loadPercent as number)}%`}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Capacity:</span><span className="text-gray-200">{node.capacityGW} GW</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Alert:</span><span style={{ color }} className="capitalize">{node.alert}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Alert:</span><span style={{ color }} className="capitalize">{noLive ? "n/a" : node.alert}</span></div>
                 </div>
               </div>
             </Popup>
