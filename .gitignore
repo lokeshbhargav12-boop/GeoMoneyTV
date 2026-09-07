@@ -12,3 +12,8 @@ cache/
 *.rar
 .DS_Store
 HOSTINGER_DEPLOY.md
+
+
+.env.local.backup
+dev-server.log
+build.log

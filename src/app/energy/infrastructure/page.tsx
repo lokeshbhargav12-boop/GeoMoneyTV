@@ -48,6 +48,8 @@ import {
   ChevronDown,
   MousePointerClick,
   ListFilter,
+  Info,
+  Waves,
 } from "lucide-react";
 
 const EnergyInfrastructureGlobe = dynamic(
@@ -175,19 +177,43 @@ const MDATA: Record<string, MV[]> = {
   "Control & Operations": ["Supporting", "Supporting", "Supporting", "Supporting", "Supporting", "Supporting", "Core", "Supporting", "Conditional", "Core"],
 };
 
+const MSCORE: Record<MV, string> = { Core: "5/5", Supporting: "4/5", Conditional: "3/5", Limited: "2/5", "N/A": "0/5" };
+const MSTYLE: Record<MV, string> = {
+  Core: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+  Supporting: "border-blue-500/40 bg-blue-500/10 text-blue-400",
+  Conditional: "border-amber-500/40 bg-amber-500/10 text-amber-400",
+  Limited: "border-purple-500/40 bg-purple-500/10 text-purple-400",
+  "N/A": "border-white/5 bg-white/[0.02] text-gray-600",
+};
+// Column icon + signal availability. Signal reflects live-feed coverage on this page:
+// live = real-time feed wired (commodities / EIA grid), periodic = periodic industry data, static = reference only.
+type Signal = "live" | "periodic" | "static";
+const MCOL_META: Record<string, { icon: any; color: string; signal: Signal }> = {
+  Oil: { icon: Fuel, color: "text-rose-400", signal: "live" },
+  Gas: { icon: Droplets, color: "text-sky-400", signal: "live" },
+  Coal: { icon: Container, color: "text-gray-400", signal: "live" },
+  Solar: { icon: Sun, color: "text-amber-400", signal: "periodic" },
+  Wind: { icon: Wind, color: "text-teal-400", signal: "periodic" },
+  Hydro: { icon: Droplets, color: "text-blue-400", signal: "periodic" },
+  Batteries: { icon: Battery, color: "text-purple-400", signal: "periodic" },
+  "Pumped Hydro": { icon: Waves, color: "text-cyan-400", signal: "static" },
+  Hydrogen: { icon: Atom, color: "text-emerald-400", signal: "static" },
+  Grid: { icon: Zap, color: "text-amber-300", signal: "live" },
+};
+
 const ASSETS = [
-  { id: "oil-fields", name: "Oil Fields & Wells", layer: "Extraction / Generation", tech: "Oil", role: "Extract crude oil from underground reservoirs.", metrics: ["bbl/d capacity", "Well count", "Recovery rate"], cons: ["Depletion", "Permitting"], icon: Fuel, detail: "Oil fields range from giant onshore fields in the Middle East to deepwater offshore platforms." },
-  { id: "gas-fields", name: "Gas Fields & Wells", layer: "Extraction / Generation", tech: "Gas", role: "Produce natural gas from conventional and shale formations.", metrics: ["mcf/d capacity", "Well count", "EUR per well"], cons: ["Depletion", "Flaring restrictions"], icon: Flame, detail: "Key regions include the Permian Basin, Marcellus Shale, and global LNG supply basins." },
-  { id: "solar-farms", name: "Solar PV Farms", layer: "Extraction / Generation", tech: "Solar", role: "Convert sunlight into electricity using photovoltaic panels.", metrics: ["Installed MW", "Capacity factor 15-28%", "Degradation rate"], cons: ["Interconnection queue", "Land availability"], icon: Sun, detail: "Utility-scale solar farms range from 50 MW to 1+ GW. Fastest-growing generation source globally." },
-  { id: "wind-farms", name: "Wind Farms", layer: "Extraction / Generation", tech: "Wind", role: "Convert kinetic wind energy using turbine arrays.", metrics: ["Installed MW", "Capacity factor 30-55%", "Turbine MW rating"], cons: ["Interconnection queue", "Offshore cable"], icon: Wind, detail: "Offshore wind expanding rapidly with turbine ratings exceeding 15 MW." },
-  { id: "refineries", name: "Oil Refineries", layer: "Processing / Conversion", tech: "Oil", role: "Convert crude oil into refined products.", metrics: ["bbl/d capacity", "Utilization %", "Complexity index"], cons: ["Maintenance turnaround", "Feedstock availability"], icon: Factory, detail: "Global refining capacity is ~101 million bbl/d. US Gulf Coast and Asia-Pacific lead." },
-  { id: "lng", name: "LNG Liquefaction Terminals", layer: "Processing / Conversion", tech: "Gas", role: "Cool natural gas to -162°C for LNG transport.", metrics: ["mtpa capacity", "Train count", "Utilization %"], cons: ["Berth availability", "Feedgas supply"], icon: Fuel, detail: "Major exporters: Qatar, Australia, US, Russia. Each train produces 4-8 mtpa." },
-  { id: "pipelines", name: "Oil & Gas Pipelines", layer: "Transport / Transmission", tech: "Fossil", role: "Transport crude oil, products, and gas over distance.", metrics: ["bbl/d or bcf/d capacity", "Length km", "Utilization %"], cons: ["Permitting", "Aging infrastructure"], icon: Container, detail: "US has ~4 million km of pipelines, the world's largest network." },
-  { id: "transmission", name: "Electricity Transmission", layer: "Transport / Transmission", tech: "Grid", role: "Transfer bulk electricity at high voltage.", metrics: ["MW capacity", "Voltage kV", "Loading %"], cons: ["Congestion", "Transformer availability"], icon: Zap, detail: "HVDC enables long-distance transport with lower losses." },
-  { id: "bess", name: "Battery Storage (BESS)", layer: "Storage / Buffering", tech: "Batteries", role: "Store electricity for grid balancing and peak shaving.", metrics: ["MW capacity", "Duration hours", "Efficiency %"], cons: ["Supply chain", "Fire safety"], icon: Battery, detail: "Global BESS deployments reached ~100 GW in 2025. LFP chemistry dominates." },
-  { id: "ugs", name: "Underground Gas Storage", layer: "Storage / Buffering", tech: "Gas", role: "Store gas in depleted reservoirs or salt caverns.", metrics: ["bcf working gas", "Deliverability bcf/d", "Fill level"], cons: ["Withdrawal limits", "Refill constraints"], icon: Warehouse, detail: "Injection runs April-October; withdrawal November-March." },
-  { id: "electrolyzers", name: "Hydrogen Electrolyzers", layer: "Processing / Conversion", tech: "Hydrogen", role: "Produce green hydrogen from renewable electricity.", metrics: ["MW capacity", "kWh/kg efficiency", "Stack life"], cons: ["Electricity cost", "Water availability"], icon: Atom, detail: "Installed capacity ~1.4 GW in 2025. PEM and alkaline dominate." },
-  { id: "coal-export", name: "Coal Export Terminals", layer: "Import / Export", tech: "Coal", role: "Load coal onto vessels for seaborne trade.", metrics: ["mtpa throughput", "Storage tonnes", "Berth depth"], cons: ["Port congestion", "Rail delivery"], icon: Container, detail: "Major hubs: Newcastle (AU), Richards Bay (SA), US Gulf Coast." },
+  { id: "oil-fields", name: "Oil Fields & Wells", layer: "Extraction / Generation", layerId: "extraction", tech: "Oil", role: "Extract crude oil from underground reservoirs.", metrics: ["bbl/d capacity", "Well count", "Recovery rate"], cons: ["Depletion", "Permitting"], icon: Fuel, detail: "Oil fields range from giant onshore fields in the Middle East to deepwater offshore platforms." },
+  { id: "gas-fields", name: "Gas Fields & Wells", layer: "Extraction / Generation", layerId: "extraction", tech: "Gas", role: "Produce natural gas from conventional and shale formations.", metrics: ["mcf/d capacity", "Well count", "EUR per well"], cons: ["Depletion", "Flaring restrictions"], icon: Flame, detail: "Key regions include the Permian Basin, Marcellus Shale, and global LNG supply basins." },
+  { id: "solar-farms", name: "Solar PV Farms", layer: "Extraction / Generation", layerId: "extraction", tech: "Solar", role: "Convert sunlight into electricity using photovoltaic panels.", metrics: ["Installed MW", "Capacity factor 15-28%", "Degradation rate"], cons: ["Interconnection queue", "Land availability"], icon: Sun, detail: "Utility-scale solar farms range from 50 MW to 1+ GW. Fastest-growing generation source globally." },
+  { id: "wind-farms", name: "Wind Farms", layer: "Extraction / Generation", layerId: "extraction", tech: "Wind", role: "Convert kinetic wind energy using turbine arrays.", metrics: ["Installed MW", "Capacity factor 30-55%", "Turbine MW rating"], cons: ["Interconnection queue", "Offshore cable"], icon: Wind, detail: "Offshore wind expanding rapidly with turbine ratings exceeding 15 MW." },
+  { id: "refineries", name: "Oil Refineries", layer: "Processing / Conversion", layerId: "processing", tech: "Oil", role: "Convert crude oil into refined products.", metrics: ["bbl/d capacity", "Utilization %", "Complexity index"], cons: ["Maintenance turnaround", "Feedstock availability"], icon: Factory, detail: "Global refining capacity is ~101 million bbl/d. US Gulf Coast and Asia-Pacific lead." },
+  { id: "lng", name: "LNG Liquefaction Terminals", layer: "Processing / Conversion", layerId: "processing", tech: "Gas", role: "Cool natural gas to -162°C for LNG transport.", metrics: ["mtpa capacity", "Train count", "Utilization %"], cons: ["Berth availability", "Feedgas supply"], icon: Fuel, detail: "Major exporters: Qatar, Australia, US, Russia. Each train produces 4-8 mtpa." },
+  { id: "pipelines", name: "Oil & Gas Pipelines", layer: "Transport / Transmission", layerId: "transport", tech: "Fossil", role: "Transport crude oil, products, and gas over distance.", metrics: ["bbl/d or bcf/d capacity", "Length km", "Utilization %"], cons: ["Permitting", "Aging infrastructure"], icon: Container, detail: "US has ~4 million km of pipelines, the world's largest network." },
+  { id: "transmission", name: "Electricity Transmission", layer: "Transport / Transmission", layerId: "transport", tech: "Grid", role: "Transfer bulk electricity at high voltage.", metrics: ["MW capacity", "Voltage kV", "Loading %"], cons: ["Congestion", "Transformer availability"], icon: Zap, detail: "HVDC enables long-distance transport with lower losses." },
+  { id: "bess", name: "Battery Storage (BESS)", layer: "Storage / Buffering", layerId: "storage", tech: "Batteries", role: "Store electricity for grid balancing and peak shaving.", metrics: ["MW capacity", "Duration hours", "Efficiency %"], cons: ["Supply chain", "Fire safety"], icon: Battery, detail: "Global BESS deployments reached ~100 GW in 2025. LFP chemistry dominates." },
+  { id: "ugs", name: "Underground Gas Storage", layer: "Storage / Buffering", layerId: "storage", tech: "Gas", role: "Store gas in depleted reservoirs or salt caverns.", metrics: ["bcf working gas", "Deliverability bcf/d", "Fill level"], cons: ["Withdrawal limits", "Refill constraints"], icon: Warehouse, detail: "Injection runs April-October; withdrawal November-March." },
+  { id: "electrolyzers", name: "Hydrogen Electrolyzers", layer: "Processing / Conversion", layerId: "processing", tech: "Hydrogen", role: "Produce green hydrogen from renewable electricity.", metrics: ["MW capacity", "kWh/kg efficiency", "Stack life"], cons: ["Electricity cost", "Water availability"], icon: Atom, detail: "Installed capacity ~1.4 GW in 2025. PEM and alkaline dominate." },
+  { id: "coal-export", name: "Coal Export Terminals", layer: "Import / Export", layerId: "import-export", tech: "Coal", role: "Load coal onto vessels for seaborne trade.", metrics: ["mtpa throughput", "Storage tonnes", "Berth depth"], cons: ["Port congestion", "Rail delivery"], icon: Container, detail: "Major hubs: Newcastle (AU), Richards Bay (SA), US Gulf Coast." },
 ];
 
 const STORAGE = [
@@ -372,14 +398,24 @@ export default function EnergyInfrastructurePage() {
   };
 
   const filtered = tech === "all" ? ASSETS : ASSETS.filter((a) => {
-    if (tech === "fossil") return ["Oil", "Gas", "Coal"].includes(a.tech);
-    if (tech === "renewable") return ["Solar", "Wind", "Hydro"].includes(a.tech);
+    if (tech === "fossil") return ["Oil", "Gas", "Coal", "Fossil"].includes(a.tech);
+    if (tech === "renewable") return ["Solar", "Wind", "Hydro", "Hydrogen"].includes(a.tech);
     if (tech === "storage") return ["Batteries"].includes(a.tech);
     if (tech === "grid") return a.tech === "Grid";
     return true;
   });
 
-  const layerFiltered = layer ? filtered.filter((a) => a.layer.toLowerCase().replace(/ \//g, "-").replace(/ /g, "-") === layer) : filtered;
+  const layerFiltered = layer ? filtered.filter((a) => a.layerId === layer) : filtered;
+
+  const layerAssetCount = (layerId: string) => ASSETS.filter((a) => a.layerId === layerId).length;
+  const techAssetCount = (techId: string) => {
+    if (techId === "all") return ASSETS.length;
+    if (techId === "fossil") return ASSETS.filter((a) => ["Oil", "Gas", "Coal", "Fossil"].includes(a.tech)).length;
+    if (techId === "renewable") return ASSETS.filter((a) => ["Solar", "Wind", "Hydro", "Hydrogen"].includes(a.tech)).length;
+    if (techId === "storage") return ASSETS.filter((a) => a.tech === "Batteries").length;
+    if (techId === "grid") return ASSETS.filter((a) => a.tech === "Grid").length;
+    return 0;
+  };
 
   const colorMap: Record<string, string> = {
     emerald: "border-emerald-500/50 bg-emerald-500/10 text-emerald-400",
@@ -937,6 +973,12 @@ export default function EnergyInfrastructurePage() {
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   {l.label}
+                  <span
+                    className={`text-[9px] px-1.5 py-0.5 rounded-full border ${active ? "bg-black/20 border-white/20" : "bg-white/5 border-white/10 text-gray-500"}`}
+                    title={`${layerAssetCount(l.id)} tracked asset classes in this layer`}
+                  >
+                    {layerAssetCount(l.id)}
+                  </span>
                   {liveCount !== undefined && (
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">{liveCount} vessels</span>
                   )}
@@ -955,8 +997,11 @@ export default function EnergyInfrastructurePage() {
         <div className="mb-8">
           <div className="flex flex-wrap gap-2">
             {TECH_CATS.map((c) => (
-              <button key={c.id} onClick={() => { setTech(c.id); setLayer(null); }} className={`px-4 py-2 rounded-full text-sm font-medium transition-all border ${tech === c.id ? "bg-amber-500/20 text-amber-400 border-amber-500/40" : "bg-white/5 text-gray-400 border-white/10 hover:text-white"}`}>
+              <button key={c.id} onClick={() => { setTech(c.id); setLayer(null); }} className={`px-4 py-2 rounded-full text-sm font-medium transition-all border inline-flex items-center gap-2 ${tech === c.id ? "bg-amber-500/20 text-amber-400 border-amber-500/40" : "bg-white/5 text-gray-400 border-white/10 hover:text-white"}`}>
                 {c.label}
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${tech === c.id ? "bg-black/20 border-amber-500/30" : "bg-white/5 border-white/10 text-gray-500"}`}>
+                  {techAssetCount(c.id)}
+                </span>
               </button>
             ))}
           </div>
@@ -964,49 +1009,88 @@ export default function EnergyInfrastructurePage() {
 
         {/* 6. MATRIX */}
         <section id="matrix" className="mb-16">
-          <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
-            <BarChart3 className="w-6 h-6 text-amber-400" /> Technology Coverage Matrix
-          </h2>
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <BarChart3 className="w-6 h-6 text-amber-400" /> Technology Coverage Matrix
+              </h2>
+              <p className="text-gray-500 text-xs mt-1">Compare how energy technologies depend on physical infrastructure layers.</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 max-w-xs">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 uppercase tracking-wider mb-1">
+                <Info className="w-3.5 h-3.5 text-amber-400" /> How to read this matrix
+              </div>
+              <p className="text-[10px] text-gray-500 leading-relaxed">
+                Each cell scores the dependency between a technology (column) and an infrastructure layer (row). Click any row to filter the asset explorer by that layer.
+              </p>
+            </div>
+          </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-4 text-[10px] text-gray-400">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500" /> Core</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500/40 border border-blue-500/60" /> Supporting</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full border border-dashed border-amber-500 bg-amber-500/30" /> Conditional</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-500/60" /> Limited</span>
-            <span className="flex items-center gap-1.5"><span className="text-gray-600 leading-none">—</span> N/A</span>
-            <span className="text-gray-600 ml-auto hidden sm:inline">Hover any cell for detail · Click a row to filter by layer</span>
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-[10px] font-semibold">
+            <span className="px-2.5 py-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-400">Core (5/5)</span>
+            <span className="px-2.5 py-1 rounded-full border border-blue-500/40 bg-blue-500/10 text-blue-400">Supporting (4/5)</span>
+            <span className="px-2.5 py-1 rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-400">Conditional (3/5)</span>
+            <span className="px-2.5 py-1 rounded-full border border-purple-500/40 bg-purple-500/10 text-purple-400">Limited (1–2/5)</span>
+            <span className="px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-gray-500">N/A (0/5)</span>
+            <span className="text-gray-600 font-normal ml-auto hidden sm:inline">Hover a cell for detail · Click a row to filter by layer</span>
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.02]">
-            <table className="w-full text-sm">
+            <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left px-3 py-2 text-gray-500 font-medium text-xs">Layer</th>
-                  {MCOLS.map((c) => <th key={c} className="px-1 py-2 text-gray-500 font-medium text-center text-[10px] leading-tight">{c}</th>)}
+                  <th className="text-left px-3 py-2.5 text-gray-500 font-medium text-[10px] uppercase tracking-wider">Infrastructure Layer</th>
+                  {MCOLS.map((c) => {
+                    const ColIcon = MCOL_META[c].icon;
+                    return (
+                      <th key={c} className="px-1 py-2 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <ColIcon className={`w-4 h-4 ${MCOL_META[c].color}`} />
+                          <span className="text-gray-500 font-medium text-[9px] leading-tight">{c}</span>
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
                 {MROWS.map((row) => {
-                  const rowLayerId = INFRASTRUCTURE_LAYERS.find((l) => l.label === row)?.id;
+                  const rowLayer = INFRASTRUCTURE_LAYERS.find((l) => l.label === row);
+                  const rowLayerId = rowLayer?.id;
                   const rowActive = !!rowLayerId && layer === rowLayerId;
+                  const RowIcon = rowLayer?.icon;
                   return (
                     <tr
                       key={row}
                       onClick={() => rowLayerId && setLayer(rowActive ? null : rowLayerId)}
                       className={`border-t border-white/5 transition-colors ${rowLayerId ? "cursor-pointer hover:bg-white/[0.04]" : ""} ${rowActive ? "bg-amber-500/[0.08]" : ""}`}
                     >
-                      <td className={`px-3 py-1.5 text-xs whitespace-nowrap ${rowActive ? "text-amber-400 font-semibold" : "text-gray-300"}`}>{row}</td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {RowIcon && <RowIcon className={`w-3.5 h-3.5 shrink-0 ${rowActive ? "text-amber-400" : "text-gray-500"}`} />}
+                          <div>
+                            <div className={`text-[11px] leading-tight ${rowActive ? "text-amber-400 font-semibold" : "text-gray-300"}`}>{row}</div>
+                            <div className="text-[8px] text-gray-600 leading-tight">{rowLayer?.desc}</div>
+                          </div>
+                        </div>
+                      </td>
                       {MDATA[row].map((v, i) => (
                         <td key={i} className="px-1 py-1.5 text-center">
-                          {v === "N/A" ? (
-                            <span className="text-gray-700 text-xs" title="N/A">—</span>
-                          ) : (
-                            <span
-                              title={`${MCOLS[i]}: ${v}`}
-                              className={`inline-block rounded-full ${v === "Core" ? "w-3 h-3 bg-emerald-500" : v === "Supporting" ? "w-3 h-3 bg-blue-500/40 border border-blue-500/60" : v === "Conditional" ? "w-3 h-3 border border-dashed border-amber-500 bg-amber-500/30" : "w-2 h-2 bg-gray-500/60"}`}
-                            />
-                          )}
+                          <div className={`inline-flex flex-col items-center rounded-md border px-1.5 py-1 min-w-[52px] ${MSTYLE[v]}`} title={`${MCOLS[i]} × ${row}: ${v} (${MSCORE[v]})`}>
+                            <span className="text-[9px] font-bold leading-tight">{v}</span>
+                            <span className="text-[8px] leading-tight opacity-70">{MSCORE[v]}</span>
+                            <span className="flex gap-0.5 mt-0.5">
+                              {v === "N/A" ? (
+                                <span className="w-1 h-1 rounded-full bg-gray-700" />
+                              ) : (
+                                <>
+                                  <span className={`w-1 h-1 rounded-full ${MCOL_META[MCOLS[i]].signal === "live" ? "bg-emerald-500" : MCOL_META[MCOLS[i]].signal === "periodic" ? "bg-blue-400" : "bg-amber-500"}`} />
+                                  <span className={`w-1 h-1 rounded-full ${MCOL_META[MCOLS[i]].signal === "live" ? "bg-emerald-500/60" : MCOL_META[MCOLS[i]].signal === "periodic" ? "bg-blue-400/60" : "bg-amber-500/60"}`} />
+                                </>
+                              )}
+                            </span>
+                          </div>
                         </td>
                       ))}
                     </tr>
@@ -1014,6 +1098,15 @@ export default function EnergyInfrastructurePage() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Signal availability legend */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-3 text-[10px] text-gray-500">
+            <span className="font-semibold text-gray-400">Signal Availability (dots in cells)</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Live</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" /> Periodic</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Static</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-gray-700" /> No Data</span>
           </div>
         </section>
 
@@ -1058,7 +1151,29 @@ export default function EnergyInfrastructurePage() {
                   </button>
                 );
               })}
-              {layerFiltered.length === 0 && <div className="text-center py-8 text-gray-500 text-sm">No assets match current filters.</div>}
+              {layerFiltered.length === 0 && (
+                <div className="text-center py-10 px-6">
+                  <Layers className="w-8 h-8 text-gray-700 mx-auto mb-3" />
+                  <p className="text-sm text-gray-400 font-semibold mb-1">
+                    {layer
+                      ? `No tracked asset classes in ${INFRASTRUCTURE_LAYERS.find((l) => l.id === layer)?.label ?? "this layer"}`
+                      : "No assets match current filters"}
+                  </p>
+                  <p className="text-xs text-gray-600 max-w-xs mx-auto leading-relaxed">
+                    {layer
+                      ? "This layer is covered by live system-level feeds (vessels, grid load, storage) rather than discrete asset classes. Try Extraction, Processing, Transport, Storage, or Import / Export."
+                      : "Try selecting a different technology category."}
+                  </p>
+                  {layer && (
+                    <button
+                      onClick={() => setLayer(null)}
+                      className="mt-4 text-xs px-3 py-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                    >
+                      Clear layer filter
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Detail panel */}
@@ -1298,7 +1413,7 @@ export default function EnergyInfrastructurePage() {
               },
               {
                 q: "What do the symbols in the Technology Coverage Matrix mean?",
-                a: "Each cell shows how central a technology is to a layer: a solid green dot = Core, a blue outlined dot = Supporting, a dashed amber dot = Conditional (works only in specific cases), a small gray dot = Limited, and a dash = not applicable. Hover any cell for the exact label, and click a row to filter the page by that layer.",
+                a: "Each cell shows how central a technology is to a layer, with a score out of 5: Core (5/5, green) = essential, Supporting (4/5, blue) = important but not essential, Conditional (3/5, amber) = works only in specific cases, Limited (1–2/5, purple) = marginal role, and N/A (0/5, gray) = not applicable. The small dots under each score show signal availability for that technology. Hover any cell for the exact label, and click a row to filter the page by that layer.",
               },
               {
                 q: "How do I use the Spatial Query & AI Summary?",
