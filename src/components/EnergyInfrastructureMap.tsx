@@ -134,6 +134,7 @@ interface EnergyInfrastructureMapProps {
   gridStress?: GridStressNode[];
   height?: string;
   bboxMode?: boolean;
+  presetBbox?: L.LatLngBoundsExpression | null;
   onAssetClick?: (asset: MapAsset) => void;
   onCorridorClick?: (corridor: MapCorridor) => void;
   onBboxChange?: (bounds: L.LatLngBounds | null) => void;
@@ -582,6 +583,7 @@ export default function EnergyInfrastructureMap({
   gridStress = DEFAULT_GRID_STRESS,
   height = "600px",
   bboxMode = false,
+  presetBbox = null,
   onAssetClick,
   onCorridorClick,
   onBboxChange,
@@ -625,6 +627,12 @@ export default function EnergyInfrastructureMap({
       >
         <MapController center={mapCenter} zoom={mapZoom} />
         <BboxDrawer active={bboxMode} onBboxChange={onBboxChange} />
+        {presetBbox && !bboxMode && (
+          <Rectangle
+            bounds={presetBbox}
+            pathOptions={{ color: "#22d3ee", weight: 2, fillOpacity: 0.08, dashArray: "6 4" }}
+          />
+        )}
 
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"

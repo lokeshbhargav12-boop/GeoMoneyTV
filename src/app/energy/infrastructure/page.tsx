@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -44,6 +44,10 @@ import {
   MoveRight,
   Scan,
   Radar,
+  HelpCircle,
+  ChevronDown,
+  MousePointerClick,
+  ListFilter,
 } from "lucide-react";
 
 const EnergyInfrastructureGlobe = dynamic(
@@ -149,6 +153,14 @@ const DISRUPTION_SCENARIOS = [
   { id: "hurricane-gulf", label: "Gulf of Mexico Hurricane", severity: "Critical", affected: ["Oil", "Gas", "LNG"], fallbackImpact: "Offshore production shut-ins, refinery outages, and LNG export curtailments tighten global balances." },
 ];
 
+const PRESET_REGIONS = [
+  { id: "hormuz", label: "Strait of Hormuz", south: 24, west: 53, north: 28.5, east: 59 },
+  { id: "us-gulf", label: "US Gulf Coast", south: 25, west: -98, north: 31, east: -88 },
+  { id: "north-sea", label: "North Sea", south: 53, west: -3, north: 61, east: 8 },
+  { id: "malacca", label: "Strait of Malacca", south: -6, west: 95, north: 7, east: 105 },
+  { id: "suez", label: "Suez Canal", south: 27, west: 30, north: 32, east: 34 },
+];
+
 type MV = "Core" | "Supporting" | "Conditional" | "Limited" | "N/A";
 const MCOLS = ["Oil", "Gas", "Coal", "Solar", "Wind", "Hydro", "Batteries", "Pumped Hydro", "Hydrogen", "Grid"];
 const MROWS = ["Resource Input", "Extraction / Generation", "Processing / Conversion", "Transport / Transmission", "Storage / Buffering", "Import / Export", "Distribution / Delivery", "Control & Operations"];
@@ -161,13 +173,6 @@ const MDATA: Record<string, MV[]> = {
   "Import / Export": ["Core", "Core", "Core", "N/A", "Limited", "Limited", "N/A", "N/A", "Conditional", "Supporting"],
   "Distribution / Delivery": ["Core", "Core", "Core", "Supporting", "Supporting", "Supporting", "Supporting", "N/A", "Conditional", "Core"],
   "Control & Operations": ["Supporting", "Supporting", "Supporting", "Supporting", "Supporting", "Supporting", "Core", "Supporting", "Conditional", "Core"],
-};
-const MCOL: Record<MV, string> = {
-  Core: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  Supporting: "bg-blue-500/15 text-blue-400 border-blue-500/25",
-  Conditional: "bg-amber-500/15 text-amber-400 border-amber-500/25",
-  Limited: "bg-gray-500/15 text-gray-400 border-gray-500/20",
-  "N/A": "bg-white/5 text-gray-500 border-white/10",
 };
 
 const ASSETS = [
@@ -245,6 +250,8 @@ export default function EnergyInfrastructurePage() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
   const [flowDetail, setFlowDetail] = useState<string | null>(null);
+  const [presetBbox, setPresetBbox] = useState<[number, number][] | null>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const fetchLive = async () => {
     try {
@@ -294,8 +301,10 @@ export default function EnergyInfrastructurePage() {
     setBbox(bounds);
     if (!bounds) {
       setBboxSummary(null);
+      setPresetBbox(null);
       return;
     }
+    setPresetBbox(null);
     setBboxLoading(true);
     try {
       const res = await fetch("/api/ai/summarize", {
@@ -312,6 +321,16 @@ export default function EnergyInfrastructurePage() {
     } finally {
       setBboxLoading(false);
     }
+  };
+
+  const applyPreset = (p: (typeof PRESET_REGIONS)[number]) => {
+    const bounds = {
+      _northEast: { lat: p.north, lng: p.east },
+      _southWest: { lat: p.south, lng: p.west },
+    };
+    setBboxMode(false);
+    handleBboxChange(bounds);
+    setPresetBbox([[p.south, p.west], [p.north, p.east]]);
   };
 
   const handleRouteScenario = async (id: string) => {
@@ -415,12 +434,56 @@ export default function EnergyInfrastructurePage() {
 
         {/* QUICK NAV */}
         <div className="flex overflow-x-auto gap-3 mb-12 pb-2" style={{ scrollbarWidth: "none" }}>
-          {["operating-picture", "spatial-query", "route-risk", "trade-flows", "grid-stress", "matrix", "assets", "constraints", "storage", "grid", "resilience", "scenarios"].map((h) => (
-            <a key={h} href={"#" + h} className="px-4 py-2 whitespace-nowrap bg-white/5 border border-white/10 rounded-full hover:bg-amber-500/20 hover:text-amber-400 transition-all text-sm">
-              {h.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
+          {[
+            { id: "guide", label: "How to Use" },
+            { id: "operating-picture", label: "Operating Picture" },
+            { id: "spatial-query", label: "Spatial Query" },
+            { id: "route-risk", label: "Route Risk" },
+            { id: "trade-flows", label: "Trade Flows" },
+            { id: "grid-stress", label: "Grid Stress" },
+            { id: "layer-map", label: "Layer Map" },
+            { id: "matrix", label: "Coverage Matrix" },
+            { id: "assets", label: "Asset Explorer" },
+            { id: "constraints", label: "Constraints" },
+            { id: "storage", label: "Storage" },
+            { id: "grid", label: "Grid" },
+            { id: "resilience", label: "Resilience" },
+            { id: "scenarios", label: "Scenarios" },
+            { id: "faq", label: "FAQ" },
+          ].map((h) => (
+            <a key={h.id} href={"#" + h.id} className="px-4 py-2 whitespace-nowrap bg-white/5 border border-white/10 rounded-full hover:bg-amber-500/20 hover:text-amber-400 transition-all text-sm">
+              {h.label}
             </a>
           ))}
         </div>
+
+        {/* HOW TO USE GUIDE */}
+        <section id="guide" className="mb-12">
+          <div className="flex items-center gap-2 mb-4">
+            <HelpCircle className="w-4 h-4 text-amber-400" />
+            <span className="text-sm font-bold text-gray-300">How to Use This Page</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { icon: Map, step: "1", title: "Explore the Operating Picture", desc: "Toggle map layers & live overlays — assets, corridors, flows, vessels, grid stress.", href: "#operating-picture" },
+              { icon: ListFilter, step: "2", title: "Filter by Layer & Tech", desc: "Use the Layer Map chips and tech pills to focus the coverage matrix and asset explorer.", href: "#layer-map" },
+              { icon: Scan, step: "3", title: "Analyze a Region", desc: "Draw a box on the map or pick a preset chokepoint for an instant AI summary.", href: "#spatial-query" },
+              { icon: Route, step: "4", title: "Stress-Test Scenarios", desc: "Simulate corridor disruptions and see how they cascade through routes and prices.", href: "#route-risk" },
+            ].map((g) => {
+              const GIcon = g.icon;
+              return (
+                <a key={g.step} href={g.href} className="group rounded-xl border border-white/10 bg-white/[0.04] p-4 hover:border-amber-500/40 hover:bg-amber-500/5 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <GIcon className="w-5 h-5 text-amber-400" />
+                    <span className="text-[10px] font-mono text-gray-600 group-hover:text-amber-500/70">STEP {g.step}</span>
+                  </div>
+                  <div className="text-sm font-bold text-white mb-1">{g.title}</div>
+                  <p className="text-[11px] text-gray-500 leading-relaxed">{g.desc}</p>
+                </a>
+              );
+            })}
+          </div>
+        </section>
 
         {/* LIVE COMMODITY STRIP */}
         {live?.commodities && live.commodities.length > 0 && (
@@ -564,118 +627,170 @@ export default function EnergyInfrastructurePage() {
 
         {/* 1. SPATIAL QUERY MODULE */}
         <section id="spatial-query" className="mb-16">
-          <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="flex items-center justify-between gap-4 mb-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
               <BoxSelect className="w-6 h-6 text-cyan-400" /> Spatial Query & AI Summary
             </h2>
-            <span className="text-xs uppercase tracking-widest text-gray-500">Draw a region on the map</span>
+            <span className="text-xs uppercase tracking-widest text-gray-500">Region intelligence in 3 steps</span>
           </div>
           <p className="text-gray-400 text-sm mb-6 max-w-3xl">
-            Activate bounding-box mode, drag a rectangle on the map, and get an AI-generated summary of energy assets, corridors, and risks inside that region.
+            Draw a region on the map — or pick a preset chokepoint — and get an AI-generated summary of energy assets, corridors, and risks inside that region.
           </p>
 
-          <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="space-y-5">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+          <div className="relative">
+            <EnergyInfrastructureMap
+              activeLayer="all"
+              overlays={["assets", "corridors"]}
+              bboxMode={bboxMode}
+              onBboxChange={handleBboxChange}
+              presetBbox={presetBbox}
+              height="520px"
+            />
+
+            {/* Toolbar overlay */}
+            <div className="absolute top-3 left-3 right-3 z-[1000] flex flex-wrap items-center gap-2 pointer-events-none">
+              <div className="pointer-events-auto flex items-center rounded-xl border border-white/10 bg-black/80 backdrop-blur-md p-1 shadow-2xl">
                 <button
                   onClick={() => setBboxMode((v) => !v)}
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${bboxMode ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" : "bg-white/5 text-gray-300 border border-white/10 hover:border-cyan-500/30"}`}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${bboxMode ? "bg-cyan-500/20 text-cyan-400" : "text-gray-300 hover:text-white"}`}
                 >
                   <Scan className="w-4 h-4" />
-                  {bboxMode ? "Exit Draw Mode" : "Draw Bounding Box"}
+                  {bboxMode ? "Exit Draw Mode" : "Draw Region"}
                 </button>
-                <p className="text-[11px] text-gray-500 mt-3 leading-relaxed">
-                  {bboxMode ? "Drag on the map to define your AOI. Release to generate the summary." : "Enable draw mode to select an area of interest."}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-                <div className="text-sm font-semibold text-white mb-3">Selected Region</div>
-                {bbox ? (
-                  <div className="space-y-1 text-xs text-gray-400">
-                    <div className="flex justify-between"><span>North:</span><span>{bbox._northEast?.lat?.toFixed(2)}°</span></div>
-                    <div className="flex justify-between"><span>South:</span><span>{bbox._southWest?.lat?.toFixed(2)}°</span></div>
-                    <div className="flex justify-between"><span>East:</span><span>{bbox._northEast?.lng?.toFixed(2)}°</span></div>
-                    <div className="flex justify-between"><span>West:</span><span>{bbox._southWest?.lng?.toFixed(2)}°</span></div>
+                {!bboxMode && (
+                  <div className="flex items-center gap-1 px-1 border-l border-white/10">
+                    {PRESET_REGIONS.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => applyPreset(p)}
+                        className="px-2 py-1 rounded-lg text-[11px] text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all"
+                        title={`Analyze ${p.label}`}
+                      >
+                        {p.label.replace("Strait of ", "").replace(" Canal", "")}
+                      </button>
+                    ))}
                   </div>
-                ) : (
-                  <p className="text-xs text-gray-500">No region selected.</p>
                 )}
               </div>
-            </aside>
+              <div className="pointer-events-auto ml-auto flex items-center gap-2 rounded-xl border border-white/10 bg-black/80 backdrop-blur-md px-3 py-1.5 text-[10px] font-mono text-gray-400 shadow-2xl">
+                {bbox ? (
+                  <span>
+                    {bbox._southWest?.lat?.toFixed(1)}, {bbox._southWest?.lng?.toFixed(1)} → {bbox._northEast?.lat?.toFixed(1)}, {bbox._northEast?.lng?.toFixed(1)}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 not-italic font-sans">
+                    <MousePointerClick className="w-3.5 h-3.5 text-cyan-400" />
+                    {bboxMode ? "Drag on map to select" : "Draw or pick a preset"}
+                  </span>
+                )}
+              </div>
+            </div>
 
-            <div className="space-y-4">
-              <EnergyInfrastructureMap
-                activeLayer="all"
-                overlays={["assets", "corridors"]}
-                bboxMode={bboxMode}
-                onBboxChange={handleBboxChange}
-                height="500px"
-              />
-              {bboxLoading && (
-                <div className="flex items-center gap-2 text-cyan-400 text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Generating spatial summary...
-                </div>
-              )}
-              {bboxSummary && !bboxLoading && (
-                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
-                  <div className="text-sm font-semibold text-cyan-100 mb-2 flex items-center gap-2">
+            {/* Steps hint */}
+            {bboxMode && (
+              <div className="absolute top-16 left-3 z-[1000] flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 backdrop-blur-md px-3 py-1.5 text-[10px] text-cyan-300">
+                <span className="font-bold">1</span> Enable draw
+                <MoveRight className="w-3 h-3" />
+                <span className="font-bold">2</span> Drag a box
+                <MoveRight className="w-3 h-3" />
+                <span className="font-bold">3</span> AI summary appears
+              </div>
+            )}
+
+            {/* AI summary overlay */}
+            {(bboxLoading || bboxSummary) && (
+              <div className="absolute bottom-4 right-4 z-[1000] max-w-md w-[calc(100%-2rem)] sm:w-auto rounded-xl border border-cyan-500/30 bg-black/90 backdrop-blur-xl p-4 shadow-2xl">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-semibold text-cyan-100 flex items-center gap-2">
                     <Radar className="w-4 h-4" /> AI Spatial Summary
                   </div>
-                  <p className="text-sm text-gray-300 leading-relaxed">{bboxSummary}</p>
+                  {!bboxLoading && (
+                    <button
+                      onClick={() => { setBboxSummary(null); setBbox(null); setPresetBbox(null); setBboxMode(false); }}
+                      className="text-gray-500 hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
+                {bboxLoading ? (
+                  <div className="flex items-center gap-2 text-cyan-400 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Analyzing region...
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-300 leading-relaxed max-h-40 overflow-y-auto custom-scrollbar">{bboxSummary}</p>
+                )}
+              </div>
+            )}
           </div>
         </section>
 
         {/* 2. ROUTE RISK SIMULATOR */}
         <section id="route-risk" className="mb-16">
-          <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="flex items-center justify-between gap-4 mb-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
               <Route className="w-6 h-6 text-rose-400" /> Route Risk Simulator
             </h2>
             <span className="text-xs uppercase tracking-widest text-gray-500">Corridor disruption modeling</span>
           </div>
           <p className="text-gray-400 text-sm mb-6 max-w-3xl">
-            Select a disruption scenario to model how corridor closures or restrictions cascade through energy trade routes, inventories, and prices.
+            Pick a disruption scenario to model how corridor closures or restrictions cascade through energy trade routes, inventories, and prices.
           </p>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-3">
-              {DISRUPTION_SCENARIOS.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => handleRouteScenario(s.id)}
-                  className={`w-full text-left rounded-xl border p-4 transition-all ${routeScenario === s.id ? "border-rose-500/50 bg-rose-500/10" : "border-white/10 bg-white/5 hover:border-white/20"}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-bold text-white">{s.label}</div>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {s.affected.map((a) => <span key={a} className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">{a}</span>)}
-                      </div>
-                    </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${s.severity === "Critical" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"}`}>
-                      {s.severity}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 space-y-4">
+            {/* Scenario chips */}
+            <div className="flex flex-wrap gap-2">
+              {DISRUPTION_SCENARIOS.map((s) => {
+                const active = routeScenario === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => handleRouteScenario(s.id)}
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-all ${active ? "border-rose-500/50 bg-rose-500/10" : "border-white/10 bg-white/5 hover:border-white/25"}`}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${s.severity === "Critical" ? "bg-red-500" : "bg-yellow-500"}`}
+                      title={`Severity: ${s.severity}`}
+                    />
+                    <span className="text-xs font-bold text-white whitespace-nowrap">{s.label}</span>
+                    <span className="hidden sm:flex flex-wrap gap-1">
+                      {s.affected.map((a) => (
+                        <span key={a} className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">{a}</span>
+                      ))}
                     </span>
-                  </div>
-                  {routeScenario === s.id && (
-                    <div className="mt-3 pt-3 border-t border-white/10">
-                      {routeLoading ? (
-                        <div className="flex items-center gap-2 text-[10px] text-gray-500"><Loader2 className="w-3 h-3 animate-spin" /> Modeling route impact...</div>
-                      ) : (
-                        <p className="text-xs text-gray-300 leading-relaxed">{routeImpact}</p>
-                      )}
-                    </div>
-                  )}
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-              <div className="text-sm font-semibold text-white mb-4">Live Corridor Status</div>
-              <div className="space-y-3">
+            {/* Shared AI impact panel */}
+            <div className="rounded-xl border border-white/10 bg-black/30 p-4 min-h-[72px]">
+              {routeLoading ? (
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <Loader2 className="w-4 h-4 animate-spin text-rose-400" /> Modeling route impact...
+                </div>
+              ) : routeImpact ? (
+                <>
+                  <div className="text-[10px] uppercase tracking-widest text-rose-400 font-bold mb-2 flex items-center gap-2">
+                    <Activity className="w-3.5 h-3.5" />
+                    {DISRUPTION_SCENARIOS.find((s) => s.id === routeScenario)?.label ?? "Impact"}
+                    {" · "}
+                    {DISRUPTION_SCENARIOS.find((s) => s.id === routeScenario)?.severity}
+                  </div>
+                  <p className="text-xs text-gray-300 leading-relaxed">{routeImpact}</p>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500 flex items-center gap-2">
+                  <Route className="w-4 h-4 text-gray-600 shrink-0" />
+                  Select a scenario above to generate an AI impact analysis of rerouting, price, and inventory effects.
+                </p>
+              )}
+            </div>
+
+            {/* Live corridor status strip */}
+            <div className="pt-3 border-t border-white/10">
+              <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-2">Live Corridor Status</div>
+              <div className="flex flex-wrap gap-2">
                 {[
                   { name: "Strait of Hormuz", status: "Open", risk: "Geopolitical", throughput: "21 MMBPD" },
                   { name: "Suez Canal", status: "Open", risk: "Drought / Blockage", throughput: "10% trade" },
@@ -683,12 +798,15 @@ export default function EnergyInfrastructurePage() {
                   { name: "Druzhba Pipeline", status: "Disrupted", risk: "Sanctions", throughput: "1 MMBPD" },
                   { name: "NordLink HVDC", status: "Operating", risk: "Price arbitrage", throughput: "1.4 GW" },
                 ].map((c) => (
-                  <div key={c.name} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 p-3">
-                    <div>
-                      <div className="text-sm font-medium text-white">{c.name}</div>
-                      <div className="text-[10px] text-gray-500">{c.risk} • {c.throughput}</div>
-                    </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${c.status === "Open" ? "bg-emerald-500/20 text-emerald-400" : c.status === "Restricted" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"}`}>
+                  <div
+                    key={c.name}
+                    title={`${c.risk} · ${c.throughput}`}
+                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5"
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${c.status === "Open" || c.status === "Operating" ? "bg-emerald-500" : c.status === "Restricted" ? "bg-yellow-500" : "bg-red-500"}`} />
+                    <span className="text-[11px] font-medium text-white whitespace-nowrap">{c.name}</span>
+                    <span className="text-[10px] text-gray-500 whitespace-nowrap">{c.throughput}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${c.status === "Open" || c.status === "Operating" ? "bg-emerald-500/20 text-emerald-400" : c.status === "Restricted" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"}`}>
                       {c.status}
                     </span>
                   </div>
@@ -801,29 +919,36 @@ export default function EnergyInfrastructurePage() {
         </section>
 
         {/* 5. LAYER MAP */}
-        <section id="layer-map" className="mb-16">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+        <section id="layer-map" className="mb-8">
+          <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
             <Layers className="w-6 h-6 text-amber-400" /> Infrastructure Layer Map
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex flex-wrap gap-2">
             {INFRASTRUCTURE_LAYERS.map((l) => {
               const Icon = l.icon;
               const active = layer === l.id;
               const liveCount = l.id === "transport" ? live?.shipCounts?.reduce((acc: number, s: any) => acc + s.total, 0) : undefined;
               return (
-                <button key={l.id} onClick={() => setLayer(active ? null : l.id)} className={`text-left p-4 rounded-xl border transition-all ${active ? colorMap[l.color] : "border-white/10 bg-white/5 hover:border-white/20"}`}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className={`p-2 rounded-lg ${active ? "bg-black/20" : "bg-white/10"}`}><Icon className="w-5 h-5" /></div>
-                    <span className="text-sm font-bold">{l.label}</span>
-                  </div>
-                  <p className="text-xs text-gray-400">{l.desc}</p>
+                <button
+                  key={l.id}
+                  onClick={() => setLayer(active ? null : l.id)}
+                  title={l.desc}
+                  className={`flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition-all ${active ? colorMap[l.color] : "border-white/10 bg-white/5 text-gray-400 hover:text-white hover:border-white/25"}`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {l.label}
                   {liveCount !== undefined && (
-                    <div className="mt-2 text-[10px] text-cyan-400 font-medium">{liveCount} vessels tracked</div>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">{liveCount} vessels</span>
                   )}
                 </button>
               );
             })}
           </div>
+          <p className="text-xs text-gray-400 mt-3">
+            {layer
+              ? `${INFRASTRUCTURE_LAYERS.find((l) => l.id === layer)?.desc} Filtering the coverage matrix and asset explorer below.`
+              : "Tap a layer to filter the coverage matrix and asset explorer below — click again to clear."}
+          </p>
         </section>
 
         {/* TECH FILTER */}
@@ -839,28 +964,54 @@ export default function EnergyInfrastructurePage() {
 
         {/* 6. MATRIX */}
         <section id="matrix" className="mb-16">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+          <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
             <BarChart3 className="w-6 h-6 text-amber-400" /> Technology Coverage Matrix
           </h2>
-          <div className="overflow-x-auto">
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-4 text-[10px] text-gray-400">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500" /> Core</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500/40 border border-blue-500/60" /> Supporting</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full border border-dashed border-amber-500 bg-amber-500/30" /> Conditional</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-500/60" /> Limited</span>
+            <span className="flex items-center gap-1.5"><span className="text-gray-600 leading-none">—</span> N/A</span>
+            <span className="text-gray-600 ml-auto hidden sm:inline">Hover any cell for detail · Click a row to filter by layer</span>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.02]">
             <table className="w-full text-sm">
               <thead>
-                <tr>
-                  <th className="text-left px-2 py-2 text-gray-500 font-medium">Layer</th>
-                  {MCOLS.map((c) => <th key={c} className="px-2 py-2 text-gray-500 font-medium text-center text-xs">{c}</th>)}
+                <tr className="border-b border-white/10">
+                  <th className="text-left px-3 py-2 text-gray-500 font-medium text-xs">Layer</th>
+                  {MCOLS.map((c) => <th key={c} className="px-1 py-2 text-gray-500 font-medium text-center text-[10px] leading-tight">{c}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {MROWS.map((row) => (
-                  <tr key={row} className="border-t border-white/5">
-                    <td className="px-2 py-2 text-gray-300 text-xs whitespace-nowrap">{row}</td>
-                    {MDATA[row].map((v, i) => (
-                      <td key={i} className="px-1.5 py-1.5 text-center">
-                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded border font-medium ${MCOL[v]}`}>{v}</span>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {MROWS.map((row) => {
+                  const rowLayerId = INFRASTRUCTURE_LAYERS.find((l) => l.label === row)?.id;
+                  const rowActive = !!rowLayerId && layer === rowLayerId;
+                  return (
+                    <tr
+                      key={row}
+                      onClick={() => rowLayerId && setLayer(rowActive ? null : rowLayerId)}
+                      className={`border-t border-white/5 transition-colors ${rowLayerId ? "cursor-pointer hover:bg-white/[0.04]" : ""} ${rowActive ? "bg-amber-500/[0.08]" : ""}`}
+                    >
+                      <td className={`px-3 py-1.5 text-xs whitespace-nowrap ${rowActive ? "text-amber-400 font-semibold" : "text-gray-300"}`}>{row}</td>
+                      {MDATA[row].map((v, i) => (
+                        <td key={i} className="px-1 py-1.5 text-center">
+                          {v === "N/A" ? (
+                            <span className="text-gray-700 text-xs" title="N/A">—</span>
+                          ) : (
+                            <span
+                              title={`${MCOLS[i]}: ${v}`}
+                              className={`inline-block rounded-full ${v === "Core" ? "w-3 h-3 bg-emerald-500" : v === "Supporting" ? "w-3 h-3 bg-blue-500/40 border border-blue-500/60" : v === "Conditional" ? "w-3 h-3 border border-dashed border-amber-500 bg-amber-500/30" : "w-2 h-2 bg-gray-500/60"}`}
+                            />
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -868,56 +1019,103 @@ export default function EnergyInfrastructurePage() {
 
         {/* 7. ASSET EXPLORER */}
         <section id="assets" className="mb-16">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+          <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
             <Factory className="w-6 h-6 text-amber-400" /> Infrastructure Asset Explorer <span className="text-sm font-normal text-gray-500 ml-2">({layerFiltered.length})</span>
           </h2>
           {loading && <div className="flex items-center gap-2 text-gray-500 text-sm mb-4"><Loader2 className="w-4 h-4 animate-spin" /> Loading live asset data...</div>}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {layerFiltered.map((a) => {
-              const Icon = a.icon;
-              const liveAsset = getAssetLive(a.id);
-              return (
-                <button key={a.id} onClick={() => setSelAsset(selAsset === a.id ? null : a.id)} className={`text-left rounded-xl border p-4 transition-all ${selAsset === a.id ? "border-amber-500/50 bg-amber-500/10" : "border-white/10 bg-white/5 hover:border-white/20"}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Icon className="w-4 h-4 text-amber-400 shrink-0" />
-                    <h3 className="text-sm font-bold">{a.name}</h3>
-                  </div>
-                  <p className="text-xs text-gray-400 mb-2">{a.role}</p>
-                  {liveAsset && (
-                    <div className="mb-2 space-y-1">
-                      {liveAsset.price && <div className="text-[10px]">{formatPrice(liveAsset.price.price, liveAsset.price.changePercent)}</div>}
-                      {liveAsset.storage && liveAsset.storage.value !== null && (
-                        <div className="text-[10px] text-blue-400">{liveAsset.storage.name}: {liveAsset.storage.value.toFixed(1)} {liveAsset.storage.unit}</div>
-                      )}
-                      {liveAsset.shipCount && (
-                        <div className="text-[10px] text-cyan-400">{liveAsset.shipCount.region}: {liveAsset.shipCount.total} vessels</div>
-                      )}
-                      {liveAsset.headline && (
-                        <div className="text-[10px] text-gray-500 truncate" title={liveAsset.headline}>📰 {liveAsset.headline}</div>
-                      )}
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Master list */}
+            <div className="max-h-[440px] overflow-y-auto custom-scrollbar rounded-2xl border border-white/10 bg-white/[0.02] p-2 space-y-1.5">
+              {layerFiltered.map((a) => {
+                const Icon = a.icon;
+                const liveAsset = getAssetLive(a.id);
+                const active = selAsset === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => setSelAsset(active ? null : a.id)}
+                    className={`w-full text-left rounded-xl border p-3 transition-all ${active ? "border-amber-500/50 bg-amber-500/10" : "border-transparent hover:border-white/15 hover:bg-white/5"}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span className="text-sm font-bold text-white truncate">{a.name}</span>
+                      <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400 border border-white/10 shrink-0">{a.tech}</span>
                     </div>
-                  )}
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {a.cons.slice(0, 2).map((c) => <span key={c} className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{c}</span>)}
-                  </div>
-                  {selAsset === a.id && (
-                    <div className="mt-3 pt-3 border-t border-white/10">
-                      <p className="text-xs text-gray-300 mb-3">{a.detail}</p>
-                      <div className="text-[10px] text-gray-500 font-medium mb-1">Metrics:</div>
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {a.metrics.map((m) => <span key={m} className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{m}</span>)}
-                      </div>
-                      <div className="text-[10px] text-gray-500 font-medium mb-1">Constraints:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {a.cons.map((c) => <span key={c} className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{c}</span>)}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px]">
+                      {liveAsset?.price && <span>{formatPrice(liveAsset.price.price, liveAsset.price.changePercent)}</span>}
+                      {liveAsset?.storage && liveAsset.storage.value !== null && (
+                        <span className="text-blue-400">{liveAsset.storage.name}: {liveAsset.storage.value.toFixed(1)} {liveAsset.storage.unit}</span>
+                      )}
+                      {liveAsset?.shipCount && (
+                        <span className="text-cyan-400">{liveAsset.shipCount.region}: {liveAsset.shipCount.total} vessels</span>
+                      )}
+                      {liveAsset?.headline && (
+                        <span className="text-gray-500 truncate max-w-[220px]" title={liveAsset.headline}>📰 {liveAsset.headline}</span>
+                      )}
+                      {!liveAsset && <span className="text-gray-600">No live feed · reference data</span>}
+                    </div>
+                  </button>
+                );
+              })}
+              {layerFiltered.length === 0 && <div className="text-center py-8 text-gray-500 text-sm">No assets match current filters.</div>}
+            </div>
+
+            {/* Detail panel */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 lg:max-h-[440px] overflow-y-auto custom-scrollbar">
+              {(() => {
+                const a = layerFiltered.find((x) => x.id === selAsset);
+                if (!a) {
+                  return (
+                    <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-center gap-2">
+                      <Factory className="w-8 h-8 text-gray-700" />
+                      <p className="text-sm text-gray-500 max-w-xs">Select an asset from the list to inspect its role, metrics, constraints, and live data.</p>
+                    </div>
+                  );
+                }
+                const Icon = a.icon;
+                const liveAsset = getAssetLive(a.id);
+                return (
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <div className="p-2 rounded-lg bg-amber-500/15 border border-amber-500/20"><Icon className="w-5 h-5 text-amber-400" /></div>
+                      <div>
+                        <h3 className="text-base font-bold text-white leading-tight">{a.name}</h3>
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider">{a.layer}</div>
                       </div>
                     </div>
-                  )}
-                </button>
-              );
-            })}
+                    <p className="text-xs text-gray-400 mb-4">{a.role}</p>
+
+                    {liveAsset && (
+                      <div className="rounded-xl border border-white/10 bg-black/30 p-3 mb-4 space-y-1">
+                        <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Live Feed</div>
+                        {liveAsset.price && <div className="text-xs">{formatPrice(liveAsset.price.price, liveAsset.price.changePercent)}</div>}
+                        {liveAsset.storage && liveAsset.storage.value !== null && (
+                          <div className="text-xs text-blue-400">{liveAsset.storage.name}: {liveAsset.storage.value.toFixed(1)} {liveAsset.storage.unit}</div>
+                        )}
+                        {liveAsset.shipCount && (
+                          <div className="text-xs text-cyan-400">{liveAsset.shipCount.region}: {liveAsset.shipCount.total} vessels tracked</div>
+                        )}
+                        {liveAsset.headline && (
+                          <div className="text-xs text-gray-400">📰 {liveAsset.headline}</div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1.5">Key Metrics</div>
+                    <div className="flex flex-wrap gap-1 mb-4">
+                      {a.metrics.map((m) => <span key={m} className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{m}</span>)}
+                    </div>
+                    <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1.5">Constraints</div>
+                    <div className="flex flex-wrap gap-1 mb-4">
+                      {a.cons.map((c) => <span key={c} className="text-[10px] px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{c}</span>)}
+                    </div>
+                    <p className="text-xs text-gray-300 leading-relaxed border-t border-white/10 pt-3">{a.detail}</p>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
-          {layerFiltered.length === 0 && <div className="text-center py-12 text-gray-500 text-sm">No assets match current filters.</div>}
         </section>
 
         {/* 8. CONSTRAINTS */}
@@ -1084,6 +1282,75 @@ export default function EnergyInfrastructurePage() {
                 )}
               </button>
             ))}
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section id="faq" className="mb-16">
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+            <HelpCircle className="w-6 h-6 text-amber-400" /> Frequently Asked Questions
+          </h2>
+          <div className="space-y-2">
+            {[
+              {
+                q: "What are the eight infrastructure layers?",
+                a: "Every energy system is broken into eight stages: Resource Input (untapped sources), Extraction/Generation, Processing/Conversion, Transport/Transmission, Storage/Buffering, Import/Export, Distribution/Delivery, and Control & Operations. Use the Layer Map chips to focus the coverage matrix and asset explorer on a single stage.",
+              },
+              {
+                q: "What do the symbols in the Technology Coverage Matrix mean?",
+                a: "Each cell shows how central a technology is to a layer: a solid green dot = Core, a blue outlined dot = Supporting, a dashed amber dot = Conditional (works only in specific cases), a small gray dot = Limited, and a dash = not applicable. Hover any cell for the exact label, and click a row to filter the page by that layer.",
+              },
+              {
+                q: "How do I use the Spatial Query & AI Summary?",
+                a: "Three steps: (1) click 'Draw Region' or pick a preset chokepoint like Hormuz or the North Sea, (2) drag a rectangle on the map if drawing, (3) the AI summary of assets, corridors, and risks in that region appears directly on the map. Close it anytime with the ✕ button.",
+              },
+              {
+                q: "Where does the live data come from and how often does it refresh?",
+                a: "Live commodity prices, storage levels, vessel counts (AIS), grid load (EIA), climate events, and OSINT signals are aggregated by our backend and refresh automatically every 60 seconds. The timestamp in the page header shows the last update.",
+              },
+              {
+                q: "What does the Route Risk Simulator actually model?",
+                a: "It takes a hypothetical disruption — e.g. a Hormuz closure or Panama Canal restrictions — and asks an AI model to estimate rerouting, freight, price, and inventory effects across the affected commodities. Results are directional analysis, not forecasts.",
+              },
+              {
+                q: "Are the AI summaries real-time analysis or forecasts?",
+                a: "Neither exactly. AI summaries are generated on demand from current live data and reference knowledge. They are analytical aids to help you interpret the map — always corroborate with primary sources before making decisions.",
+              },
+              {
+                q: "Why do some assets show no live price or storage data?",
+                a: "Live feeds exist only for assets with observable market data (oil, gas, coal, LNG prices, storage hubs, shipping regions). Assets like electrolyzers or transmission lines show reference capacity and description data only.",
+              },
+              {
+                q: "Is this investment advice?",
+                a: "No. GeoMoney is an intelligence and visualization tool. All data, scenarios, and AI summaries are for informational purposes only and do not constitute financial or investment advice.",
+              },
+            ].map((f, i) => {
+              const open = openFaq === i;
+              return (
+                <div key={i} className={`rounded-xl border transition-all ${open ? "border-amber-500/30 bg-amber-500/[0.04]" : "border-white/10 bg-white/[0.02] hover:border-white/20"}`}>
+                  <button
+                    onClick={() => setOpenFaq(open ? null : i)}
+                    className="w-full flex items-center justify-between gap-4 text-left px-4 py-3"
+                  >
+                    <span className={`text-sm font-semibold ${open ? "text-amber-400" : "text-gray-200"}`}>{f.q}</span>
+                    <ChevronDown className={`w-4 h-4 shrink-0 text-gray-500 transition-transform duration-300 ${open ? "rotate-180 text-amber-400" : ""}`} />
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {open && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <p className="px-4 pb-4 text-xs text-gray-400 leading-relaxed">{f.a}</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
           </div>
         </section>
 
