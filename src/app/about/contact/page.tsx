@@ -35,8 +35,8 @@ export default function ContactPage() {
               <Mail className="w-5 h-5 text-geo-gold" />
               <h3 className="font-bold text-lg">Email</h3>
             </div>
-            <a href="mailto:info@geomoney.com" className="text-geo-gold hover:text-yellow-400 transition-colors text-lg">
-              info@geomoney.com
+            <a href="mailto:info@geomoneytv.com" className="text-geo-gold hover:text-yellow-400 transition-colors text-lg">
+              info@geomoneytv.com
             </a>
           </div>
 
