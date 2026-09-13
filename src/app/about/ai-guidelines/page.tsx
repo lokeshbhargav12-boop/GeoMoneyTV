@@ -201,7 +201,7 @@ export default function AiGuidelinesPage() {
             </p>
             <p className="text-gray-300 leading-relaxed">
               For inquiries, contact:{' '}
-              <a href="mailto:info@geomoney.com" className="text-purple-400 hover:underline">info@geomoney.com</a>
+              <a href="mailto:info@geomoneytv.com" className="text-purple-400 hover:underline">info@geomoneytv.com</a>
             </p>
           </section>
         </div>

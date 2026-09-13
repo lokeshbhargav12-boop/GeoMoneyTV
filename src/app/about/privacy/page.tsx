@@ -127,9 +127,9 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-xl font-bold text-blue-400">9. Contact</h2>
             <p className="text-gray-300 leading-relaxed">
               For privacy-related inquiries, contact us at{' '}
-              <a href="mailto:info@geomoney.com" className="text-blue-400 hover:underline inline-flex items-center gap-1">
+              <a href="mailto:info@geomoneytv.com" className="text-blue-400 hover:underline inline-flex items-center gap-1">
                 <Mail className="w-4 h-4" />
-                info@geomoney.com
+                info@geomoneytv.com
               </a>.
             </p>
           </section>

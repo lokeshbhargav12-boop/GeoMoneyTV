@@ -238,10 +238,10 @@ export default async function Home({
               <p>
                 For any queries or feedback, please contact us at{" "}
                 <a
-                  href="mailto:info@geomoney.com"
+                  href="mailto:info@geomoneytv.com"
                   className="text-geo-gold hover:text-yellow-400 transition-colors"
                 >
-                  info@geomoney.com
+                  info@geomoneytv.com
                 </a>
               </p>
             </div>
