@@ -35,6 +35,7 @@ import {
   Zap,
   Thermometer,
 } from "lucide-react";
+import { getCartoTileUrl } from "@/lib/carto-tiles";
 
 // ─── TYPES ────────────────────────────────────────────────────
 
@@ -635,7 +636,7 @@ export default function EnergyInfrastructureMap({
         )}
 
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+          url={getCartoTileUrl("darkNoLabels")}
           attribution=""
           noWrap={true}
           bounds={[

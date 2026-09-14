@@ -17,6 +17,7 @@ import "leaflet/dist/leaflet.css";
 import { Ship, Crosshair, Thermometer, AlertTriangle } from "lucide-react";
 // @ts-ignore: Suppress remote build type error for react-dom/server
 import { renderToStaticMarkup } from "react-dom/server";
+import { getCartoTileUrl } from "@/lib/carto-tiles";
 
 // --- MOCK DATA FOR REFINERIES & CHOKEPOINTS ---
 const THERMAL_REFINERIES = [
@@ -392,7 +393,7 @@ export default function IntelligenceMap({
       <WeatherClickInspector active={bboxMode} owmKey={owmKey} />
 
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+        url={getCartoTileUrl("darkNoLabels")}
         attribution=""
       />
 

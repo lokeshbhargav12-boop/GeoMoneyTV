@@ -15,6 +15,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Ship, AlertTriangle, Train, Mountain } from "lucide-react";
+import { getCartoTileUrl } from "@/lib/carto-tiles";
 
 export interface CoalRoute {
   id: string;
@@ -122,7 +123,7 @@ export default function CoalRouteMap({
       >
         <MapController center={mapCenter} zoom={mapZoom} />
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+          url={getCartoTileUrl("darkNoLabels")}
           attribution=""
           noWrap={true}
           bounds={[

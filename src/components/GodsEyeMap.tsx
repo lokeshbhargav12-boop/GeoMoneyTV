@@ -22,10 +22,10 @@ import {
   getStreetViewEmbedUrl,
   type Webcam,
 } from "@/lib/world-monitor-geo";
+import { getCartoTileUrl } from "@/lib/carto-tiles";
 
 // ─── DARK MAP TILES ──────────────────────────────────────────
-const DARK_TILES =
-  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const DARK_TILES = getCartoTileUrl("darkAll");
 const SATELLITE_TILES =
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
