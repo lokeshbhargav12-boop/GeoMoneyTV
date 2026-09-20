@@ -42,8 +42,8 @@ Strategic intelligence platform with authentication, admin panel, and rare earth
 
 ✅ **Database**
 
-- MySQL database integration via Prisma ORM
-- Hostinger-ready configuration
+- PostgreSQL database integration via Prisma ORM
+- EC2/self-hosted deployment ready configuration
 - Automatic migrations
 - Optimized schema for articles and settings
 
@@ -57,11 +57,11 @@ npm install
 
 ### 2. Configure Database
 
-Edit `.env.local` with your Hostinger MySQL credentials:
+Edit `.env.local` with your PostgreSQL credentials:
 
 ```env
-# Replace with your actual Hostinger MySQL credentials
-DATABASE_URL="mysql://username:password@hostname:3306/database_name"
+# Replace with your actual PostgreSQL credentials
+DATABASE_URL="postgresql://username:password@hostname:5432/database_name?schema=public"
 
 # Generate a secure secret for NextAuth
 NEXTAUTH_URL="https://yourdomain.com"
@@ -76,7 +76,7 @@ openssl rand -base64 32
 
 ### 3. Initialize Database
 
-Push the Prisma schema to your MySQL database:
+Push the Prisma schema to your PostgreSQL database:
 
 ```bash
 npx prisma db push
@@ -124,13 +124,13 @@ npm run build
 npm start
 ```
 
-## Deployment to Hostinger
+## Deployment (EC2 / self-hosted)
 
 ### 1. Prepare Environment Variables
 
-In your Hostinger panel, set these environment variables:
+In your server environment, set these environment variables:
 
-- `DATABASE_URL` - Your MySQL connection string
+- `DATABASE_URL` - Your PostgreSQL connection string
 - `NEXTAUTH_URL` - Your production domain
 - `NEXTAUTH_SECRET` - Secure random string
 
@@ -140,7 +140,7 @@ Upload your project files via:
 
 - FTP/SFTP
 - Git deployment (if available)
-- Hostinger File Manager
+- Your deployment method (Git/SFTP/CI/CD)
 
 ### 3. Install Dependencies on Server
 
@@ -189,6 +189,9 @@ npm start
 
 - `GET /api/admin/articles` - List all articles
 - `POST /api/admin/articles` - Create new article
+- `GET /api/admin/export/users-emails` - Export all users with emails
+- `GET /api/admin/export/articles` - Export all articles
+- `GET /api/admin/export/waitlist` - Export all active waitlist members
 
 ## Admin Panel Routes
 
@@ -201,7 +204,7 @@ npm start
 
 - **Framework:** Next.js 14 (App Router)
 - **Authentication:** NextAuth.js
-- **Database:** MySQL + Prisma ORM
+- **Database:** PostgreSQL + Prisma ORM
 - **Styling:** Tailwind CSS
 - **3D Graphics:** Three.js + React Three Fiber
 - **Animations:** Framer Motion
