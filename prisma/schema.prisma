@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -43,9 +43,9 @@ model Article {
   title       String
   slug        String   @unique
   description String?  @db.Text
-  content     String   @db.Text
-  aiSummary   String?  @db.Text
-  aiAnalysis  String?  @db.Text
+  content     String   @db.LongText
+  aiSummary   String?  @db.LongText
+  aiAnalysis  String?  @db.LongText
   imageUrl    String?
   sourceUrl   String?  @db.Text
   sourceName  String?
@@ -118,8 +118,8 @@ model NewsletterReport {
   id          String   @id @default(cuid())
   subject     String
   reportType  String   @default("weekly") // daily, weekly
-  htmlContent String   @db.Text
-  sentTo      String   @db.Text // JSON array of emails
+  htmlContent String   @db.LongText
+  sentTo      String   @db.LongText // JSON array of emails
   sentCount   Int      @default(0)
   sentAt      DateTime @default(now())
   createdAt   DateTime @default(now())

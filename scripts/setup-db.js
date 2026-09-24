@@ -154,45 +154,10 @@ async function setupDatabase() {
   logSection('STEP 3: VERIFYING DATABASE CONNECTION');
   try {
     log('Testing database connection...', 'yellow');
-    
-    // Create a quick test script
-    const testScript = `
-      const { PrismaClient } = require('@prisma/client');
-      const prisma = new PrismaClient();
-      
-      async function test() {
-        try {
-          await prisma.$connect();
-          console.log('✓ Database connection successful');
-          
-          // Try to count users
-          const userCount = await prisma.user.count().catch(() => 0);
-          console.log(\`✓ Users table accessible (count: \${userCount})\`);
-          
-          // Try to count articles
-          const articleCount = await prisma.article.count().catch(() => 0);
-          console.log(\`✓ Articles table accessible (count: \${articleCount})\`);
-          
-          // Try to count commodity prices
-          const priceCount = await prisma.commodityPrice.count().catch(() => 0);
-          console.log(\`✓ CommodityPrice table accessible (count: \${priceCount})\`);
-          
-          await prisma.$disconnect();
-          console.log('✓ Database verification complete');
-        } catch (error) {
-          console.error('✗ Database connection failed:', error.message);
-          process.exit(1);
-        }
-      }
-      
-      test();
-    `;
-    
-    const testOutput = execSync(`node -e "${testScript}"`, { 
+    const testOutput = execSync('node scripts/verify-db.js', { 
       encoding: 'utf8',
       stdio: 'pipe'
     });
-    
     log(testOutput, 'green');
   } catch (error) {
     logError('Database verification failed', error);

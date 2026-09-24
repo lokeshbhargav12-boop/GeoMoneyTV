@@ -7,7 +7,6 @@ const AUTH_BACKEND_UNAVAILABLE_ERROR = 'AUTH_BACKEND_UNAVAILABLE'
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
-  trustHost: true,
   useSecureCookies: process.env.NEXTAUTH_URL?.startsWith('https://') ?? false,
   session: {
     strategy: 'jwt',
@@ -32,10 +31,7 @@ export const authOptions: NextAuthOptions = {
 
           const user = await prisma.user.findFirst({
             where: {
-              email: {
-                equals: normalizedEmail,
-                mode: 'insensitive',
-              },
+              email: normalizedEmail,
             },
           })
 
