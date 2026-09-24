@@ -95,6 +95,7 @@ interface MasterMapProps {
   osintEvents: MapEvent[];
   ships: MapShip[];
   updatedAt?: string | null;
+  onAssetClick?: (asset: MapAsset) => void;
 }
 
 export default function MasterMap({
@@ -112,6 +113,7 @@ export default function MasterMap({
   osintEvents,
   ships,
   updatedAt,
+  onAssetClick,
 }: MasterMapProps) {
   const overlays = useMemo(() => {
     const next: MapOverlay[] = [];
@@ -338,6 +340,7 @@ export default function MasterMap({
             flows={flows}
             gridStress={gridStress}
             height="620px"
+            onAssetClick={onAssetClick}
           />
         ) : (
           <EnergyInfrastructureGlobe

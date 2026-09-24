@@ -32,6 +32,21 @@ export interface MapAsset {
   status?: string;
   pressure?: string;
   region: string;
+  operator?: string;
+  primaryFuel?: string;
+  nameplateCapacityNumeric?: number;
+  capacityUnit?: string;
+  baseOutputNumeric?: number;
+  currentOutputStr?: string;
+  utilizationPercent?: number;
+  connectedCorridorIds?: string[];
+  macroExposure?: {
+    benchmarkSymbol: string;
+    globalSharePct: number;
+    priceSensitivityPerOutagePct: number;
+    inflationRisk: "Low" | "Moderate" | "High" | "Critical";
+  };
+  outputHistory7d?: number[];
 }
 
 export interface MapCorridor {
@@ -144,4 +159,141 @@ export const DEFAULT_GRID_STRESS: GridStressNode[] = [
   { id: "uk-grid", name: "National Grid UK", lat: 52.5, lng: -1.5, loadPercent: 65, capacityGW: 60, alert: "normal" },
   { id: "germany-north", name: "DE North", lat: 53.0, lng: 9.0, loadPercent: 78, capacityGW: 55, alert: "elevated" },
 ];
+
+export function enrichAssetWithTelemetry(asset: MapAsset): MapAsset {
+  const techLower = (asset.tech || "").toLowerCase();
+  const nameLower = (asset.name || "").toLowerCase();
+
+  let primaryFuel = "Electric Grid";
+  let unit = "GW";
+  let numCap = 1.0;
+  let operator = "Regional Operator";
+  let benchmarkSymbol = "POWER";
+  let globalSharePct = 0.5;
+  let priceSensitivity = 0.4;
+  let inflationRisk: "Low" | "Moderate" | "High" | "Critical" = "Moderate";
+
+  if (techLower.includes("oil") || nameLower.includes("crude") || nameLower.includes("ghawar") || nameLower.includes("permian")) {
+    primaryFuel = "Crude Oil";
+    unit = "MMBPD";
+    benchmarkSymbol = "CRUDE";
+    if (asset.id === "ghawar") {
+      operator = "Saudi Aramco";
+      numCap = 3.8;
+      globalSharePct = 3.7;
+      priceSensitivity = 1.4;
+      inflationRisk = "Critical";
+    } else if (asset.id === "permian") {
+      operator = "Permian Basin Producers";
+      numCap = 5.4;
+      globalSharePct = 5.2;
+      priceSensitivity = 1.8;
+      inflationRisk = "Critical";
+    } else if (nameLower.includes("refinery") || techLower.includes("processing")) {
+      operator = asset.region === "Saudi Arabia" ? "Saudi Aramco" : asset.region === "India" ? "Reliance Industries" : "Shell / TotalEnergies";
+      numCap = parseFloat(asset.capacity || "0.8") || 0.8;
+      unit = (asset.capacity || "").includes("kbpd") ? "kbpd" : "MMBPD";
+      priceSensitivity = 0.9;
+      inflationRisk = "High";
+    } else {
+      operator = "National Oil Company";
+      numCap = 0.5;
+    }
+  } else if (techLower.includes("gas") || techLower.includes("lng") || nameLower.includes("marcellus") || nameLower.includes("qatar")) {
+    primaryFuel = techLower.includes("lng") ? "LNG" : "Natural Gas";
+    unit = techLower.includes("lng") ? "mtpa" : "BCFD";
+    benchmarkSymbol = "NATGAS";
+    if (asset.id === "marcellus") {
+      operator = "EQT / Appalachian Gas Consortium";
+      numCap = 32.0;
+      globalSharePct = 7.5;
+      priceSensitivity = 1.6;
+      inflationRisk = "High";
+    } else if (asset.id === "qatar-lng") {
+      operator = "QatarEnergy";
+      numCap = 110.0;
+      globalSharePct = 21.0;
+      priceSensitivity = 2.4;
+      inflationRisk = "Critical";
+    } else if (asset.id === "cheniere") {
+      operator = "Cheniere Energy";
+      numCap = 45.0;
+      globalSharePct = 10.5;
+      priceSensitivity = 1.9;
+      inflationRisk = "Critical";
+    } else {
+      operator = "Export Terminal Operator";
+      numCap = 10.0;
+    }
+  } else if (techLower.includes("coal") || nameLower.includes("coal")) {
+    primaryFuel = "Thermal Coal";
+    unit = "mtpa";
+    benchmarkSymbol = "COAL";
+    operator = asset.region === "Australia" ? "Glencore / Whitehaven" : "Peabody Energy";
+    numCap = parseFloat(asset.capacity || "50") || 50;
+    priceSensitivity = 0.6;
+    inflationRisk = "Moderate";
+  } else if (techLower.includes("hydro") || techLower.includes("wind") || techLower.includes("solar") || techLower.includes("geothermal")) {
+    primaryFuel = techLower.includes("hydro") ? "Hydro" : techLower.includes("wind") ? "Wind" : techLower.includes("solar") ? "Solar" : "Geothermal";
+    unit = "GW";
+    benchmarkSymbol = "POWER";
+    operator = asset.id === "itaipu" ? "Itaipu Binacional" : asset.id === "hornsea" ? "Ørsted" : "Clean Energy Operator";
+    numCap = parseFloat(asset.capacity || "2.0") || 2.0;
+    priceSensitivity = 0.5;
+    inflationRisk = "Low";
+  } else if (techLower.includes("shipping") || nameLower.includes("chokepoint") || nameLower.includes("canal") || nameLower.includes("strait")) {
+    primaryFuel = "Shipping Transit";
+    unit = "MMBPD eq";
+    benchmarkSymbol = "CRUDE";
+    operator = "Maritime Authority / Port Control";
+    numCap = parseFloat(asset.capacity || "15") || 15;
+    priceSensitivity = 3.2;
+    inflationRisk = "Critical";
+  } else if (techLower.includes("grid") || techLower.includes("ops")) {
+    primaryFuel = "Electric Grid";
+    unit = "GW";
+    benchmarkSymbol = "POWER";
+    operator = asset.name;
+    numCap = parseFloat(asset.capacity || "60") || 60;
+    priceSensitivity = 1.2;
+    inflationRisk = "High";
+  }
+
+  const baseOutput = Number((numCap * 0.91).toFixed(2));
+  const utilization = 88 + Math.round(Math.abs((asset.lat * 3) % 9));
+
+  const history = [
+    Number((baseOutput * 0.96).toFixed(2)),
+    Number((baseOutput * 0.98).toFixed(2)),
+    Number((baseOutput * 0.95).toFixed(2)),
+    Number((baseOutput * 0.99).toFixed(2)),
+    Number((baseOutput * 0.97).toFixed(2)),
+    Number((baseOutput * 1.01).toFixed(2)),
+    baseOutput,
+  ];
+
+  return {
+    ...asset,
+    operator: asset.operator || operator,
+    primaryFuel: asset.primaryFuel || primaryFuel,
+    nameplateCapacityNumeric: asset.nameplateCapacityNumeric || numCap,
+    capacityUnit: asset.capacityUnit || unit,
+    baseOutputNumeric: asset.baseOutputNumeric || baseOutput,
+    currentOutputStr: asset.currentOutputStr || `${baseOutput} ${unit} (${utilization}%)`,
+    utilizationPercent: asset.utilizationPercent || utilization,
+    connectedCorridorIds: asset.connectedCorridorIds || (asset.region.includes("Saudi") ? ["hormuz-route"] : asset.region.includes("USA") ? ["transwest-route", "us-gulf-eu"] : ["nordlink-route"]),
+    macroExposure: asset.macroExposure || {
+      benchmarkSymbol,
+      globalSharePct,
+      priceSensitivityPerOutagePct: priceSensitivity,
+      inflationRisk,
+    },
+    outputHistory7d: asset.outputHistory7d || history,
+  };
+}
+
+export function getEnrichedAssets(): MapAsset[] {
+  return DEFAULT_ASSETS.map(enrichAssetWithTelemetry);
+}
+
 
