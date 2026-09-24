@@ -12,7 +12,7 @@ function getSignInErrorMessage(error: string) {
   }
 
   if (error === AUTH_BACKEND_UNAVAILABLE_ERROR) {
-    return "Local login cannot reach MySQL. Add this machine's public IP to Hostinger Remote MySQL, then try again.";
+    return "Login service is temporarily unavailable. Please verify database connectivity and try again.";
   }
 
   return "Something went wrong";
@@ -41,14 +41,15 @@ export default function SignIn() {
 
     try {
       const result = await signIn("credentials", {
-        email,
+        email: email.trim().toLowerCase(),
         password,
         redirect: false,
+        callbackUrl: "/",
       });
 
       if (result?.error) {
         setError(getSignInErrorMessage(result.error));
-      } else {
+      } else if (result?.ok) {
         const session = await getSession();
         if ((session?.user as any)?.role === "admin") {
           router.push("/admin");
@@ -56,6 +57,8 @@ export default function SignIn() {
           router.push("/");
         }
         router.refresh();
+      } else {
+        setError("Unable to sign in. Please try again.");
       }
     } catch (error) {
       setError("Something went wrong");

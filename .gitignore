@@ -17,3 +17,13 @@ HOSTINGER_DEPLOY.md
 .env.local.backup
 dev-server.log
 build.log
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
+
+# Generated exports
+exports/
+
+# Local scratch files
+1.txt
+COMMIT_MSG.txt

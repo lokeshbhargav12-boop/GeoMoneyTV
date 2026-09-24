@@ -5,8 +5,9 @@ import prisma from '@/lib/prisma'
 export async function POST(req: Request) {
   try {
     const { email, password, name } = await req.json()
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     })
 
     if (existingUser) {
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
     // Create user
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         name,
         password: hashedPassword,
       },

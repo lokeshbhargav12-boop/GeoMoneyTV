@@ -1,5 +1,5 @@
 /************************************************************
- * GeoMoney TV - Database Setup Script for Hostinger
+ * GeoMoney TV - Database Setup Script
  * This script runs Prisma DB push during startup/build
  * with extensive console logging for debugging
  ************************************************************/
@@ -51,7 +51,7 @@ async function setupDatabase() {
   log(`Node version: ${process.version}`, 'blue');
   log(`Working directory: ${process.cwd()}`, 'blue');
   
-  // Check environment variables (Hostinger sets these in control panel)
+  // Check environment variables (set in your server environment/control panel)
   logSection('CHECKING ENVIRONMENT');
   
   // Check if DATABASE_URL is set (either from .env file or environment variable)
@@ -78,8 +78,8 @@ async function setupDatabase() {
     process.env.DATABASE_URL = databaseUrl;
   } else {
     logError('DATABASE_URL not found!');
-    log('Please set DATABASE_URL in Hostinger control panel or create a .env file', 'yellow');
-    log('Required format: mysql://username:password@host:port/database', 'yellow');
+    log('Please set DATABASE_URL in your server environment or create a .env file', 'yellow');
+    log('Required format: postgresql://username:password@host:port/database?schema=public', 'yellow');
     process.exit(1);
   }
   

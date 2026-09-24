@@ -6,6 +6,9 @@ import prisma from '@/lib/prisma'
 const AUTH_BACKEND_UNAVAILABLE_ERROR = 'AUTH_BACKEND_UNAVAILABLE'
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
+  trustHost: true,
+  useSecureCookies: process.env.NEXTAUTH_URL?.startsWith('https://') ?? false,
   session: {
     strategy: 'jwt',
   },
@@ -25,8 +28,15 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email.trim().toLowerCase() },
+          const normalizedEmail = credentials.email.trim().toLowerCase()
+
+          const user = await prisma.user.findFirst({
+            where: {
+              email: {
+                equals: normalizedEmail,
+                mode: 'insensitive',
+              },
+            },
           })
 
           if (!user) {
