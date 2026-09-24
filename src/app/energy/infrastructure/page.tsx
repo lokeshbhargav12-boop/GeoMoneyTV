@@ -15,6 +15,10 @@ import {
   ChevronUp,
   Activity,
   AlertTriangle,
+  Gauge,
+  Route,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 
 import MasterMap, {
@@ -55,6 +59,7 @@ interface LiveData {
   resilience: any[];
   scenarios: any[];
   gridStress: any[];
+  interdependency: any;
 }
 
 const DASHBOARD_NAV: InfrastructureNavItem[] = [
@@ -236,6 +241,7 @@ export default function EnergyInfrastructurePage() {
   const outputTrend = computeOutputTrend(live?.grid || []);
   const categoryComparison = buildCategoryComparison(live?.commodities || []);
   const refineryRows = buildRefineryRows(assets);
+  const interdependency = live?.interdependency ?? null;
 
   const alertRows = (live?.constraints || []).slice(0, 8);
   const resilienceRows = (live?.resilience || []).slice(0, 6);
@@ -473,6 +479,106 @@ export default function EnergyInfrastructurePage() {
                     </table>
                   </div>
                 )}
+              </div>
+            </section>
+
+            <section id="interdependency" className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <header className="mb-3 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-100">
+                    Trader Interdependency Tools
+                  </h2>
+                  <p className="text-xs text-gray-400">
+                    Cross-market supply-chain signals linking infrastructure, oil, gas and coal flows.
+                  </p>
+                </div>
+                <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] uppercase tracking-wider text-cyan-200">
+                  #interdependency
+                </span>
+              </header>
+
+              <div className="grid gap-3 lg:grid-cols-3">
+                <TrendChart
+                  title="Interdependency Pressure"
+                  subtitle="Storage, corridor and utilization risk index"
+                  labels={["Current", "Signal"]}
+                  values={interdependency ? [interdependency.corridorStress, interdependency.pressureIndex] : [0, 0]}
+                  variant="bar"
+                  accent="#f59e0b"
+                  valueSuffix=" pts"
+                />
+                <TrendChart
+                  title="Oil / Gas Spread"
+                  subtitle="WTI crude vs natural gas market transmission"
+                  labels={["Current", "Signal"]}
+                  values={interdependency?.oilGasSpread ? [interdependency.oilGasSpread, interdependency.oilGasSpread * 0.98] : [0, 0]}
+                  variant="line"
+                  accent="#fb7185"
+                  valueSuffix="x"
+                />
+                <TrendChart
+                  title="Supply Chain Resilience"
+                  subtitle="Infrastructure capacity vs external shocks"
+                  labels={["Current", "Signal"]}
+                  values={interdependency ? [interdependency.pressureIndex, 100 - interdependency.pressureIndex] : [0, 0]}
+                  variant="bar"
+                  accent="#22d3ee"
+                  valueSuffix=" pts"
+                />
+              </div>
+
+              <div className="mt-3 grid gap-3 lg:grid-cols-4">
+                <article className="rounded-xl border border-white/10 bg-black/30 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] uppercase tracking-widest text-gray-500">Market Bias</p>
+                    <Gauge className="h-4 w-4 text-cyan-300" />
+                  </div>
+                  <p className="mt-2 text-lg font-semibold text-gray-100">
+                    {interdependency?.marketBias ?? "Balanced"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    {interdependency?.traderStance ?? "Awaiting live feed"}
+                  </p>
+                </article>
+
+                <article className="rounded-xl border border-white/10 bg-black/30 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] uppercase tracking-widest text-gray-500">Routing Stress</p>
+                    <Route className="h-4 w-4 text-amber-300" />
+                  </div>
+                  <p className="mt-2 text-lg font-semibold text-gray-100">
+                    {interdependency ? `${interdependency.corridorStress}%` : "N/A"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Chokepoints, ports, pipelines and terminal bottlenecks
+                  </p>
+                </article>
+
+                <article className="rounded-xl border border-white/10 bg-black/30 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] uppercase tracking-widest text-gray-500">Oil / Gas</p>
+                    <TrendingUp className="h-4 w-4 text-emerald-300" />
+                  </div>
+                  <p className="mt-2 text-lg font-semibold text-gray-100">
+                    {interdependency?.oilGasSpread ?? "N/A"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Price spread used as a directional energy signal
+                  </p>
+                </article>
+
+                <article className="rounded-xl border border-white/10 bg-black/30 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] uppercase tracking-widest text-gray-500">Supply Chain</p>
+                    <TrendingDown className="h-4 w-4 text-rose-300" />
+                  </div>
+                  <p className="mt-2 text-lg font-semibold text-gray-100">
+                    {interdependency?.signals.length ?? 0} signals
+                  </p>
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Storage, refinery utilization and corridor congestion
+                  </p>
+                </article>
               </div>
             </section>
 

@@ -104,6 +104,24 @@ export interface GridStressPoint {
   source: string;               // "EIA" | "reference"
 }
 
+export interface InterdependencySignal {
+  id: string;
+  label: string;
+  value: number | null;
+  unit: string;
+  direction: "bullish" | "bearish" | "neutral";
+  note: string;
+}
+
+export interface InterdependencyData {
+  pressureIndex: number; // 0-100
+  corridorStress: number; // 0-100
+  oilGasSpread: number | null;
+  marketBias: "Bullish Energy" | "Bearish Energy" | "Balanced";
+  traderStance: string;
+  signals: InterdependencySignal[];
+}
+
 export interface EnergyInfrastructurePayload {
   timestamp: string;
   commodities: LiveCommodity[];
@@ -117,6 +135,7 @@ export interface EnergyInfrastructurePayload {
   resilience: ResilienceLiveData[];
   scenarios: ScenarioLiveData[];
   gridStress: GridStressPoint[];
+  interdependency: InterdependencyData;
 }
 
 // ─── CACHE ──────────────────────────────────────────────────
@@ -709,6 +728,115 @@ export async function getEnergyInfrastructureData(): Promise<EnergyInfrastructur
   ]);
 
   const assets = ASSET_IDS.map((id) => buildAssetLiveData(id, commodities, storage, climate, shipCounts, osint));
+
+  // --- INTERDEPENDENCY CALCULATION (trader-grade signals) ---
+  const crude = commodities.find(c => c.symbol === "CRUDE");
+  const natgas = commodities.find(c => c.symbol === "NATGAS");
+  const copper = commodities.find(c => c.symbol === "COPPER");
+  const uranium = commodities.find(c => c.symbol === "URANIUM");
+  const gold = commodities.find(c => c.symbol === "GOLD");
+  const silver = commodities.find(c => c.symbol === "SILVER");
+
+  // crude oil vs natural gas price spread (approximate ratio)
+  const oilGasSpread =
+    crude != null && natgas != null && crude.price !== null && natgas.price !== null
+      ? Number((crude.price / natgas.price).toFixed(2))
+      : null;
+
+  // storage pressure from inventory changes (negative change = drawdown = bullish)
+  const gasStorage = storage.find(s => s.name === "US Working Natural Gas");
+  const crudeStorage = storage.find(s => s.name === "US Crude Oil Stocks");
+  const refUtil = storage.find(s => s.name === "US Refinery Utilization");
+  const storagePressure =
+    (gasStorage?.change ?? 0) < 0 ||
+    (crudeStorage?.change ?? 0) < 0 ||
+    (refUtil?.value ?? 0) > 90
+      ? 75
+      : (gasStorage?.change ?? 0) > 0 ||
+        (crudeStorage?.change ?? 0) > 0 ||
+        (refUtil?.value ?? 0) < 80
+        ? 25
+        : 50;
+
+  // corridor congestion proxy from ship counts in key chokepoints
+  const hormuz = shipCounts.find(s => s.region === "Strait of Hormuz");
+  const singaporemia = shipCounts.find(s => s.region === "Singapore / Malacca");
+  const corridorStress =
+    ((hormuz?.total ?? 0) > 8 || (singaporemia?.total ?? 0) > 12)
+      ? 80
+      : ((hormuz?.total ?? 0) > 4 || (singaporemia?.total ?? 0) > 6)
+        ? 50
+        : 20;
+
+  // market bias from price momentum vs storage
+  const crudeMom = crude?.changePercent ?? 0;
+  const gasMom = natgas?.changePercent ?? 0;
+  const marketBias =
+    crudeMom > 2 && gasMom > 2
+      ? "Bullish Energy"
+      : crudeMom < -2 && gasMom < -2
+        ? "Bearish Energy"
+        : "Balanced";
+
+  // trader stance synthesis
+  const traderStance =
+    marketBias === "Bullish Energy" && storagePressure > 60
+      ? "Long physical, short futures"
+      : marketBias === "Bearish Energy" && storagePressure < 40
+        ? "Short physical, long futures"
+        : "Spread/arbitrage";
+
+  const signals: InterdependencySignal[] = [
+    {
+      id: "oil-gas-spread",
+      label: "Oil/NatGas Spread",
+      value: oilGasSpread,
+      unit: "ratio",
+      direction:
+        oilGasSpread !== null && oilGasSpread > 20
+          ? "bullish"
+          : oilGasSpread !== null && oilGasSpread < 10
+            ? "bearish"
+            : "neutral",
+      note: `WTI: $${crude?.price?.toFixed(2) ?? "--"} vs NG: $${natgas?.price?.toFixed(2) ?? "--"}`,
+    },
+    {
+      id: "storage-pressure",
+      label: "Storage Pressure",
+      value: storagePressure,
+      unit: "index",
+      direction:
+        storagePressure > 70
+          ? "bullish"
+          : storagePressure < 30
+            ? "bearish"
+            : "neutral",
+      note: `Gas Δ:${gasStorage?.change?.toFixed(1) ?? "--"} Bcf | Crude Δ:${crudeStorage?.change?.toFixed(1) ?? "--"} Mb`,
+    },
+    {
+      id: "corridor-stress",
+      label: "Chokepoint Stress",
+      value: corridorStress,
+      unit: "index",
+      direction:
+        corridorStress > 70
+          ? "bullish"
+          : corridorStress < 30
+            ? "bearish"
+            : "neutral",
+      note: `Hormuz:${hormuz?.total ?? 0} tankers | S/M:${singaporemia?.total ?? 0} LNG`,
+    },
+  ];
+
+  const interdependency: InterdependencyData = {
+    pressureIndex: storagePressure,
+    corridorStress,
+    oilGasSpread,
+    marketBias,
+    traderStance,
+    signals,
+  };
+
   const constraints = buildConstraints(storage, climate, shipCounts, osint);
   const resilience = buildResilience(storage, climate, shipCounts, osint);
   const scenarios = buildScenarios();
@@ -726,6 +854,7 @@ export async function getEnergyInfrastructureData(): Promise<EnergyInfrastructur
     resilience,
     scenarios,
     gridStress,
+    interdependency,
   };
 
   cache = { data, ts: Date.now() };
