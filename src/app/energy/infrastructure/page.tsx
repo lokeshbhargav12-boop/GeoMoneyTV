@@ -44,7 +44,7 @@ import {
   DEFAULT_CORRIDORS,
   DEFAULT_FLOWS,
   DEFAULT_GRID_STRESS,
-} from "@/components/EnergyInfrastructureMap";
+} from "@/components/energy-infrastructure/infraDefaults";
 
 interface LiveData {
   timestamp: string;
