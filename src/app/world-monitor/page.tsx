@@ -1262,6 +1262,7 @@ export default function WorldMonitorPage() {
   const [sideNavMinimized, setSideNavMinimized] = useState(false);
 
   const SIDE_NAV_SECTIONS = [
+    { id: "globe-hero", label: "Globe Monitor", icon: Globe2 },
     { id: "risk-indices", label: "Risk Indices", icon: Activity },
     { id: "chokepoints", label: "Chokepoints", icon: Target },
     { id: "asset-tracking", label: "Asset Tracking", icon: Layers },
@@ -1310,7 +1311,7 @@ export default function WorldMonitorPage() {
 
   // ──────────────────────────────────────────────────────────
   return (
-    <main className="relative flex min-h-dvh flex-col overflow-y-auto pt-[104px] text-white sm:pt-[128px]">
+    <main className="relative flex min-h-dvh flex-col pt-[104px] text-white sm:pt-[128px]">
       {/* Tutorial overlay */}
       {(showTutorial || tutorialForced) && (
         <WorldMonitorTutorial
@@ -1549,16 +1550,10 @@ export default function WorldMonitorPage() {
 
       {/* ═══ MAIN LAYOUT ════════════════════════════════════ */}
       {/* ═══ HERO FRAME (GLOBE + HUD) ════════════════════════════════════ */}
-      <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 pb-0">
+      <div id="globe-hero" className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 pb-0 scroll-mt-[140px]">
         <div className="flex flex-col xl:flex-row gap-4 md:gap-6 relative">
           <div
             className="relative z-10 flex-1 w-full h-[55vh] min-h-[450px] max-h-[700px] flex overflow-hidden rounded-[32px] border border-white/[0.08] shadow-2xl shadow-black/50"
-            onMouseEnter={() => {
-              document.body.style.overflow = "hidden";
-            }}
-            onMouseLeave={() => {
-              document.body.style.overflow = "auto";
-            }}
           >
             <div className="flex-1 relative">
               {!isCompactLayout && (
@@ -2227,7 +2222,7 @@ export default function WorldMonitorPage() {
 
         {/* ═══ SIDE NAVIGATION (3D mode desktop only) ══════ */}
         {!apertureActive && !isCompactLayout && (
-          <div className="absolute left-0 top-[60%] -translate-y-1/2 z-20">
+          <div className="fixed left-0 top-1/2 -translate-y-1/2 z-40 pointer-events-auto">
             <motion.div
               initial={{ opacity: 0, x: -16 }}
               animate={{ opacity: 1, x: 0 }}
@@ -2236,26 +2231,29 @@ export default function WorldMonitorPage() {
               {sideNavMinimized ? (
                 <button
                   onClick={() => setSideNavMinimized(false)}
-                  className="rounded-r-xl border border-white/10 border-l-0 bg-black/65 backdrop-blur-xl px-2 py-3 text-gray-400 hover:text-geo-gold transition-colors shadow-xl"
+                  className="rounded-r-xl border border-white/10 border-l-0 bg-black/80 backdrop-blur-2xl px-2.5 py-4 text-gray-400 hover:text-geo-gold transition-colors shadow-2xl flex flex-col items-center gap-2 group"
                   title="Open section navigation"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+                  <span className="[writing-mode:vertical-lr] text-[9px] font-mono tracking-widest text-gray-500 uppercase group-hover:text-geo-gold">
+                    Sections
+                  </span>
                 </button>
               ) : (
-                <div className="rounded-r-2xl border border-white/10 border-l-0 bg-black/65 backdrop-blur-xl px-2 py-1.5 shadow-xl max-w-[200px]">
-                  <div className="flex items-center justify-between px-1 pb-1.5 border-b border-white/5">
-                    <span className="text-[9px] font-mono uppercase tracking-[0.15em] text-gray-500">
+                <div className="rounded-r-2xl border border-white/15 border-l-0 bg-black/85 backdrop-blur-2xl p-2 shadow-2xl shadow-black/80 max-w-[210px]">
+                  <div className="flex items-center justify-between px-2 pb-2 border-b border-white/10">
+                    <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-geo-gold font-bold">
                       Sections
                     </span>
                     <button
                       onClick={() => setSideNavMinimized(true)}
-                      className="text-gray-600 hover:text-gray-300 transition-colors"
+                      className="text-gray-500 hover:text-white transition-colors p-0.5"
                       title="Minimize"
                     >
-                      <ChevronRight className="h-3 w-3 rotate-180" />
+                      <ChevronRight className="h-3.5 w-3.5 rotate-180" />
                     </button>
                   </div>
-                  <div className="flex flex-col gap-0.5 pt-1">
+                  <div className="flex flex-col gap-0.5 pt-1.5">
                     {SIDE_NAV_SECTIONS.map((section) => {
                       const Icon = section.icon;
                       const isActive = activeSection === section.id;
@@ -2266,13 +2264,13 @@ export default function WorldMonitorPage() {
                           className={`
                             flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-all group
                             ${isActive
-                              ? "bg-geo-gold/10 border border-geo-gold/30 text-geo-gold"
-                              : "border border-transparent text-gray-500 hover:text-gray-200 hover:bg-white/5"
+                              ? "bg-geo-gold/15 border border-geo-gold/40 text-geo-gold font-semibold shadow-sm"
+                              : "border border-transparent text-gray-400 hover:text-gray-100 hover:bg-white/5"
                             }
                           `}
                         >
-                          <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? "text-geo-gold" : "text-gray-600 group-hover:text-gray-400"}`} />
-                          <span className="text-[10px] font-medium leading-tight truncate">
+                          <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? "text-geo-gold" : "text-gray-500 group-hover:text-gray-300"}`} />
+                          <span className="text-[10px] leading-tight truncate">
                             {section.label}
                           </span>
                           {isActive && (
@@ -2290,8 +2288,10 @@ export default function WorldMonitorPage() {
 
         {/* ═══ DASHBOARD GRID LAYER ═════════════════════════ */}
         <div className="mt-6 flex flex-col gap-6 w-full">
-          <div id="risk-indices" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 scroll-mt-[140px]">
-            <RiskIndicesWidget data={RISK_INDICES} />
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div id="risk-indices" className="scroll-mt-[140px]">
+              <RiskIndicesWidget data={RISK_INDICES} />
+            </div>
             <div id="chokepoints" className="scroll-mt-[140px]">
               <ChokepointsWidget
                 data={CHOKEPOINTS}

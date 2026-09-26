@@ -314,7 +314,7 @@ export default function OilAndGasIntelligence() {
           <div className="xl:col-span-3 flex flex-col gap-6">
             {/* Map Area */}
             <div
-              className={`relative h-[850px] rounded-2xl overflow-hidden border ${simulationMode ? "border-amber-500/50" : "border-white/10"} bg-black/50 p-1`}
+              className={`relative h-[550px] sm:h-[650px] lg:h-[800px] rounded-2xl overflow-hidden border ${simulationMode ? "border-amber-500/50" : "border-white/10"} bg-black/50 p-1`}
             >
               {/* REAL LEAFLET MAP BACKGROUND */}
               <div className="absolute inset-0 z-0">
@@ -703,7 +703,7 @@ export default function OilAndGasIntelligence() {
                         {/* UI overlay on satellite */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 pointer-events-none z-10">
                           <span className="text-[10px] text-white font-mono bg-black/60 px-1 inline-block w-max border border-white/10">
-                            LOC: 26�16'18"N 50�08'19"E
+                            LOC: 26°16&apos;18&quot;N 50°08&apos;19&quot;E
                           </span>
                           <span className="text-[10px] text-emerald-400 font-mono bg-black/60 px-1 inline-block w-max mt-0.5 border border-white/10">
                             EST. VOL: +4.2% CAPACITY
@@ -769,3 +769,4 @@ export default function OilAndGasIntelligence() {
     </main>
   );
 }
+

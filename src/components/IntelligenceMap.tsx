@@ -138,6 +138,18 @@ const WEATHER_HUBS = [
   },
 ];
 
+// ─── MAP CONTROLLER ──────────────────────────────────────────
+function MapController() {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+}
+
 // ─── BOUNDING BOX SELECTION TOOL ─────────────────────────────
 function BboxDrawer({
   active,
@@ -380,11 +392,12 @@ export default function IntelligenceMap({
       center={[25, 0]}
       zoom={3}
       zoomControl={true}
-      scrollWheelZoom={true}
+      scrollWheelZoom={false}
       dragging={true}
       className="h-full w-full bg-black/90"
       attributionControl={false}
     >
+      <MapController />
       <BboxDrawer
         active={bboxMode}
         currentBbox={selectedBbox}

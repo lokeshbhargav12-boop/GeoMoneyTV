@@ -83,6 +83,15 @@ function MapController({
   useEffect(() => {
     map.flyTo(center, zoom, { duration: 1.5 });
   }, [map, center, zoom]);
+
+  useEffect(() => {
+    // Invalidate size immediately and after transition to prevent grey tiles
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [map]);
+
   return null;
 }
 
@@ -692,6 +701,24 @@ export default function GodsEyeMap({
                 }`}
               >
                 SAT
+              </button>
+            </div>
+
+            {/* Zoom In/Out Controls */}
+            <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-1 py-1 flex items-center gap-1">
+              <button
+                onClick={() => setMapZoom((z) => Math.min(z + 1, 18))}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                title="Zoom in"
+              >
+                +
+              </button>
+              <button
+                onClick={() => setMapZoom((z) => Math.max(z - 1, 2))}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                title="Zoom out"
+              >
+                −
               </button>
             </div>
 
