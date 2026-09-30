@@ -2,6 +2,12 @@ import YahooFinance from "yahoo-finance2";
 import { prisma } from "@/lib/prisma";
 import { getMarketStatus } from "@/lib/market-schedule";
 import type { MarketStatus } from "@/lib/market-schedule";
+import {
+    canonicalizeTickerSymbol,
+    getDefaultSourceSymbol,
+    normalizeTickerKey,
+    normalizeTickerSymbolConfig,
+} from "@/lib/ticker-symbols";
 
 const yahooFinance = new YahooFinance();
 
@@ -104,10 +110,6 @@ export const HISTORY_REFRESH_MS: Record<MarketInterval, number> = {
 const HISTORY_LOOKBACK_LIMIT = 400;
 let tickerRefreshPromise: Promise<number> | null = null;
 
-function normalizeTickerKey(value: string) {
-    return value.trim().toUpperCase();
-}
-
 function lookupYahooSymbol(rawValue?: string | null) {
     if (!rawValue) {
         return null;
@@ -127,11 +129,14 @@ function lookupYahooSymbol(rawValue?: string | null) {
 }
 
 function resolveYahooSymbol(item: Pick<MarketSymbolConfig, "symbol" | "sourceSymbol">) {
+    const canonicalSymbol = canonicalizeTickerSymbol(item.symbol);
     return (
         lookupYahooSymbol(item.sourceSymbol) ||
+        lookupYahooSymbol(canonicalSymbol) ||
         lookupYahooSymbol(item.symbol) ||
+        getDefaultSourceSymbol(canonicalSymbol) ||
         item.sourceSymbol ||
-        item.symbol
+        canonicalSymbol
     );
 }
 
@@ -156,7 +161,8 @@ export async function fetchLatestQuote(
     item: MarketSymbolConfig,
 ): Promise<MarketQuoteRow | null> {
     try {
-        const yahooSymbol = resolveYahooSymbol(item);
+        const normalizedItem = normalizeTickerSymbolConfig(item);
+        const yahooSymbol = resolveYahooSymbol(normalizedItem);
         const quote = (await yahooFinance.quote(yahooSymbol)) as
             | Record<string, unknown>
             | undefined;
@@ -183,17 +189,17 @@ export async function fetchLatestQuote(
             return null;
         }
 
-        const { status: marketStatus, exchange } = getMarketStatus(
-            item.symbol,
-            item.type,
+        const { status: marketStatus } = getMarketStatus(
+            normalizedItem.symbol,
+            normalizedItem.type,
         );
 
         const isActive = marketStatus === "OPEN" || marketStatus === "PRE_MARKET" || marketStatus === "POST_MARKET";
 
         return {
-            label: item.label,
-            symbol: item.symbol,
-            type: item.type,
+            label: normalizedItem.label,
+            symbol: normalizedItem.symbol,
+            type: normalizedItem.type,
             price,
             change: isActive ? change : 0,
             changePercent: isActive ? changePercent : 0,
@@ -212,7 +218,8 @@ export async function fetchAndStoreHistory(
     interval: MarketInterval,
 ) {
     const config = HISTORY_CONFIG[interval];
-    const yahooSymbol = resolveYahooSymbol(item);
+    const normalizedItem = normalizeTickerSymbolConfig(item);
+    const yahooSymbol = resolveYahooSymbol(normalizedItem);
 
     try {
         const chart = (await yahooFinance.chart(yahooSymbol, {
@@ -232,8 +239,8 @@ export async function fetchAndStoreHistory(
         const historyRows = (chart.quotes || [])
             .filter((point) => point.date && point.close != null)
             .map((point) => ({
-                label: item.label,
-                symbol: item.symbol,
+                label: normalizedItem.label,
+                symbol: normalizedItem.symbol,
                 source: yahooSymbol,
                 interval,
                 open: point.open ?? point.close ?? 0,

@@ -2,9 +2,17 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 const DEFAULT_TICKERS = [
-  { label: 'USD Index', symbol: 'DX-Y.NYB', type: 'currency' },
-  { label: 'Oil (WTI)', symbol: 'CL=F', type: 'commodity' },
-  { label: 'Gold', symbol: 'GC=F', type: 'commodity' },
+  { label: 'USD Index', symbol: 'DXY', type: 'currency', sourceSymbol: 'CAPITALCOM:DXY' },
+  { label: 'CRUDE OIL', symbol: 'CRUDE', type: 'commodity', sourceSymbol: 'TVC:USOIL' },
+  { label: 'GOLD', symbol: 'GOLD', type: 'commodity', sourceSymbol: 'XAUUSD' },
+  { label: 'SILVER', symbol: 'SILVER', type: 'commodity', sourceSymbol: 'XAGUSD' },
+  { label: 'COPPER', symbol: 'COPPER', type: 'commodity', sourceSymbol: 'CAPITALCOM:COPPER' },
+  { label: 'ZINC', symbol: 'ZINC', type: 'commodity', sourceSymbol: 'ZINC.L' },
+  { label: 'LEAD', symbol: 'LEAD', type: 'commodity', sourceSymbol: 'LEAD.L' },
+  { label: 'NICKEL', symbol: 'NICKEL', type: 'commodity', sourceSymbol: 'NICKEL.L' },
+  { label: 'ASX200', symbol: 'ASX200', type: 'index', sourceSymbol: '^AXJO' },
+  { label: 'URANIUM', symbol: 'URANIUM', type: 'commodity', sourceSymbol: 'URNM' },
+  { label: 'LITHIUM', symbol: 'LITHIUM', type: 'commodity', sourceSymbol: 'LIT' },
   { label: 'Bitcoin', symbol: 'BTC-USD', type: 'crypto' },
   { label: 'Ethereum', symbol: 'ETH-USD', type: 'crypto' },
   { label: 'Rare Earth ETF', symbol: 'REMX', type: 'stock' },

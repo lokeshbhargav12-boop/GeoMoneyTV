@@ -12,6 +12,12 @@ import {
 } from "@/lib/market-data-service";
 import { getMarketStatus } from "@/lib/market-schedule";
 import type { MarketStatus } from "@/lib/market-schedule";
+import {
+    canonicalizeTickerSymbol,
+    dedupeTickerSymbolConfigs,
+    normalizeTickerKey,
+    normalizeTickerSymbolConfig,
+} from "@/lib/ticker-symbols";
 
 export type TickerSymbolConfig = MarketSymbolConfig;
 
@@ -78,10 +84,6 @@ interface StoredRow {
     lastTradingTimestamp?: Date | null;
 }
 
-function normalizeTickerKey(value: string) {
-    return value.trim().toUpperCase();
-}
-
 function attachMarketStatus(item: Omit<TickerItem, "marketStatus" | "sessionLabel" | "lastTradingTimestamp"> & { marketStatus?: string; lastTradingTimestamp?: string | Date | null; sessionLabel?: string }): TickerItem {
     const { status, sessionLabel } = getMarketStatus(item.symbol, item.type);
     const isActive = status === "OPEN" || status === "PRE_MARKET" || status === "POST_MARKET";
@@ -106,19 +108,35 @@ function attachMarketStatus(item: Omit<TickerItem, "marketStatus" | "sessionLabe
 }
 
 function mergeTickerRows(storedRows: StoredRow[]): TickerItem[] {
-    const storedBySymbol = new Map(
-        storedRows.map((item) => [normalizeTickerKey(item.symbol), item]),
-    );
+    const storedBySymbol = new Map<string, StoredRow>();
+    for (const item of storedRows) {
+        const canonicalSymbol = canonicalizeTickerSymbol(item.symbol);
+        if (!storedBySymbol.has(canonicalSymbol)) {
+            storedBySymbol.set(canonicalSymbol, {
+                ...item,
+                symbol: canonicalSymbol,
+            });
+        }
+
+        const canonicalLabel = canonicalizeTickerSymbol(item.label);
+        if (canonicalLabel !== canonicalSymbol && !storedBySymbol.has(canonicalLabel)) {
+            storedBySymbol.set(canonicalLabel, {
+                ...item,
+                symbol: canonicalLabel,
+            });
+        }
+    }
 
     const merged = MINING_COMMODITIES.map((item) => {
+        const baseSymbol = canonicalizeTickerSymbol(item.symbol);
         const stored =
-            storedBySymbol.get(normalizeTickerKey(item.symbol)) ||
-            storedBySymbol.get(normalizeTickerKey(item.label));
+            storedBySymbol.get(baseSymbol) ||
+            storedBySymbol.get(canonicalizeTickerSymbol(item.label));
 
         if (stored) {
             return attachMarketStatus({
-                label: stored.label || item.label,
-                symbol: stored.symbol || item.symbol,
+                label: item.label,
+                symbol: baseSymbol,
                 price: stored.price,
                 change: stored.change,
                 changePercent: stored.changePercent,
@@ -131,16 +149,27 @@ function mergeTickerRows(storedRows: StoredRow[]): TickerItem[] {
         return attachMarketStatus(item);
     });
 
+    const mergedSymbolSet = new Set(
+        merged.map((item) => canonicalizeTickerSymbol(item.symbol)),
+    );
+
     const additionalRows = storedRows.filter((item) => {
-        const key = normalizeTickerKey(item.symbol);
-        return !MINING_COMMODITIES.some(
-            (baseItem) =>
-                normalizeTickerKey(baseItem.symbol) === key ||
-                normalizeTickerKey(baseItem.label) === key,
-        ) && ["commodity", "index"].includes(item.type);
+        const canonicalSymbol = canonicalizeTickerSymbol(item.symbol);
+        return !mergedSymbolSet.has(canonicalSymbol) && ["commodity", "index"].includes(item.type);
     });
 
-    const additionalWithStatus = additionalRows.map((item) =>
+    const additionalBySymbol = new Map<string, StoredRow>();
+    for (const item of additionalRows) {
+        const canonicalSymbol = canonicalizeTickerSymbol(item.symbol);
+        if (!additionalBySymbol.has(canonicalSymbol)) {
+            additionalBySymbol.set(canonicalSymbol, {
+                ...item,
+                symbol: canonicalSymbol,
+            });
+        }
+    }
+
+    const additionalWithStatus = Array.from(additionalBySymbol.values()).map((item) =>
         attachMarketStatus(item),
     );
 
@@ -159,23 +188,37 @@ export async function getTickerSymbols(): Promise<TickerSymbolConfig[]> {
         });
 
         if (!setting) {
-            return DEFAULT_SYMBOLS;
+            return dedupeTickerSymbolConfigs(
+                DEFAULT_SYMBOLS.map((item) => normalizeTickerSymbolConfig(item)),
+            );
         }
 
         const parsed = JSON.parse(setting.value);
 
         if (!Array.isArray(parsed) || parsed.length === 0) {
-            return DEFAULT_SYMBOLS;
+            return dedupeTickerSymbolConfigs(
+                DEFAULT_SYMBOLS.map((item) => normalizeTickerSymbolConfig(item)),
+            );
         }
 
-        return parsed.filter(
+        const normalized = parsed.filter(
             (item): item is TickerSymbolConfig =>
                 typeof item?.label === "string" &&
                 typeof item?.symbol === "string" &&
                 typeof item?.type === "string",
-        );
+        ).map((item) => normalizeTickerSymbolConfig(item));
+
+        if (!normalized.length) {
+            return dedupeTickerSymbolConfigs(
+                DEFAULT_SYMBOLS.map((item) => normalizeTickerSymbolConfig(item)),
+            );
+        }
+
+        return dedupeTickerSymbolConfigs(normalized);
     } catch {
-        return DEFAULT_SYMBOLS;
+        return dedupeTickerSymbolConfigs(
+            DEFAULT_SYMBOLS.map((item) => normalizeTickerSymbolConfig(item)),
+        );
     }
 }
 
@@ -193,7 +236,7 @@ export async function getStoredTickerData(): Promise<TickerItem[]> {
         if (data.length > 0) {
             const storedRows: StoredRow[] = data.map(item => ({
                 label: item.label,
-                symbol: item.symbol,
+                symbol: canonicalizeTickerSymbol(item.symbol),
                 price: item.price,
                 change: item.change || 0,
                 changePercent: item.previousClose && item.previousClose !== 0
@@ -221,19 +264,19 @@ export async function updateTickerData() {
 
 export async function resolveTickerSymbolConfig(rawSymbol: string) {
     const symbols = await getTickerSymbols();
-    const normalized = normalizeTickerKey(rawSymbol);
+    const normalized = canonicalizeTickerSymbol(rawSymbol);
 
     return (
         symbols.find(
             (item) =>
-                normalizeTickerKey(item.symbol) === normalized ||
-                normalizeTickerKey(item.label) === normalized ||
-                normalizeTickerKey(item.sourceSymbol || "") === normalized,
-        ) || {
+                canonicalizeTickerSymbol(item.symbol) === normalized ||
+                canonicalizeTickerSymbol(item.label) === normalized ||
+                normalizeTickerKey(item.sourceSymbol || "") === normalizeTickerKey(rawSymbol),
+        ) || normalizeTickerSymbolConfig({
             label: rawSymbol,
             symbol: rawSymbol,
             type: "instrument",
-        }
+        })
     );
 }
 
