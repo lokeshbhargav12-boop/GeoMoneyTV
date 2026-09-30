@@ -7,7 +7,61 @@ import fs from 'fs'
 
 const KEY = 'hero_carousel'
 
-const defaultSlides = Array(5).fill(null).map(() => ({ url: '', title: '', subtitle: '' }))
+type CarouselSlide = {
+    url: string
+    title: string
+    subtitle: string
+    mediaType: 'image' | 'video'
+}
+
+const defaultSlide = (): CarouselSlide => ({
+    url: '',
+    title: '',
+    subtitle: '',
+    mediaType: 'image',
+})
+
+function getFreshDefaultSlides() {
+    return Array(5)
+        .fill(null)
+        .map(() => defaultSlide())
+}
+
+function inferMediaType(url: string): CarouselSlide['mediaType'] {
+    if (/\.(mp4|webm|mov)(\?.*)?$/i.test(url)) {
+        return 'video'
+    }
+
+    return 'image'
+}
+
+function normalizeSlide(slide: unknown): CarouselSlide {
+    if (!slide || typeof slide !== 'object') {
+        return defaultSlide()
+    }
+
+    const rawSlide = slide as Partial<CarouselSlide> & {
+        url?: unknown
+        title?: unknown
+        subtitle?: unknown
+        mediaType?: unknown
+    }
+
+    const url = typeof rawSlide.url === 'string' ? rawSlide.url : ''
+    const title = typeof rawSlide.title === 'string' ? rawSlide.title : ''
+    const subtitle = typeof rawSlide.subtitle === 'string' ? rawSlide.subtitle : ''
+    const mediaType =
+        rawSlide.mediaType === 'video' || rawSlide.mediaType === 'image'
+            ? rawSlide.mediaType
+            : inferMediaType(url)
+
+    return {
+        url,
+        title,
+        subtitle,
+        mediaType,
+    }
+}
 
 function isSlideUrlAvailable(url: string) {
     if (!url) {
@@ -30,12 +84,15 @@ function isSlideUrlAvailable(url: string) {
 export async function GET() {
     try {
         const setting = await prisma.siteSettings.findUnique({ where: { key: KEY } })
-        let slides = defaultSlides
+        let slides = getFreshDefaultSlides()
         if (setting) {
             try {
-                slides = JSON.parse(setting.value)
+                const parsedValue = JSON.parse(setting.value)
+                slides = Array.isArray(parsedValue)
+                    ? parsedValue.map(normalizeSlide)
+                    : getFreshDefaultSlides()
                 // Ensure exactly 5 slides
-                while (slides.length < 5) slides.push({ url: '', title: '', subtitle: '' })
+                while (slides.length < 5) slides.push(defaultSlide())
                 slides = slides.slice(0, 5)
                 const sanitizedSlides = slides.map((slide) =>
                     slide?.url && !isSlideUrlAvailable(slide.url)
@@ -56,7 +113,7 @@ export async function GET() {
                     })
                 }
             } catch {
-                slides = defaultSlides
+                slides = getFreshDefaultSlides()
             }
         }
         return NextResponse.json({ slides })
@@ -78,10 +135,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid slides data' }, { status: 400 })
         }
 
+        const normalizedSlides = slides.map(normalizeSlide)
+
         await prisma.siteSettings.upsert({
             where: { key: KEY },
-            update: { value: JSON.stringify(slides) },
-            create: { key: KEY, value: JSON.stringify(slides) },
+            update: { value: JSON.stringify(normalizedSlides) },
+            create: { key: KEY, value: JSON.stringify(normalizedSlides) },
         })
 
         return NextResponse.json({ success: true })

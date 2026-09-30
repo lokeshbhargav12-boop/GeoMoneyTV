@@ -4,11 +4,40 @@ import { useState, useEffect } from "react";
 import Globe from "./Globe";
 import AiAssistant from "./AiAssistant";
 
+export type CarouselMediaType = "image" | "video";
+
 export interface CarouselSlide {
   url: string;
   title: string;
   subtitle: string;
+  mediaType: CarouselMediaType;
 }
+
+const inferMediaTypeFromUrl = (url: string): CarouselMediaType =>
+  /\.(mp4|webm|mov)(\?.*)?$/i.test(url) ? "video" : "image";
+
+const normalizeSlide = (slide: unknown): CarouselSlide | null => {
+  if (!slide || typeof slide !== "object") {
+    return null;
+  }
+
+  const rawSlide = slide as Partial<CarouselSlide>;
+  const url = typeof rawSlide.url === "string" ? rawSlide.url : "";
+
+  if (!url) {
+    return null;
+  }
+
+  return {
+    url,
+    title: typeof rawSlide.title === "string" ? rawSlide.title : "",
+    subtitle: typeof rawSlide.subtitle === "string" ? rawSlide.subtitle : "",
+    mediaType:
+      rawSlide.mediaType === "video" || rawSlide.mediaType === "image"
+        ? rawSlide.mediaType
+        : inferMediaTypeFromUrl(url),
+  };
+};
 
 interface HeroProps {
   initialSlides?: CarouselSlide[];
@@ -18,7 +47,11 @@ export default function Hero({ initialSlides = [] }: HeroProps) {
   const [text, setText] = useState("");
   const [showCursor, setShowCursor] = useState(true);
   const [isTypingComplete, setIsTypingComplete] = useState(false);
-  const [slides, setSlides] = useState<CarouselSlide[]>(initialSlides);
+  const [slides, setSlides] = useState<CarouselSlide[]>(
+    initialSlides
+      .map((slide) => normalizeSlide(slide))
+      .filter((slide): slide is CarouselSlide => Boolean(slide)),
+  );
   const [activeSlide, setActiveSlide] = useState(0);
 
   const fullText = "How energy, resources, and markets shape the global order";
@@ -44,13 +77,19 @@ export default function Hero({ initialSlides = [] }: HeroProps) {
     fetch("/api/admin/settings/hero-carousel")
       .then((res) => res.json())
       .then((data) => {
-        if (data.slides) {
-          setSlides(data.slides.filter((s: CarouselSlide) => s.url));
+        if (Array.isArray(data.slides)) {
+          const normalizedSlides = data.slides
+            .map((slide: unknown) => normalizeSlide(slide))
+            .filter(
+              (slide: CarouselSlide | null): slide is CarouselSlide =>
+                Boolean(slide),
+            );
+
+          setSlides(normalizedSlides);
           setActiveSlide((currentSlide) => {
-            const nextSlides = data.slides.filter((s: CarouselSlide) => s.url);
-            return nextSlides.length === 0
+            return normalizedSlides.length === 0
               ? 0
-              : Math.min(currentSlide, nextSlides.length - 1);
+              : Math.min(currentSlide, normalizedSlides.length - 1);
           });
         }
       })
@@ -75,14 +114,29 @@ export default function Hero({ initialSlides = [] }: HeroProps) {
             <div
               key={i}
               className={`absolute inset-0 transition-opacity duration-1000 ${i === activeSlide ? "opacity-100" : "opacity-0"}`}
-              style={{
-                backgroundImage: `url(${slide.url})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            />
+              aria-hidden={i !== activeSlide}
+            >
+              {slide.mediaType === "video" ? (
+                <video
+                  src={slide.url}
+                  className="h-full w-full object-cover"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                <div
+                  className="h-full w-full bg-cover bg-center"
+                  style={{ backgroundImage: `url(${slide.url})` }}
+                />
+              )}
+            </div>
           ))}
-          <div className="absolute inset-0 bg-black/65" />
+
+          <div className="absolute inset-0 bg-black/55" />
+          <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/35 to-[#0b1020]/70" />
         </>
       ) : (
         <Globe />

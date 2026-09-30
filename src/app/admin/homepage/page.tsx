@@ -1,18 +1,51 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Save, Upload, X, ImageIcon } from "lucide-react";
+import { Save, Upload, X, ImageIcon, Film } from "lucide-react";
+
+type CarouselMediaType = "image" | "video";
 
 interface CarouselSlide {
   url: string;
   title: string;
   subtitle: string;
+  mediaType: CarouselMediaType;
 }
+
+const createEmptySlide = (): CarouselSlide => ({
+  url: "",
+  title: "",
+  subtitle: "",
+  mediaType: "image",
+});
+
+const inferMediaTypeFromUrl = (url: string): CarouselMediaType =>
+  /\.(mp4|webm|mov)(\?.*)?$/i.test(url) ? "video" : "image";
+
+const inferMediaTypeFromFile = (file: File): CarouselMediaType =>
+  file.type.startsWith("video/") ? "video" : "image";
+
+const normalizeSlide = (slide: unknown): CarouselSlide => {
+  if (!slide || typeof slide !== "object") {
+    return createEmptySlide();
+  }
+
+  const rawSlide = slide as Partial<CarouselSlide>;
+  const url = typeof rawSlide.url === "string" ? rawSlide.url : "";
+  const title = typeof rawSlide.title === "string" ? rawSlide.title : "";
+  const subtitle = typeof rawSlide.subtitle === "string" ? rawSlide.subtitle : "";
+  const mediaType =
+    rawSlide.mediaType === "video" || rawSlide.mediaType === "image"
+      ? rawSlide.mediaType
+      : inferMediaTypeFromUrl(url);
+
+  return { url, title, subtitle, mediaType };
+};
 
 const defaultSlides = (): CarouselSlide[] =>
   Array(5)
     .fill(null)
-    .map(() => ({ url: "", title: "", subtitle: "" }));
+    .map(() => createEmptySlide());
 
 export default function HomepageAdminPage() {
   const [heroTitle, setHeroTitle] = useState("");
@@ -47,7 +80,17 @@ export default function HomepageAdminPage() {
       setNewsletterSubtitle(homepageData.newsletterSubtitle || "");
       setPartnerLogos(homepageData.partnerLogos || "");
       setFooterText(homepageData.footerText || "");
-      if (carouselData.slides) setCarouselSlides(carouselData.slides);
+      if (Array.isArray(carouselData.slides)) {
+        const normalizedSlides = carouselData.slides
+          .map((slide: unknown) => normalizeSlide(slide))
+          .slice(0, 5);
+
+        while (normalizedSlides.length < 5) {
+          normalizedSlides.push(createEmptySlide());
+        }
+
+        setCarouselSlides(normalizedSlides);
+      }
     } catch (error) {
       console.error("Error fetching homepage settings:", error);
     } finally {
@@ -55,7 +98,7 @@ export default function HomepageAdminPage() {
     }
   };
 
-  const handleSlideImageUpload = async (index: number, file: File) => {
+  const handleSlideMediaUpload = async (index: number, file: File) => {
     setUploadingSlot(index);
     try {
       const formData = new FormData();
@@ -69,12 +112,19 @@ export default function HomepageAdminPage() {
         alert(err.error || "Upload failed");
         return;
       }
-      const { url } = await res.json();
+      const data = await res.json();
+      const mediaType: CarouselMediaType =
+        data.mediaType === "video" || data.mediaType === "image"
+          ? data.mediaType
+          : inferMediaTypeFromFile(file);
+
       setCarouselSlides((prev) =>
-        prev.map((s, i) => (i === index ? { ...s, url } : s)),
+        prev.map((s, i) =>
+          i === index ? { ...s, url: data.url || "", mediaType } : s,
+        ),
       );
     } catch {
-      alert("Failed to upload image");
+      alert("Failed to upload media");
     } finally {
       setUploadingSlot(null);
     }
@@ -92,9 +142,7 @@ export default function HomepageAdminPage() {
 
   const clearSlide = (index: number) => {
     setCarouselSlides((prev) =>
-      prev.map((s, i) =>
-        i === index ? { url: "", title: "", subtitle: "" } : s,
-      ),
+      prev.map((s, i) => (i === index ? createEmptySlide() : s)),
     );
   };
 
@@ -191,8 +239,8 @@ export default function HomepageAdminPage() {
       <div className="rounded-lg border border-white/10 bg-white/5 p-6">
         <h2 className="text-lg font-medium text-white mb-1">Hero Carousel</h2>
         <p className="text-sm text-gray-400 mb-6">
-          Upload up to 5 images to display as a rotating background in the
-          homepage hero. Images with no URL will be skipped.
+          Upload up to 5 hero media slides (image or video) to display as a
+          rotating background on the homepage. Empty slots are skipped.
         </p>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {carouselSlides.map((slide, index) => (
@@ -215,19 +263,36 @@ export default function HomepageAdminPage() {
                 )}
               </div>
 
-              {/* Image Preview / Upload Area */}
+              {/* Media Preview / Upload Area */}
               <div
                 className="relative aspect-video w-full overflow-hidden rounded-md border border-white/10 bg-gray-900 cursor-pointer group"
                 onClick={() => fileInputRefs.current[index]?.click()}
               >
                 {slide.url ? (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={slide.url}
-                      alt={`Slide ${index + 1}`}
-                      className="h-full w-full object-cover"
-                    />
+                    {slide.mediaType === "video" ? (
+                      <video
+                        src={slide.url}
+                        className="h-full w-full object-cover"
+                        muted
+                        autoPlay
+                        loop
+                        playsInline
+                        preload="metadata"
+                      />
+                    ) : (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={slide.url}
+                          alt={`Slide ${index + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </>
+                    )}
+                    <div className="absolute left-2 top-2 rounded-full border border-white/20 bg-black/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/90">
+                      {slide.mediaType}
+                    </div>
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Upload className="w-5 h-5 text-white" />
                       <span className="ml-1 text-xs text-white">Change</span>
@@ -239,12 +304,16 @@ export default function HomepageAdminPage() {
                       <div className="h-5 w-5 animate-spin rounded-full border-2 border-geo-gold border-t-transparent" />
                     ) : (
                       <>
-                        <ImageIcon className="w-6 h-6" />
-                        <span className="text-xs">Click to upload</span>
+                        <div className="flex items-center gap-2">
+                          <ImageIcon className="w-5 h-5" />
+                          <Film className="w-5 h-5" />
+                        </div>
+                        <span className="text-xs">Upload image or video</span>
                       </>
                     )}
                   </div>
                 )}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
               </div>
 
               <input
@@ -252,11 +321,11 @@ export default function HomepageAdminPage() {
                   fileInputRefs.current[index] = el;
                 }}
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
+                accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) handleSlideImageUpload(index, file);
+                  if (file) handleSlideMediaUpload(index, file);
                   e.target.value = "";
                 }}
               />

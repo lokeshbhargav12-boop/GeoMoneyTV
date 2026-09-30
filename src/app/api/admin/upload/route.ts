@@ -4,6 +4,15 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import path from 'path'
 
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime']
+
+function resolveMediaType(mimeType: string): 'image' | 'video' | null {
+    if (IMAGE_TYPES.includes(mimeType)) return 'image'
+    if (VIDEO_TYPES.includes(mimeType)) return 'video'
+    return null
+}
+
 export async function POST(req: Request) {
     try {
         const session = await getServerSession(authOptions)
@@ -18,20 +27,36 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
         }
 
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-        if (!allowedTypes.includes(file.type)) {
-            return NextResponse.json({ error: 'Invalid file type. Allowed: JPEG, PNG, WEBP, GIF' }, { status: 400 })
+        const mediaType = resolveMediaType(file.type)
+        if (!mediaType) {
+            return NextResponse.json(
+                {
+                    error:
+                        'Invalid file type. Allowed images: JPEG, PNG, WEBP, GIF. Allowed videos: MP4, WEBM, MOV',
+                },
+                { status: 400 },
+            )
         }
 
-        const maxSize = 5 * 1024 * 1024 // 5MB
+        const maxSize = mediaType === 'video' ? 50 * 1024 * 1024 : 5 * 1024 * 1024
         if (file.size > maxSize) {
-            return NextResponse.json({ error: 'File too large (max 5MB)' }, { status: 400 })
+            return NextResponse.json(
+                {
+                    error:
+                        mediaType === 'video'
+                            ? 'Video file too large (max 50MB)'
+                            : 'Image file too large (max 5MB)',
+                },
+                { status: 400 },
+            )
         }
 
         const bytes = await file.arrayBuffer()
         const buffer = Buffer.from(bytes)
 
-        const ext = path.extname(file.name).toLowerCase() || '.jpg'
+        const ext =
+            path.extname(file.name).toLowerCase() ||
+            (mediaType === 'video' ? '.mp4' : '.jpg')
         const filename = `carousel-${Date.now()}${ext}`
         const asset = await prisma.mediaAsset.create({
             data: {
@@ -43,7 +68,7 @@ export async function POST(req: Request) {
             select: { id: true },
         })
 
-        return NextResponse.json({ url: `/api/media/${asset.id}` })
+        return NextResponse.json({ url: `/api/media/${asset.id}`, mimeType: file.type, mediaType })
     } catch (error) {
         console.error('Upload error:', error)
         return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })

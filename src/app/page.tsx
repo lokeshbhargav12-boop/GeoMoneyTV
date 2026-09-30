@@ -11,6 +11,9 @@ import BriefingsSection from "@/components/BriefingsSection";
 
 export const dynamic = "force-dynamic";
 
+const inferMediaTypeFromUrl = (url: string): CarouselSlide["mediaType"] =>
+  /\.(mp4|webm|mov)(\?.*)?$/i.test(url) ? "video" : "image";
+
 async function getRecentArticles() {
   try {
     return await prisma.article.findMany({
@@ -74,13 +77,38 @@ async function getHeroCarouselSlides(): Promise<CarouselSlide[]> {
       return [];
     }
 
-    return parsedSlides.filter(
-      (slide): slide is CarouselSlide =>
-        typeof slide?.url === "string" &&
-        slide.url.length > 0 &&
-        typeof slide.title === "string" &&
-        typeof slide.subtitle === "string",
-    );
+    return parsedSlides
+      .map((slide) => {
+        if (!slide || typeof slide !== "object") {
+          return null;
+        }
+
+        const rawSlide = slide as {
+          url?: unknown;
+          title?: unknown;
+          subtitle?: unknown;
+          mediaType?: unknown;
+        };
+
+        if (typeof rawSlide.url !== "string" || rawSlide.url.length === 0) {
+          return null;
+        }
+
+        const title = typeof rawSlide.title === "string" ? rawSlide.title : "";
+        const subtitle =
+          typeof rawSlide.subtitle === "string" ? rawSlide.subtitle : "";
+
+        return {
+          url: rawSlide.url,
+          title,
+          subtitle,
+          mediaType:
+            rawSlide.mediaType === "video" || rawSlide.mediaType === "image"
+              ? rawSlide.mediaType
+              : inferMediaTypeFromUrl(rawSlide.url),
+        } as CarouselSlide;
+      })
+      .filter((slide): slide is CarouselSlide => Boolean(slide));
   } catch {
     return [];
   }
