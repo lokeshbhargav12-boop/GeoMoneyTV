@@ -6,12 +6,16 @@ import path from 'path'
 import fs from 'fs'
 
 const KEY = 'hero_carousel'
+const MIN_VIDEO_DURATION_SECONDS = 1
+const MAX_VIDEO_DURATION_SECONDS = 45
+const DEFAULT_VIDEO_DURATION_SECONDS = 15
 
 type CarouselSlide = {
     url: string
     title: string
     subtitle: string
     mediaType: 'image' | 'video'
+    videoDurationSec: number | null
 }
 
 const defaultSlide = (): CarouselSlide => ({
@@ -19,6 +23,7 @@ const defaultSlide = (): CarouselSlide => ({
     title: '',
     subtitle: '',
     mediaType: 'image',
+    videoDurationSec: null,
 })
 
 function getFreshDefaultSlides() {
@@ -35,6 +40,25 @@ function inferMediaType(url: string): CarouselSlide['mediaType'] {
     return 'image'
 }
 
+function clampVideoDuration(value: number): number {
+    return Math.min(MAX_VIDEO_DURATION_SECONDS, Math.max(MIN_VIDEO_DURATION_SECONDS, Math.round(value)))
+}
+
+function normalizeVideoDuration(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return clampVideoDuration(value)
+    }
+
+    if (typeof value === 'string') {
+        const parsed = Number(value)
+        if (Number.isFinite(parsed)) {
+            return clampVideoDuration(parsed)
+        }
+    }
+
+    return null
+}
+
 function normalizeSlide(slide: unknown): CarouselSlide {
     if (!slide || typeof slide !== 'object') {
         return defaultSlide()
@@ -45,6 +69,7 @@ function normalizeSlide(slide: unknown): CarouselSlide {
         title?: unknown
         subtitle?: unknown
         mediaType?: unknown
+        videoDurationSec?: unknown
     }
 
     const url = typeof rawSlide.url === 'string' ? rawSlide.url : ''
@@ -54,12 +79,18 @@ function normalizeSlide(slide: unknown): CarouselSlide {
         rawSlide.mediaType === 'video' || rawSlide.mediaType === 'image'
             ? rawSlide.mediaType
             : inferMediaType(url)
+    const videoDurationSec =
+        mediaType === 'video'
+            ? normalizeVideoDuration(rawSlide.videoDurationSec) ??
+              DEFAULT_VIDEO_DURATION_SECONDS
+            : null
 
     return {
         url,
         title,
         subtitle,
         mediaType,
+        videoDurationSec,
     }
 }
 

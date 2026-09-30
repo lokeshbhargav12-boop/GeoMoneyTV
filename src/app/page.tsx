@@ -13,6 +13,27 @@ export const dynamic = "force-dynamic";
 
 const inferMediaTypeFromUrl = (url: string): CarouselSlide["mediaType"] =>
   /\.(mp4|webm|mov)(\?.*)?$/i.test(url) ? "video" : "image";
+const MIN_VIDEO_DURATION_SECONDS = 1;
+const MAX_VIDEO_DURATION_SECONDS = 45;
+const DEFAULT_VIDEO_DURATION_SECONDS = 15;
+
+const clampVideoDuration = (value: number): number =>
+  Math.min(MAX_VIDEO_DURATION_SECONDS, Math.max(MIN_VIDEO_DURATION_SECONDS, Math.round(value)));
+
+const normalizeVideoDuration = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampVideoDuration(value);
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return clampVideoDuration(parsed);
+    }
+  }
+
+  return null;
+};
 
 async function getRecentArticles() {
   try {
@@ -88,6 +109,7 @@ async function getHeroCarouselSlides(): Promise<CarouselSlide[]> {
           title?: unknown;
           subtitle?: unknown;
           mediaType?: unknown;
+          videoDurationSec?: unknown;
         };
 
         if (typeof rawSlide.url !== "string" || rawSlide.url.length === 0) {
@@ -98,14 +120,21 @@ async function getHeroCarouselSlides(): Promise<CarouselSlide[]> {
         const subtitle =
           typeof rawSlide.subtitle === "string" ? rawSlide.subtitle : "";
 
+        const mediaType: CarouselSlide["mediaType"] =
+          rawSlide.mediaType === "video" || rawSlide.mediaType === "image"
+            ? rawSlide.mediaType
+            : inferMediaTypeFromUrl(rawSlide.url);
+
         return {
           url: rawSlide.url,
           title,
           subtitle,
-          mediaType:
-            rawSlide.mediaType === "video" || rawSlide.mediaType === "image"
-              ? rawSlide.mediaType
-              : inferMediaTypeFromUrl(rawSlide.url),
+          mediaType,
+          videoDurationSec:
+            mediaType === "video"
+              ? normalizeVideoDuration(rawSlide.videoDurationSec) ??
+                DEFAULT_VIDEO_DURATION_SECONDS
+              : null,
         } as CarouselSlide;
       })
       .filter((slide): slide is CarouselSlide => Boolean(slide));

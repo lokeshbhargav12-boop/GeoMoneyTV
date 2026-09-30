@@ -4,12 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import { Save, Upload, X, ImageIcon, Film } from "lucide-react";
 
 type CarouselMediaType = "image" | "video";
+const MIN_VIDEO_DURATION_SECONDS = 1;
+const MAX_VIDEO_DURATION_SECONDS = 45;
+const DEFAULT_VIDEO_DURATION_SECONDS = 15;
 
 interface CarouselSlide {
   url: string;
   title: string;
   subtitle: string;
   mediaType: CarouselMediaType;
+  videoDurationSec: number | null;
 }
 
 const createEmptySlide = (): CarouselSlide => ({
@@ -17,6 +21,7 @@ const createEmptySlide = (): CarouselSlide => ({
   title: "",
   subtitle: "",
   mediaType: "image",
+  videoDurationSec: null,
 });
 
 const inferMediaTypeFromUrl = (url: string): CarouselMediaType =>
@@ -25,12 +30,32 @@ const inferMediaTypeFromUrl = (url: string): CarouselMediaType =>
 const inferMediaTypeFromFile = (file: File): CarouselMediaType =>
   file.type.startsWith("video/") ? "video" : "image";
 
+const clampVideoDuration = (value: number): number =>
+  Math.min(MAX_VIDEO_DURATION_SECONDS, Math.max(MIN_VIDEO_DURATION_SECONDS, Math.round(value)));
+
+const normalizeVideoDuration = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampVideoDuration(value);
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return clampVideoDuration(parsed);
+    }
+  }
+
+  return null;
+};
+
 const normalizeSlide = (slide: unknown): CarouselSlide => {
   if (!slide || typeof slide !== "object") {
     return createEmptySlide();
   }
 
-  const rawSlide = slide as Partial<CarouselSlide>;
+  const rawSlide = slide as Partial<CarouselSlide> & {
+    videoDurationSec?: unknown;
+  };
   const url = typeof rawSlide.url === "string" ? rawSlide.url : "";
   const title = typeof rawSlide.title === "string" ? rawSlide.title : "";
   const subtitle = typeof rawSlide.subtitle === "string" ? rawSlide.subtitle : "";
@@ -38,8 +63,13 @@ const normalizeSlide = (slide: unknown): CarouselSlide => {
     rawSlide.mediaType === "video" || rawSlide.mediaType === "image"
       ? rawSlide.mediaType
       : inferMediaTypeFromUrl(url);
+  const videoDurationSec =
+    mediaType === "video"
+      ? normalizeVideoDuration(rawSlide.videoDurationSec) ??
+        DEFAULT_VIDEO_DURATION_SECONDS
+      : null;
 
-  return { url, title, subtitle, mediaType };
+  return { url, title, subtitle, mediaType, videoDurationSec };
 };
 
 const defaultSlides = (): CarouselSlide[] =>
@@ -120,7 +150,17 @@ export default function HomepageAdminPage() {
 
       setCarouselSlides((prev) =>
         prev.map((s, i) =>
-          i === index ? { ...s, url: data.url || "", mediaType } : s,
+          i === index
+            ? {
+                ...s,
+                url: data.url || "",
+                mediaType,
+                videoDurationSec:
+                  mediaType === "video"
+                    ? s.videoDurationSec ?? DEFAULT_VIDEO_DURATION_SECONDS
+                    : null,
+              }
+            : s,
         ),
       );
     } catch {
@@ -130,13 +170,32 @@ export default function HomepageAdminPage() {
     }
   };
 
-  const updateSlide = (
+  const updateSlideText = (
     index: number,
-    field: keyof CarouselSlide,
+    field: "title" | "subtitle",
     value: string,
   ) => {
     setCarouselSlides((prev) =>
       prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
+    );
+  };
+
+  const updateSlideVideoDuration = (index: number, value: string) => {
+    const parsed = Number(value);
+    const normalizedDuration = Number.isFinite(parsed)
+      ? clampVideoDuration(parsed)
+      : DEFAULT_VIDEO_DURATION_SECONDS;
+
+    setCarouselSlides((prev) =>
+      prev.map((s, i) =>
+        i === index
+          ? {
+              ...s,
+              videoDurationSec:
+                s.mediaType === "video" ? normalizedDuration : null,
+            }
+          : s,
+      ),
     );
   };
 
@@ -240,7 +299,8 @@ export default function HomepageAdminPage() {
         <h2 className="text-lg font-medium text-white mb-1">Hero Carousel</h2>
         <p className="text-sm text-gray-400 mb-6">
           Upload up to 5 hero media slides (image or video) to display as a
-          rotating background on the homepage. Empty slots are skipped.
+          rotating background on the homepage. For videos, set a custom display
+          duration up to 45 seconds. Empty slots are skipped.
         </p>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {carouselSlides.map((slide, index) => (
@@ -333,17 +393,43 @@ export default function HomepageAdminPage() {
               <input
                 type="text"
                 value={slide.title}
-                onChange={(e) => updateSlide(index, "title", e.target.value)}
+                onChange={(e) =>
+                  updateSlideText(index, "title", e.target.value)
+                }
                 placeholder="Slide title (optional)"
                 className="w-full rounded-md border border-white/10 bg-black/50 px-3 py-1.5 text-sm text-white placeholder-gray-600"
               />
               <input
                 type="text"
                 value={slide.subtitle}
-                onChange={(e) => updateSlide(index, "subtitle", e.target.value)}
+                onChange={(e) =>
+                  updateSlideText(index, "subtitle", e.target.value)
+                }
                 placeholder="Subtitle (optional)"
                 className="w-full rounded-md border border-white/10 bg-black/50 px-3 py-1.5 text-sm text-white placeholder-gray-600"
               />
+
+              {slide.mediaType === "video" && slide.url && (
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium uppercase tracking-wide text-gray-400">
+                    Video display duration (seconds)
+                  </label>
+                  <input
+                    type="number"
+                    min={MIN_VIDEO_DURATION_SECONDS}
+                    max={MAX_VIDEO_DURATION_SECONDS}
+                    step={1}
+                    value={slide.videoDurationSec ?? DEFAULT_VIDEO_DURATION_SECONDS}
+                    onChange={(e) =>
+                      updateSlideVideoDuration(index, e.target.value)
+                    }
+                    className="w-full rounded-md border border-white/10 bg-black/50 px-3 py-1.5 text-sm text-white"
+                  />
+                  <p className="text-[11px] text-gray-500">
+                    Max {MAX_VIDEO_DURATION_SECONDS} seconds
+                  </p>
+                </div>
+              )}
             </div>
           ))}
         </div>

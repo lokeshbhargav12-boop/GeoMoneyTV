@@ -5,37 +5,69 @@ import Globe from "./Globe";
 import AiAssistant from "./AiAssistant";
 
 export type CarouselMediaType = "image" | "video";
+const IMAGE_SLIDE_DURATION_MS = 5000;
+const MIN_VIDEO_DURATION_SECONDS = 1;
+const MAX_VIDEO_DURATION_SECONDS = 45;
+const DEFAULT_VIDEO_DURATION_SECONDS = 15;
 
 export interface CarouselSlide {
   url: string;
   title: string;
   subtitle: string;
   mediaType: CarouselMediaType;
+  videoDurationSec: number | null;
 }
 
 const inferMediaTypeFromUrl = (url: string): CarouselMediaType =>
   /\.(mp4|webm|mov)(\?.*)?$/i.test(url) ? "video" : "image";
+
+const clampVideoDuration = (value: number): number =>
+  Math.min(MAX_VIDEO_DURATION_SECONDS, Math.max(MIN_VIDEO_DURATION_SECONDS, Math.round(value)));
+
+const normalizeVideoDuration = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampVideoDuration(value);
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return clampVideoDuration(parsed);
+    }
+  }
+
+  return null;
+};
 
 const normalizeSlide = (slide: unknown): CarouselSlide | null => {
   if (!slide || typeof slide !== "object") {
     return null;
   }
 
-  const rawSlide = slide as Partial<CarouselSlide>;
+  const rawSlide = slide as Partial<CarouselSlide> & {
+    videoDurationSec?: unknown;
+  };
   const url = typeof rawSlide.url === "string" ? rawSlide.url : "";
 
   if (!url) {
     return null;
   }
 
+  const mediaType =
+    rawSlide.mediaType === "video" || rawSlide.mediaType === "image"
+      ? rawSlide.mediaType
+      : inferMediaTypeFromUrl(url);
+
   return {
     url,
     title: typeof rawSlide.title === "string" ? rawSlide.title : "",
     subtitle: typeof rawSlide.subtitle === "string" ? rawSlide.subtitle : "",
-    mediaType:
-      rawSlide.mediaType === "video" || rawSlide.mediaType === "image"
-        ? rawSlide.mediaType
-        : inferMediaTypeFromUrl(url),
+    mediaType,
+    videoDurationSec:
+      mediaType === "video"
+        ? normalizeVideoDuration(rawSlide.videoDurationSec) ??
+          DEFAULT_VIDEO_DURATION_SECONDS
+        : null,
   };
 };
 
@@ -98,11 +130,22 @@ export default function Hero({ initialSlides = [] }: HeroProps) {
 
   useEffect(() => {
     if (slides.length <= 1) return;
-    const interval = setInterval(() => {
+
+    const currentSlide = slides[activeSlide];
+    if (!currentSlide) return;
+
+    const delayMs =
+      currentSlide.mediaType === "video"
+        ? (currentSlide.videoDurationSec ?? DEFAULT_VIDEO_DURATION_SECONDS) *
+          1000
+        : IMAGE_SLIDE_DURATION_MS;
+
+    const interval = setTimeout(() => {
       setActiveSlide((prev) => (prev + 1) % slides.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [slides.length]);
+    }, delayMs);
+
+    return () => clearTimeout(interval);
+  }, [slides, activeSlide]);
 
   const hasCarousel = slides.length > 0;
 
