@@ -1,71 +1,169 @@
-import { NextResponse } from 'next/server';
-import { callOpenRouter } from '@/lib/openrouter';
+import { NextResponse } from "next/server";
+import { callOpenRouter } from "@/lib/openrouter";
+import {
+  cleanText,
+  newestTimestamp,
+  normalizeSourceStatus,
+  parseBounds,
+  pointIsInBounds,
+} from "@/lib/aperture-analysis";
 
-export async function POST(req: Request) {
-    try {
-        const body = await req.json();
-        const { ships, aircraft, bounds, layer } = body;
-        const shipsList = Array.isArray(ships) ? ships : [];
-        const aircraftList = Array.isArray(aircraft) ? aircraft : [];
+const MAX_ASSET_SAMPLE = 100;
 
-        const shipTypeBreakdown = shipsList.reduce<Record<string, number>>((acc, ship) => {
-            const type = typeof ship?.type === 'string' ? ship.type.toLowerCase() : 'unknown';
-            acc[type] = (acc[type] || 0) + 1;
-            return acc;
-        }, {});
+function sanitizeShip(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const ship = value as Record<string, unknown>;
+  const latitude = Number(ship.latitude);
+  const longitude = Number(ship.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
 
-        const energyShips = shipsList.filter((ship) => {
-            const type = typeof ship?.type === 'string' ? ship.type.toLowerCase() : '';
-            return type === 'tanker' || type === 'lng';
-        });
+  return {
+    mmsi: cleanText(ship.mmsi, 20),
+    name: cleanText(ship.name, 100) || "Unknown vessel",
+    type: cleanText(ship.type, 40).toLowerCase() || "unknown",
+    latitude,
+    longitude,
+    speed: Number.isFinite(Number(ship.speed)) ? Number(ship.speed) : null,
+    heading: Number.isFinite(Number(ship.heading)) ? Number(ship.heading) : null,
+    destination: cleanText(ship.destination, 100),
+    status: cleanText(ship.status, 40),
+    source: cleanText(ship.source, 120),
+    lastUpdate: newestTimestamp([ship.lastUpdate]),
+    live: ship.live === true,
+  };
+}
 
-        const topDestinations = Array.from(
-            new Set(
-                shipsList
-                    .map((ship) => (typeof ship?.destination === 'string' ? ship.destination.trim() : ''))
-                    .filter(Boolean),
-            ),
-        ).slice(0, 5);
+function sanitizeAircraft(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const aircraft = value as Record<string, unknown>;
+  const latitude = Number(aircraft.latitude);
+  const longitude = Number(aircraft.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
 
-        let layerContext = "";
-        if (layer) {
-            const isWeather = ["temp", "wind", "rain", "storm"].some(l => layer.includes(l));
-            if (isWeather) {
-                layerContext = `The user is specifically inspecting the METEOROLOGICAL / EXTREME WEATHER layer (${layer}). Your analysis MUST focus primarily on how the typical geographic or current extreme weather/climate conditions in this specific bounding box impact global commodities, agriculture, infrastructure (like oil rigs or refineries), and regional supply chains. DO NOT focus heavily on shipping unless it's weather-delayed. NEVER hallucinate weather data—rely on known climatic risks (e.g. hurricane zones, monsoon flooding, heatwaves) inherent to this region.`;
-            } else {
-                layerContext = `The user is specifically inspecting INTELLIGENCE layers (e.g., ${layer} - like shadow fleets, thermal signatures, or military/AIS data). Your analysis MUST focus heavily on maritime security, trade bottlenecks, geopolitical tension, and infrastructure output in this region.`;
-            }
-        }
+  return {
+    icao24: cleanText(aircraft.icao24, 20),
+    callsign: cleanText(aircraft.callsign, 30),
+    originCountry: cleanText(aircraft.origin_country, 100),
+    category: cleanText(aircraft.category, 40),
+    latitude,
+    longitude,
+    altitude: Number.isFinite(Number(aircraft.altitude)) ? Number(aircraft.altitude) : null,
+    velocity: Number.isFinite(Number(aircraft.velocity)) ? Number(aircraft.velocity) : null,
+    heading: Number.isFinite(Number(aircraft.heading)) ? Number(aircraft.heading) : null,
+    lastContact: newestTimestamp([aircraft.lastContact, aircraft.last_contact]),
+  };
+}
 
-        const prompt = `You are a strategic geopolitical intelligence analyst at GeoMoney. 
-A user has selected a bounding box area on the map.
-Bounds: North ${bounds.north}, South ${bounds.south}, East ${bounds.east}, West ${bounds.west}
-
-Here is the data detected in this area:
-- Ships: ${shipsList.length} visible. (Sample: ${JSON.stringify(shipsList.slice(0, 10))})
-- Aircraft: ${aircraftList.length} visible. (Sample: ${JSON.stringify(aircraftList.slice(0, 10))})
-- Ship mix: ${JSON.stringify(shipTypeBreakdown)}
-- Energy-linked vessels (tankers/LNG): ${energyShips.length}
-- Top declared destinations: ${topDestinations.join(', ') || 'None reported'}
-
-${layerContext}
-
-TASK:
-Write a concise 2-3 paragraph strategic intelligence and situational summary of this exact region based on the coordinates and the assets present.
-
-RULES:
-1. Identify any strategic choke points, military postures, supply chain concentrations, or points of interest. 
-2. Keep the tone professional, objective, and intelligence-oriented.
-3. DO NOT hallucinate data or make up specific tracked assets that aren't in the provided list. Do not talk to yourself or show your thinking process.
-4. You MUST infer standard geographic context for those coordinates (e.g. if the coordinates cover Assam, mention Assam and its strategic context; if it covers the Strait of Hormuz, explicitly mention the Strait). 
-5. If no ships or aircraft are present, just state the area is currently clear of tracked marine and aviation assets and briefly contextualize the geographic significance of the location in relation to the active layer filter.
-6. If most visible vessels are not energy-linked, say so clearly instead of overstating oil and gas activity.`;
-
-        const result = await callOpenRouter(prompt, { temperature: 0.3 }); // lowered temp slightly for more focused response
-
-        return NextResponse.json({ summary: result.content, model: result.model });
-    } catch (e: any) {
-        console.error('BBox Analysis error:', e);
-        return NextResponse.json({ error: 'Failed to analyze bounding box' }, { status: 500 });
+export async function POST(request: Request) {
+  try {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "A JSON request body is required." }, { status: 400 });
     }
+
+    const payload = body as Record<string, unknown>;
+    const bounds = parseBounds(payload.bounds);
+    if (!bounds) {
+      return NextResponse.json({ error: "A valid, non-wrapping bounding box is required." }, { status: 400 });
+    }
+
+    const sourceStatusValue = payload.sourceStatus && typeof payload.sourceStatus === "object"
+      ? payload.sourceStatus as Record<string, unknown>
+      : {};
+    const vesselStatus = normalizeSourceStatus(sourceStatusValue.vessels, "AIS provider");
+    const aircraftStatus = normalizeSourceStatus(sourceStatusValue.aircraft, "OpenSky Network");
+
+    const rawShips = Array.isArray(payload.ships) ? payload.ships : [];
+    const rawAircraft = Array.isArray(payload.aircraft) ? payload.aircraft : [];
+    const ships = rawShips
+      .slice(0, MAX_ASSET_SAMPLE)
+      .map(sanitizeShip)
+      .filter((ship): ship is NonNullable<ReturnType<typeof sanitizeShip>> => Boolean(ship))
+      .filter((ship) => pointIsInBounds(ship.latitude, ship.longitude, bounds))
+      .filter((ship) => ship.live);
+    const aircraft = rawAircraft
+      .slice(0, MAX_ASSET_SAMPLE)
+      .map(sanitizeAircraft)
+      .filter((asset): asset is NonNullable<ReturnType<typeof sanitizeAircraft>> => Boolean(asset))
+      .filter((asset) => pointIsInBounds(asset.latitude, asset.longitude, bounds));
+
+    const suppliedTotals = payload.totals && typeof payload.totals === "object"
+      ? payload.totals as Record<string, unknown>
+      : {};
+    const vesselTotal = Math.max(
+      ships.length,
+      Math.min(100_000, Number(suppliedTotals.vessels) || ships.length),
+    );
+    const aircraftTotal = Math.max(
+      aircraft.length,
+      Math.min(100_000, Number(suppliedTotals.aircraft) || aircraft.length),
+    );
+    const layers = Array.isArray(payload.layers)
+      ? payload.layers.map((layer) => cleanText(layer, 50)).filter(Boolean).slice(0, 10)
+      : [];
+
+    const shipTypeBreakdown = ships.reduce<Record<string, number>>((counts, ship) => {
+      counts[ship.type] = (counts[ship.type] || 0) + 1;
+      return counts;
+    }, {});
+    const energyShipCount = ships.filter((ship) => ship.type === "tanker" || ship.type === "lng").length;
+    const dataAsOf = newestTimestamp([
+      vesselStatus.observedAt,
+      aircraftStatus.observedAt,
+      ...ships.map((ship) => ship.lastUpdate),
+      ...aircraft.map((asset) => asset.lastContact),
+    ]);
+
+    const prompt = `You are GeoMoney Aperture's strategic intelligence analyst.
+Analyze only the supplied, sourced observations for this exact map selection.
+
+BOUNDING BOX:
+${JSON.stringify(bounds)}
+
+ACTIVE MAP LAYERS: ${layers.join(", ") || "none specified"}
+DATA SOURCES AND FRESHNESS:
+${JSON.stringify({ vessels: vesselStatus, aircraft: aircraftStatus, dataAsOf }, null, 2)}
+
+OBSERVATION TOTALS WITHIN THE BOX:
+- Live or stale real AIS vessels: ${vesselTotal}
+- OpenSky aircraft: ${aircraftTotal}
+- Vessel sample size: ${ships.length}; aircraft sample size: ${aircraft.length}
+- Sample vessel mix: ${JSON.stringify(shipTypeBreakdown)}
+- Energy-linked vessels in sample: ${energyShipCount}
+
+SAMPLED VESSELS:
+${JSON.stringify(ships, null, 2)}
+
+SAMPLED AIRCRAFT:
+${JSON.stringify(aircraft, null, 2)}
+
+Write a concise 2-3 paragraph situational summary. Distinguish observed facts from geographic context or inference. Never invent an asset, identity, intent, weather condition, military posture, disruption, or trend. A zero count means no asset was observed in current provider coverage; it does not prove the area is clear. If a source is stale or unavailable, state that limitation. Do not claim that an aircraft is military solely from a callsign classification. Mention energy or supply-chain concentration only when the observations support it.`;
+
+    const result = await callOpenRouter(prompt, {
+      temperature: 0.2,
+      maxTokens: 900,
+      caller: "aperture-region-analysis",
+    });
+
+    return NextResponse.json({
+      summary: result.content.trim(),
+      model: result.model,
+      generatedAt: new Date().toISOString(),
+      dataAsOf,
+      sources: { vessels: vesselStatus, aircraft: aircraftStatus },
+      evidence: {
+        vessels: vesselTotal,
+        aircraft: aircraftTotal,
+        sampledVessels: ships.length,
+        sampledAircraft: aircraft.length,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown analyzer error";
+    console.error("BBox Analysis error:", message);
+    return NextResponse.json(
+      { error: "The region analyzer is temporarily unavailable. No analysis was generated." },
+      { status: 503 },
+    );
+  }
 }

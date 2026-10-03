@@ -23,6 +23,7 @@ import {
   type Webcam,
 } from "@/lib/world-monitor-geo";
 import { getCartoTileUrl } from "@/lib/carto-tiles";
+import type { ApertureSourceStatus } from "@/lib/aperture-analysis";
 
 // ─── DARK MAP TILES ──────────────────────────────────────────
 const DARK_TILES = getCartoTileUrl("darkAll");
@@ -235,6 +236,10 @@ function BboxDrawer({
 interface GodsEyeMapProps {
   aircraft: AircraftData[];
   ships: ShipData[];
+  sourceStatus: {
+    aircraft: ApertureSourceStatus;
+    vessels: ApertureSourceStatus;
+  };
   visible: boolean;
   onClose: () => void;
   selectedWebcam: Webcam | null;
@@ -245,6 +250,7 @@ interface GodsEyeMapProps {
 export default function GodsEyeMap({
   aircraft,
   ships,
+  sourceStatus,
   visible,
   onClose,
   selectedWebcam,
@@ -273,12 +279,20 @@ export default function GodsEyeMap({
   const [bboxMode, setBboxMode] = useState(false);
   const [selectedBbox, setSelectedBbox] = useState<L.LatLngBounds | null>(null);
   const [isAnalyzingBbox, setIsAnalyzingBbox] = useState(false);
-  const [bboxAnalysis, setBboxAnalysis] = useState<string | null>(null);
+  const [bboxAnalysis, setBboxAnalysis] = useState<{
+    summary: string;
+    model?: string;
+    generatedAt?: string;
+    dataAsOf?: string | null;
+    evidence?: { vessels: number; aircraft: number };
+  } | null>(null);
+  const [bboxError, setBboxError] = useState("");
 
   const analyzeBbox = async () => {
     if (!selectedBbox) return;
     setIsAnalyzingBbox(true);
     setBboxAnalysis(null);
+    setBboxError("");
     try {
       const bounds = {
         north: selectedBbox.getNorth(),
@@ -287,32 +301,54 @@ export default function GodsEyeMap({
         west: selectedBbox.getWest(),
       };
 
-      const shipsInBox = ships.filter((s) =>
+      const shipsInBox = showShips ? ships.filter((s) =>
         selectedBbox.contains([s.latitude, s.longitude]),
-      );
-      const aircraftInBox = aircraft.filter((a) =>
+      ) : [];
+      const aircraftInBox = showAircraft ? aircraft.filter((a) =>
         selectedBbox.contains([a.latitude, a.longitude]),
-      );
+      ) : [];
 
       // Avoid passing too big arrays
       const shipsData = shipsInBox.slice(0, 100);
       const aircraftData = aircraftInBox.slice(0, 100);
 
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 75_000);
       const res = await fetch("/api/analyze-bbox", {
         method: "POST",
+        signal: controller.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ships: shipsData,
           aircraft: aircraftData,
           bounds,
-          layer: "global-surveillance",
+          totals: {
+            vessels: shipsInBox.length,
+            aircraft: aircraftInBox.length,
+          },
+          layers: [
+            showShips && "vessels",
+            showAircraft && "aircraft",
+            showWebcams && "public-video-feeds",
+          ].filter(Boolean),
+          sourceStatus,
         }),
-      });
-      const data = await res.json();
-      setBboxAnalysis(data.summary || "Failed to analyze region.");
+      }).finally(() => window.clearTimeout(timeout));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `Region analyzer failed (${res.status})`);
+      }
+      if (!data.summary) throw new Error("The region analyzer returned no report.");
+      setBboxAnalysis(data);
     } catch (e) {
       console.error(e);
-      setBboxAnalysis("Analysis failed due to network error.");
+      setBboxError(
+        e instanceof DOMException && e.name === "AbortError"
+          ? "The analyzer timed out. No report was generated."
+          : e instanceof Error
+            ? e.message
+            : "The region analyzer is unavailable.",
+      );
     } finally {
       setIsAnalyzingBbox(false);
       setBboxMode(false);
@@ -523,7 +559,7 @@ export default function GodsEyeMap({
 
         {/* ─── ANALYSIS RESULT PANEL ──────────────────── */}
         <AnimatePresence>
-          {bboxAnalysis && (
+          {(bboxAnalysis || bboxError) && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -541,6 +577,7 @@ export default function GodsEyeMap({
                   <button
                     onClick={() => {
                       setBboxAnalysis(null);
+                      setBboxError("");
                       setSelectedBbox(null);
                     }}
                     className="text-gray-500 hover:text-white"
@@ -548,9 +585,28 @@ export default function GodsEyeMap({
                     ✕
                   </button>
                 </div>
-                <div className="text-xs text-gray-300 font-mono leading-relaxed whitespace-pre-wrap max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
-                  {bboxAnalysis}
-                </div>
+                {bboxError ? (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                    {bboxError}
+                  </div>
+                ) : bboxAnalysis ? (
+                  <>
+                    <div className="mb-3 flex flex-wrap gap-2 text-[9px] font-mono text-gray-500">
+                      <span>{bboxAnalysis.model || "AI model"}</span>
+                      {bboxAnalysis.dataAsOf && (
+                        <span>DATA AS OF {new Date(bboxAnalysis.dataAsOf).toLocaleString()}</span>
+                      )}
+                      {bboxAnalysis.evidence && (
+                        <span>
+                          {bboxAnalysis.evidence.vessels} REAL VESSELS · {bboxAnalysis.evidence.aircraft} AIRCRAFT
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-300 font-mono leading-relaxed whitespace-pre-wrap max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
+                      {bboxAnalysis.summary}
+                    </div>
+                  </>
+                ) : null}
               </div>
             </motion.div>
           )}
@@ -577,7 +633,7 @@ export default function GodsEyeMap({
             <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-4 py-2 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
               <span className="text-[11px] font-mono text-cyan-400 tracking-wider">
-                GEOMONEY APERTURE ACTIVE
+                GEOMONEY APERTURE · SOURCE-AWARE
               </span>
             </div>
             <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-3 py-2 flex items-center gap-2">
@@ -586,7 +642,11 @@ export default function GodsEyeMap({
               </span>
               <span className="text-white/20">|</span>
               <span className="text-[10px] text-gray-400 font-mono">
-                {ships.length} VESSELS
+                {sourceStatus.vessels.mode === "live"
+                  ? `${ships.length} VESSELS`
+                  : sourceStatus.vessels.mode === "stale"
+                    ? `${ships.length} STALE VESSELS`
+                    : "AIS UNAVAILABLE"}
               </span>
               <span className="text-white/20">|</span>
               <span className="text-[10px] text-gray-400 font-mono">
@@ -767,7 +827,7 @@ export default function GodsEyeMap({
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                   <span className="text-[10px] font-mono text-red-400 tracking-wider">
-                    ● LIVE STREAM
+                    ● PUBLIC STREAM
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -802,7 +862,7 @@ export default function GodsEyeMap({
                 {/* LIVE badge */}
                 <div className="absolute top-2 left-2 flex items-center gap-1 bg-red-600/90 px-2 py-0.5 rounded text-[9px] font-mono text-white">
                   <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  LIVE
+                  STREAM
                 </div>
                 {/* Timestamp */}
                 <div className="absolute bottom-2 right-2 text-[9px] font-mono text-gray-400 bg-black/60 px-2 py-0.5 rounded">
@@ -930,7 +990,7 @@ export default function GodsEyeMap({
                 : "text-gray-500 hover:text-white"
             }`}
           >
-            📡 LIVE STREAMS
+            📡 PUBLIC STREAMS
           </button>
           <button
             onClick={() => setSidebarTab("streetview")}
@@ -955,7 +1015,7 @@ export default function GodsEyeMap({
                 </span>
               </div>
               <p className="text-[9px] text-gray-600 mt-0.5 font-mono">
-                {LIVE_WEBCAMS.length} LIVE GLOBAL STREAMS
+                {LIVE_WEBCAMS.length} PUBLIC GLOBAL STREAMS
               </p>
             </div>
             <div className="flex-1 overflow-y-auto">
@@ -977,7 +1037,7 @@ export default function GodsEyeMap({
                       {/* Live indicator */}
                       <div className="absolute top-0.5 left-0.5 flex items-center gap-0.5 bg-red-600/90 px-1 rounded text-[7px] font-mono text-white">
                         <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
-                        LIVE
+                        STREAM
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -991,7 +1051,7 @@ export default function GodsEyeMap({
                       <div className="flex items-center gap-1 mt-0.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                         <span className="text-[8px] text-red-400 font-mono">
-                          STREAMING
+                          PUBLIC FEED
                         </span>
                       </div>
                     </div>

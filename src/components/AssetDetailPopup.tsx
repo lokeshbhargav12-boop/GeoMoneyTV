@@ -215,7 +215,7 @@ export function ShipDetailPopup({
       {/* Footer */}
       <div className="px-5 py-3 mt-1 border-t border-white/[0.05] flex items-center justify-between">
         <span className="text-[9px] font-mono text-gray-700">
-          {ship.live ? "LIVE AIS" : ship.source || "DEMO"}
+          {ship.live ? "AIS OBSERVATION" : ship.source || "SOURCE UNAVAILABLE"}
         </span>
         <Link
           href={reportHref}

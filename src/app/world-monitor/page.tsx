@@ -24,10 +24,7 @@ import {
   Layers,
   Ship,
   Plane,
-  Satellite,
   Terminal,
-  Landmark,
-  Factory,
   TrendingUp,
   TrendingDown,
   Activity,
@@ -37,11 +34,8 @@ import {
   Newspaper,
   Flame,
   Cpu,
-  Wifi,
   Timer,
   Flag,
-  Ban,
-  Atom,
   Radar,
   Maximize2,
   Minimize2,
@@ -54,17 +48,13 @@ import {
   Video,
   Thermometer,
   Bug,
-  ShieldAlert,
 } from "lucide-react";
 import OsintFeed from "@/components/OsintFeed";
 import {
   ChokepointsWidget,
   AssetTrackingWidget,
   RiskIndicesWidget,
-  SigintWidget,
   CountryBriefsWidget,
-  SanctionsWidget,
-  NuclearMonitorWidget,
 } from "@/components/WorldMonitorWidgets";
 import WorldMonitorTutorial, {
   useWorldMonitorTutorial,
@@ -81,6 +71,7 @@ import {
   EventDetailPopup,
 } from "@/components/AssetDetailPopup";
 import type { Webcam } from "@/lib/world-monitor-geo";
+import type { ApertureSourceStatus } from "@/lib/aperture-analysis";
 import {
   buildAircraftReportHref,
   buildEventReportHref,
@@ -127,7 +118,7 @@ const GodsEyeMap = dynamic(() => import("@/components/GodsEyeMap"), {
 });
 
 // ─── THREAT LEVELS ──────────────────────────────────────────
-const THREAT_LEVELS = [
+const SIGNAL_LEVELS = [
   {
     level: 1,
     label: "NOMINAL",
@@ -174,80 +165,48 @@ const THREAT_LEVELS = [
 const CHOKEPOINTS = [
   {
     name: "Strait of Hormuz",
-    dailyTraffic: "21M bbl/day",
-    percentGlobal: "21%",
-    status: "Elevated",
-    risk: 72,
     lat: 26.5,
     lng: 56.2,
     radiusKm: 450,
   },
   {
     name: "Strait of Malacca",
-    dailyTraffic: "16M bbl/day",
-    percentGlobal: "25% trade",
-    status: "Moderate",
-    risk: 45,
     lat: 2.5,
     lng: 101.5,
     radiusKm: 500,
   },
   {
     name: "Suez Canal",
-    dailyTraffic: "9.4M bbl/day",
-    percentGlobal: "12%",
-    status: "Disrupted",
-    risk: 68,
     lat: 30.4,
     lng: 32.3,
     radiusKm: 400,
   },
   {
     name: "Bab el-Mandeb",
-    dailyTraffic: "6.2M bbl/day",
-    percentGlobal: "9%",
-    status: "Critical",
-    risk: 85,
     lat: 12.5,
     lng: 43.3,
     radiusKm: 400,
   },
   {
     name: "Panama Canal",
-    dailyTraffic: "0.9M bbl/day",
-    percentGlobal: "5% trade",
-    status: "Constrained",
-    risk: 55,
     lat: 9,
     lng: -79.6,
     radiusKm: 350,
   },
   {
     name: "Taiwan Strait",
-    dailyTraffic: "N/A",
-    percentGlobal: "88% adv chips",
-    status: "Watched",
-    risk: 62,
     lat: 24,
     lng: 119.5,
     radiusKm: 500,
   },
   {
     name: "GIUK Gap",
-    dailyTraffic: "N/A",
-    percentGlobal: "NATO Atlantic",
-    status: "Active",
-    risk: 38,
     lat: 63,
     lng: -15,
     radiusKm: 600,
   },
   {
     name: "Bosporus Strait",
-    dailyTraffic: "3.3M bbl/day",
-    percentGlobal: "3%",
-    status: "Stable",
-    risk: 30,
     lat: 41.1,
     lng: 29,
     radiusKm: 300,
@@ -257,7 +216,7 @@ const CHOKEPOINTS = [
 const AI_QUICK_QUERIES = [
   "How many ships are stranded in the Strait of Hormuz right now?",
   "Which chokepoint has the heaviest vessel density currently?",
-  "Show the current military aircraft posture around the Middle East.",
+  "Show the current observed aircraft activity around the Middle East.",
 ];
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -285,373 +244,15 @@ function isNearChokepoint(
   );
 }
 
-// ─── ASSET TRACKING ─────────────────────────────────────────
-const TRACKED_ASSETS = [
-  { type: "Naval", icon: Ship, active: 187, total: 342 },
-  { type: "Aerial", icon: Plane, active: 438, total: 1205 },
-  { type: "Satellite", icon: Satellite, active: 89, total: 89 },
-  { type: "Ground", icon: Factory, active: 1120, total: 2840 },
-  { type: "Cyber", icon: Terminal, active: 15600, total: 15600 },
-  { type: "Financial", icon: Landmark, active: 4200, total: 4200 },
-];
-
-// ─── SIGINT FEEDS ───────────────────────────────────────────
-const SIGINT_FEEDS = [
-  {
-    source: "COMMS INTERCEPT",
-    region: "Persian Gulf",
-    freq: "HF-4.72MHz",
-    classification: "CRITICAL",
-    time: "2m ago",
-    detail: "Iranian naval comms surge - IRGC fleet repositioning detected",
-  },
-  {
-    source: "ELINT DETECTION",
-    region: "South China Sea",
-    freq: "X-Band Radar",
-    classification: "HIGH",
-    time: "8m ago",
-    detail: "PLA-N fire-control radar active near Scarborough Shoal",
-  },
-  {
-    source: "CYBER SIGINT",
-    region: "Eastern Europe",
-    freq: "TCP/443",
-    classification: "ELEVATED",
-    time: "14m ago",
-    detail: "APT29 C2 infrastructure rotation - new domains registered",
-  },
-  {
-    source: "SAT COMMS",
-    region: "Horn of Africa",
-    freq: "Ku-Band",
-    classification: "HIGH",
-    time: "22m ago",
-    detail: "Houthi-affiliated SATPHONE traffic spike near Bab el-Mandeb",
-  },
-  {
-    source: "COMMS INTERCEPT",
-    region: "Baltic Sea",
-    freq: "VHF-156.8MHz",
-    classification: "MODERATE",
-    time: "31m ago",
-    detail: "Russian Baltic Fleet routine encrypted comms - pattern normal",
-  },
-  {
-    source: "ELINT DETECTION",
-    region: "Taiwan Strait",
-    freq: "S-Band",
-    classification: "HIGH",
-    time: "45m ago",
-    detail: "PLA air defense radar network activation - possible drill",
-  },
-  {
-    source: "OSINT FUSION",
-    region: "Arctic",
-    freq: "AIS Blackout",
-    classification: "ELEVATED",
-    time: "1h ago",
-    detail:
-      "3 vessels AIS dark in Northern Sea Route - suspected sanctions evasion",
-  },
-  {
-    source: "CYBER SIGINT",
-    region: "Middle East",
-    freq: "DNS/53",
-    classification: "CRITICAL",
-    time: "1h ago",
-    detail: "Critical infrastructure probing from Iranian IP ranges detected",
-  },
-];
-
-// ─── SANCTIONS TRACKER ──────────────────────────────────────
-const SANCTIONS_DATA = [
-  {
-    entity: "Russia",
-    type: "Country",
-    packages: 14,
-    sectors: "Energy, Finance, Tech",
-    status: "Active",
-    impact: 89,
-    lastUpdate: "2d ago",
-  },
-  {
-    entity: "Iran",
-    type: "Country",
-    packages: 8,
-    sectors: "Oil, Nuclear, Military",
-    status: "Escalating",
-    impact: 92,
-    lastUpdate: "1d ago",
-  },
-  {
-    entity: "China (select)",
-    type: "Sectoral",
-    packages: 5,
-    sectors: "Chips, AI, Quantum",
-    status: "Active",
-    impact: 76,
-    lastUpdate: "5d ago",
-  },
-  {
-    entity: "North Korea",
-    type: "Country",
-    packages: 11,
-    sectors: "Comprehensive",
-    status: "Active",
-    impact: 95,
-    lastUpdate: "14d ago",
-  },
-  {
-    entity: "Myanmar",
-    type: "Targeted",
-    packages: 3,
-    sectors: "Military, Timber",
-    status: "Active",
-    impact: 42,
-    lastUpdate: "30d ago",
-  },
-  {
-    entity: "Venezuela",
-    type: "Sectoral",
-    packages: 4,
-    sectors: "Oil, Gold, Finance",
-    status: "Partial lift",
-    impact: 55,
-    lastUpdate: "7d ago",
-  },
-];
-
-// ─── COUNTRY BRIEFS ─────────────────────────────────────────
-const COUNTRY_BRIEFS = [
-  {
-    country: "Iran",
-    flag: "🇮🇷",
-    threat: 88,
-    stability: 22,
-    brief:
-      "Active conflict with US naval blockade. IRGC fast boat deployments. Nuclear program at 83.7% enrichment.",
-    hotTopics: ["Blockade", "Nuclear", "Proxy War"],
-  },
-  {
-    country: "China",
-    flag: "🇨🇳",
-    threat: 72,
-    stability: 68,
-    brief:
-      "South China Sea tensions elevated. Taiwan Strait patrol frequency up 40%. Economic slowdown pressures.",
-    hotTopics: ["Taiwan", "SCS", "Trade War"],
-  },
-  {
-    country: "Russia",
-    flag: "🇷🇺",
-    threat: 78,
-    stability: 45,
-    brief:
-      "Ukraine conflict ongoing Day 1510+. Arctic militarization. Sanctions evasion through shadow fleet.",
-    hotTopics: ["Ukraine", "Arctic", "Sanctions"],
-  },
-  {
-    country: "Ukraine",
-    flag: "🇺🇦",
-    threat: 85,
-    stability: 35,
-    brief:
-      "Active conflict. Counteroffensive operations in eastern sectors. Critical infrastructure under drone attacks.",
-    hotTopics: ["War", "Drones", "NATO Aid"],
-  },
-  {
-    country: "Israel",
-    flag: "🇮🇱",
-    threat: 75,
-    stability: 52,
-    brief:
-      "Multi-front security operations. Houthi missile threat persists. Northern border escalation risk.",
-    hotTopics: ["Houthi", "Hezbollah", "Iran Proxy"],
-  },
-  {
-    country: "North Korea",
-    flag: "🇰🇵",
-    threat: 68,
-    stability: 55,
-    brief:
-      "ICBM testing cadence increased. Satellite launch preparations. Munitions exports to Russia confirmed.",
-    hotTopics: ["ICBM", "Russia Aid", "Nuclear"],
-  },
-  {
-    country: "Taiwan",
-    flag: "🇹🇼",
-    threat: 65,
-    stability: 72,
-    brief:
-      "Cross-strait tensions high. TSMC export restrictions. US arms deliveries ongoing.",
-    hotTopics: ["PLA Drills", "Chips", "Defense"],
-  },
-  {
-    country: "India",
-    flag: "🇮🇳",
-    threat: 35,
-    stability: 75,
-    brief:
-      "LAC tensions with China managed. Naval expansion in Indian Ocean. Energy diversification from Russia.",
-    hotTopics: ["LAC", "Navy", "Energy"],
-  },
-];
-
-// ─── NUCLEAR MONITOR ────────────────────────────────────────
-const NUCLEAR_STATUS = [
-  {
-    state: "United States",
-    warheads: 5044,
-    deployed: 1770,
-    status: "Steady",
-    alert: "LOW",
-    trend: "stable",
-  },
-  {
-    state: "Russia",
-    warheads: 5580,
-    deployed: 1710,
-    status: "Elevated",
-    alert: "HIGH",
-    trend: "up",
-  },
-  {
-    state: "China",
-    warheads: 500,
-    deployed: 0,
-    status: "Expanding",
-    alert: "MODERATE",
-    trend: "up",
-  },
-  {
-    state: "France",
-    warheads: 290,
-    deployed: 280,
-    status: "Steady",
-    alert: "LOW",
-    trend: "stable",
-  },
-  {
-    state: "UK",
-    warheads: 225,
-    deployed: 120,
-    status: "Steady",
-    alert: "LOW",
-    trend: "stable",
-  },
-  {
-    state: "Pakistan",
-    warheads: 170,
-    deployed: 0,
-    status: "Growing",
-    alert: "MODERATE",
-    trend: "up",
-  },
-  {
-    state: "India",
-    warheads: 172,
-    deployed: 0,
-    status: "Growing",
-    alert: "MODERATE",
-    trend: "up",
-  },
-  {
-    state: "Israel",
-    warheads: 90,
-    deployed: 0,
-    status: "Opaque",
-    alert: "LOW",
-    trend: "stable",
-  },
-  {
-    state: "North Korea",
-    warheads: 50,
-    deployed: 0,
-    status: "Testing",
-    alert: "HIGH",
-    trend: "up",
-  },
-  {
-    state: "Iran",
-    warheads: 0,
-    deployed: 0,
-    status: "Threshold",
-    alert: "CRITICAL",
-    trend: "up",
-  },
-];
-
-// ─── RISK INDICES ───────────────────────────────────────────
-const RISK_INDICES = [
-  {
-    name: "Conflict",
-    value: 73,
-    change: +4.2,
-    color: "from-red-500 to-orange-500",
-  },
-  {
-    name: "Economy",
-    value: 58,
-    change: -2.1,
-    color: "from-yellow-500 to-amber-500",
-  },
-  {
-    name: "Supply Chain",
-    value: 44,
-    change: -6.8,
-    color: "from-orange-500 to-red-500",
-  },
-  {
-    name: "Cyber",
-    value: 81,
-    change: +8.3,
-    color: "from-purple-500 to-pink-500",
-  },
-  {
-    name: "Energy",
-    value: 52,
-    change: +1.4,
-    color: "from-blue-500 to-cyan-500",
-  },
-  {
-    name: "Climate",
-    value: 67,
-    change: +3.7,
-    color: "from-emerald-500 to-teal-500",
-  },
-];
-
-// ─── THEATER REGIONS ────────────────────────────────────────
-const REGIONS_SUMMARY = [
-  { name: "INDOPACOM", threat: 4 },
-  { name: "CENTCOM", threat: 4 },
-  { name: "EUCOM", threat: 3 },
-  { name: "AFRICOM", threat: 3 },
-  { name: "NORTHCOM", threat: 2 },
-  { name: "SOUTHCOM", threat: 2 },
-  { name: "ARCTIC", threat: 3 },
-];
-
-const REGION_MAP: Record<string, string[]> = {
-  INDOPACOM: ["Asia-Pacific"],
-  CENTCOM: ["Middle East"],
-  EUCOM: ["Europe"],
-  AFRICOM: ["Africa"],
-  NORTHCOM: ["North America"],
-  SOUTHCOM: ["South America"],
-  ARCTIC: ["Arctic"],
-};
-
-function computeThreatLevel(events: GlobeEvent[]) {
-  if (events.length === 0) return THREAT_LEVELS[2];
+function computeSignalLevel(events: GlobeEvent[]) {
+  if (events.length === 0) return SIGNAL_LEVELS[0];
   const avg =
     events.reduce((s, e) => s + (e.threatScore || 40), 0) / events.length;
-  if (avg >= 75) return THREAT_LEVELS[4];
-  if (avg >= 60) return THREAT_LEVELS[3];
-  if (avg >= 45) return THREAT_LEVELS[2];
-  if (avg >= 30) return THREAT_LEVELS[1];
-  return THREAT_LEVELS[0];
+  if (avg >= 75) return SIGNAL_LEVELS[4];
+  if (avg >= 60) return SIGNAL_LEVELS[3];
+  if (avg >= 45) return SIGNAL_LEVELS[2];
+  if (avg >= 30) return SIGNAL_LEVELS[1];
+  return SIGNAL_LEVELS[0];
 }
 
 function getRiskColor(v: number) {
@@ -665,6 +266,18 @@ function riskBarColor(r: number) {
   if (r >= 50) return "bg-orange-500";
   if (r >= 30) return "bg-yellow-500";
   return "bg-emerald-500";
+}
+
+function clampRisk(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function getNewestEventTimestamp(events: GlobeEvent[]): string | null {
+  const timestamp = events.reduce((newest, event) => {
+    const parsed = new Date(event.timestamp).getTime();
+    return Number.isFinite(parsed) ? Math.max(newest, parsed) : newest;
+  }, 0);
+  return timestamp ? new Date(timestamp).toISOString() : null;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -684,11 +297,8 @@ export default function WorldMonitorPage() {
     | "chokepoints"
     | "assets"
     | "risks"
-    | "sigint"
     | "timeline"
     | "countries"
-    | "sanctions"
-    | "nuclear"
     | "climate"
     | "disease"
     | "cyber"
@@ -698,6 +308,7 @@ export default function WorldMonitorPage() {
   >("feed");
   const [showDetail, setShowDetail] = useState(false);
   const [dataTimestamp, setDataTimestamp] = useState<string>("");
+  const [eventDataStale, setEventDataStale] = useState(false);
 
   // ─── NEW: Aircraft, Ships, AI Brief state ──────────────
   const [aircraftData, setAircraftData] = useState<AircraftData[]>([]);
@@ -705,15 +316,20 @@ export default function WorldMonitorPage() {
   const [aircraftUpdatedAt, setAircraftUpdatedAt] = useState<number | null>(
     null,
   );
+  const [aircraftDataStale, setAircraftDataStale] = useState(false);
   const [shipData, setShipData] = useState<ShipData[]>([]);
   const [shipTotal, setShipTotal] = useState(0);
-  const [shipSource, setShipSource] = useState("Demo traffic model");
+  const [shipSource, setShipSource] = useState("AIS unavailable");
   const [shipDataLive, setShipDataLive] = useState(false);
+  const [shipDataStale, setShipDataStale] = useState(false);
   const [shipUpdatedAt, setShipUpdatedAt] = useState<number | null>(null);
   const [shipNotice, setShipNotice] = useState("");
   const [aiBrief, setAiBrief] = useState<any>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiQuery, setAiQuery] = useState("");
+  const [aiError, setAiError] = useState("");
+  const autoBriefEvidenceRef = useRef("");
+  const autoBriefLastRunRef = useRef(0);
   const [zoomLevel, setZoomLevel] = useState(4.5);
   const [apertureActive, setApertureActive] = useState(false);
   const [aiNavigatorMinimized, setAiNavigatorMinimized] = useState(true);
@@ -797,13 +413,16 @@ export default function WorldMonitorPage() {
     else setIsLoading(true);
 
     try {
+      const [osintResponse, eventsResponse] = await Promise.all([
+        fetch("/api/world-monitor/osint", { cache: "no-store" }),
+        fetch("/api/world-monitor/events", { cache: "no-store" }),
+      ]);
+      if (!osintResponse.ok || !eventsResponse.ok) {
+        throw new Error("One or more intelligence feeds failed to respond.");
+      }
       const [osintRes, eventsRes] = await Promise.all([
-        fetch("/api/world-monitor/osint")
-          .then((r) => r.json())
-          .catch(() => ({ events: [] })),
-        fetch("/api/world-monitor/events")
-          .then((r) => r.json())
-          .catch(() => ({ events: [] })),
+        osintResponse.json(),
+        eventsResponse.json(),
       ]);
 
       const osint: GlobeEvent[] = osintRes.events || [];
@@ -816,9 +435,22 @@ export default function WorldMonitorPage() {
       setOsintEvents(osint);
       setArticleEvents(articles);
       setAllEvents([...osint, ...articles]);
-      setDataTimestamp(new Date().toISOString());
+      setDataTimestamp(
+        getNewestEventTimestamp([...osint, ...articles])
+          || osintRes.timestamp
+          || new Date().toISOString(),
+      );
+      const latestObservation = getNewestEventTimestamp([...osint, ...articles]);
+      setEventDataStale(Boolean(
+        osintRes.stale
+        || osintRes.success === false
+        || eventsRes.success === false
+        || !latestObservation
+        || Date.now() - new Date(latestObservation).getTime() > 6 * 60 * 60 * 1000,
+      ));
     } catch (err) {
       console.error("GeoMoney Aperture data fetch error:", err);
+      setEventDataStale(true);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -839,13 +471,19 @@ export default function WorldMonitorPage() {
   const fetchAircraft = useCallback(async () => {
     try {
       const res = await fetch("/api/world-monitor/aircraft");
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`OpenSky request failed (${res.status})`);
       const data = await res.json();
       setAircraftData(data.aircraft || []);
       setAircraftTotal(data.total || 0);
-      setAircraftUpdatedAt(data.timestamp || Date.now());
+      setAircraftUpdatedAt(data.timestamp || null);
+      setAircraftDataStale(Boolean(
+        data.stale
+        || !data.timestamp
+        || Date.now() - Number(data.timestamp) > 2 * 60 * 1000,
+      ));
     } catch (e) {
       console.warn("[Aircraft]", e);
+      setAircraftDataStale(true);
     }
   }, []);
 
@@ -859,16 +497,21 @@ export default function WorldMonitorPage() {
   const fetchShips = useCallback(async () => {
     try {
       const res = await fetch("/api/world-monitor/ships");
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`AIS request failed (${res.status})`);
       const data = await res.json();
       setShipData(data.ships || []);
       setShipTotal(data.total || 0);
-      setShipSource(data.source || "Demo traffic model");
+      setShipSource(data.source || "AIS unavailable");
       setShipDataLive(Boolean(data.live));
-      setShipUpdatedAt(data.timestamp || Date.now());
+      setShipUpdatedAt(data.timestamp || null);
       setShipNotice(data.notice || "");
+      setShipDataStale(Boolean(
+        data.stale
+        || (data.live && (!data.timestamp || Date.now() - Number(data.timestamp) > 2 * 60 * 1000)),
+      ));
     } catch (e) {
       console.warn("[Ships]", e);
+      setShipDataStale(true);
     }
   }, []);
 
@@ -884,9 +527,10 @@ export default function WorldMonitorPage() {
       const res = await fetch("/api/world-monitor/climate");
       if (!res.ok) return;
       const data = await res.json();
-      setClimateData(data.events || []);
+      setClimateData(data.success === false ? [] : data.events || []);
     } catch (e) {
       console.warn("[Climate]", e);
+      setClimateData([]);
     }
   }, []);
 
@@ -902,9 +546,10 @@ export default function WorldMonitorPage() {
       const res = await fetch("/api/world-monitor/disease");
       if (!res.ok) return;
       const data = await res.json();
-      setDiseaseData(data.events || []);
+      setDiseaseData(data.success === false ? [] : data.events || []);
     } catch (e) {
       console.warn("[Disease]", e);
+      setDiseaseData([]);
     }
   }, []);
 
@@ -920,9 +565,10 @@ export default function WorldMonitorPage() {
       const res = await fetch("/api/world-monitor/cyber");
       if (!res.ok) return;
       const data = await res.json();
-      setCyberData(data.events || []);
+      setCyberData(data.success === false ? [] : data.events || []);
     } catch (e) {
       console.warn("[Cyber]", e);
+      setCyberData([]);
     }
   }, []);
 
@@ -933,10 +579,57 @@ export default function WorldMonitorPage() {
   }, [fetchCyber]);
 
   // ─── AI INTELLIGENCE BRIEF ──────────────────────────────
+  const realShipData = useMemo(
+    () => shipDataLive ? shipData.filter((ship) => ship.live !== false) : [],
+    [shipData, shipDataLive],
+  );
+
+  const sourceStatus = useMemo<{
+    events: ApertureSourceStatus;
+    aircraft: ApertureSourceStatus;
+    vessels: ApertureSourceStatus;
+  }>(() => ({
+    events: {
+      mode: eventDataStale ? "stale" : allEvents.length ? "live" : "unavailable",
+      source: "GDELT, RSS, USGS, ReliefWeb, GDACS, Reddit and GeoMoney",
+      observedAt: dataTimestamp || null,
+      notice: eventDataStale ? "The latest OSINT refresh failed; retained observations may be stale." : undefined,
+    },
+    aircraft: {
+      mode: aircraftDataStale ? "stale" : aircraftData.length ? "live" : "unavailable",
+      source: "OpenSky Network",
+      observedAt: aircraftUpdatedAt ? new Date(aircraftUpdatedAt).toISOString() : null,
+      notice: aircraftDataStale ? "OpenSky is unavailable; showing the last successful snapshot." : undefined,
+    },
+    vessels: {
+      mode: shipDataLive ? (shipDataStale ? "stale" : "live") : "unavailable",
+      source: shipSource,
+      observedAt: shipDataLive && shipUpdatedAt ? new Date(shipUpdatedAt).toISOString() : null,
+      notice: shipDataStale
+        ? "The latest AIS refresh failed or the newest observation is old; retained positions are stale."
+        : shipDataLive
+          ? shipNotice || undefined
+          : "No current AIS observations are available. Simulated vessel positions are disabled.",
+    },
+  }), [
+    aircraftData.length,
+    aircraftDataStale,
+    aircraftUpdatedAt,
+    allEvents.length,
+    dataTimestamp,
+    eventDataStale,
+    shipData.length,
+    shipDataLive,
+    shipDataStale,
+    shipNotice,
+    shipSource,
+    shipUpdatedAt,
+  ]);
+
   const chokepointMetrics = useMemo(
     () =>
       CHOKEPOINTS.map((chokepoint) => {
-        const vessels = shipData.filter((ship) =>
+        const vessels = realShipData.filter((ship) =>
           isNearChokepoint(ship.latitude, ship.longitude, chokepoint),
         );
         const aircraft = aircraftData.filter((asset) =>
@@ -948,24 +641,37 @@ export default function WorldMonitorPage() {
             ship.status === "anchored" ||
             ship.status === "moored",
         );
+        const nearbyEvents = allEvents.filter((event) =>
+          event.locations.some((location) =>
+            isNearChokepoint(location.lat, location.lng, chokepoint),
+          ),
+        );
+        const signalScore = clampRisk(
+          Math.min(vessels.length * 2, 35)
+          + Math.min(aircraft.length, 15)
+          + Math.min(nearbyEvents.length * 8, 35),
+        );
 
         return {
           ...chokepoint,
+          signalScore,
+          status: signalScore >= 75 ? "High signals" : signalScore >= 50 ? "Elevated signals" : signalScore >= 25 ? "Watched" : "Low signals",
           vessels: vessels.length,
           strandedShips: strandedShips.length,
           aircraft: aircraft.length,
+          events: nearbyEvents.length,
         };
       }).sort((left, right) => right.vessels - left.vessels),
-    [aircraftData, shipData],
+    [aircraftData, allEvents, realShipData],
   );
 
   const trackedAssets = useMemo(
     () => [
       {
-        type: "Naval",
+        type: "Maritime AIS",
         icon: Ship,
-        active: shipData.length,
-        total: Math.max(shipTotal, shipData.length),
+        active: realShipData.length,
+        total: shipDataLive ? Math.max(shipTotal, realShipData.length) : 0,
       },
       {
         type: "Aerial",
@@ -973,24 +679,119 @@ export default function WorldMonitorPage() {
         active: aircraftData.length,
         total: Math.max(aircraftTotal, aircraftData.length),
       },
-      ...TRACKED_ASSETS.slice(2),
+      { type: "OSINT events", icon: Radio, active: osintEvents.length, total: osintEvents.length },
+      { type: "Climate events", icon: Thermometer, active: climateData.length, total: climateData.length },
+      { type: "Disease events", icon: Bug, active: diseaseData.length, total: diseaseData.length },
+      { type: "Cyber events", icon: Terminal, active: cyberData.length, total: cyberData.length },
     ],
-    [aircraftData.length, aircraftTotal, shipData.length, shipTotal],
+    [
+      aircraftData.length,
+      aircraftTotal,
+      climateData.length,
+      cyberData.length,
+      diseaseData.length,
+      osintEvents.length,
+      realShipData.length,
+      shipDataLive,
+      shipTotal,
+    ],
   );
+
+  const liveRiskIndices = useMemo(() => {
+    const scoreEvents = (events: any[], fallback = 40) => events.length
+      ? events.reduce((sum, event) => sum + (Number(event.threatScore ?? event.severity) || fallback), 0) / events.length
+      : 0;
+    const matchingEvents = (pattern: RegExp) => allEvents.filter((event) =>
+      pattern.test(`${event.title} ${event.description || ""} ${event.category}`),
+    );
+    const conflictEvents = matchingEvents(/war|conflict|attack|military|missile|strike|security|sanction/i);
+    const economyEvents = matchingEvents(/econom|market|inflation|bank|trade|finance|currency|debt/i);
+    const supplyEvents = matchingEvents(/supply|shipping|port|canal|commodity|export|import|logistic/i);
+    const energyEvents = matchingEvents(/energy|oil|gas|lng|power|coal|nuclear|pipeline/i);
+
+    return [
+      { name: "Conflict", value: clampRisk(scoreEvents(conflictEvents)), signalCount: conflictEvents.length, color: "from-red-500 to-orange-500" },
+      { name: "Economy", value: clampRisk(scoreEvents(economyEvents)), signalCount: economyEvents.length, color: "from-yellow-500 to-amber-500" },
+      { name: "Supply Chain", value: clampRisk(scoreEvents(supplyEvents) + Math.min(realShipData.length / 20, 20)), signalCount: supplyEvents.length + realShipData.length, color: "from-orange-500 to-red-500" },
+      { name: "Cyber", value: clampRisk(scoreEvents(cyberData, 45)), signalCount: cyberData.length, color: "from-purple-500 to-pink-500" },
+      { name: "Energy", value: clampRisk(scoreEvents(energyEvents)), signalCount: energyEvents.length, color: "from-blue-500 to-cyan-500" },
+      { name: "Climate", value: clampRisk(scoreEvents(climateData, 45)), signalCount: climateData.length, color: "from-emerald-500 to-teal-500" },
+    ];
+  }, [allEvents, climateData, cyberData, realShipData.length]);
+
+  const liveCountryBriefs = useMemo(() => {
+    const grouped = new globalThis.Map<string, GlobeEvent[]>();
+    for (const event of allEvents) {
+      for (const location of event.locations) {
+        const country = location.name.trim();
+        if (!country || country.length < 3) continue;
+        const events = grouped.get(country) || [];
+        if (!events.some((item: GlobeEvent) => item.id === event.id)) events.push(event);
+        grouped.set(country, events);
+      }
+    }
+
+    return Array.from(grouped.entries())
+      .map(([country, events]: [string, GlobeEvent[]]) => {
+        const sorted = [...events].sort(
+          (left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime(),
+        );
+        const signalScore = clampRisk(
+          sorted.reduce((sum, event) => sum + (event.threatScore || 40), 0) / sorted.length,
+        );
+        const latest = sorted[0];
+        return {
+          country: country.replace(/\b\w/g, (letter: string) => letter.toUpperCase()),
+          flag: "🌐",
+          signalScore,
+          brief: latest.description || latest.title,
+          hotTopics: Array.from(new Set(sorted.flatMap((event) => [event.category, event.sourceDetail || event.source]))).filter(Boolean).slice(0, 3),
+          source: latest.sourceDetail || latest.source,
+          timestamp: latest.timestamp,
+          signalCount: sorted.length,
+        };
+      })
+      .sort((left, right) => right.signalScore - left.signalScore || right.signalCount - left.signalCount)
+      .slice(0, 8);
+  }, [allEvents]);
 
   const assetContext = useMemo(
     () => ({
       aircraft: {
         visibleNow: aircraftData.length,
         totalTracked: aircraftTotal,
-        source: "OpenSky Network",
+        source: sourceStatus.aircraft.source,
+        sample: aircraftData.slice(0, 20).map((asset) => ({
+          icao24: asset.icao24,
+          callsign: asset.callsign,
+          originCountry: asset.origin_country,
+          category: asset.category,
+          latitude: asset.latitude,
+          longitude: asset.longitude,
+          altitude: asset.altitude,
+          velocity: asset.velocity,
+          heading: asset.heading,
+          lastContact: asset.lastContact || asset.timePosition || null,
+        })),
       },
       vessels: {
-        visibleNow: shipData.length,
-        totalTracked: shipTotal,
+        visibleNow: realShipData.length,
+        totalTracked: shipDataLive ? shipTotal : 0,
         source: shipSource,
         live: shipDataLive,
-        totalOnGlobe: shipData.length,
+        totalOnGlobe: realShipData.length,
+        sample: realShipData.slice(0, 20).map((ship) => ({
+          mmsi: ship.mmsi,
+          name: ship.name,
+          type: ship.type,
+          latitude: ship.latitude,
+          longitude: ship.longitude,
+          speed: ship.speed,
+          heading: ship.heading,
+          destination: ship.destination,
+          status: ship.status,
+          lastUpdate: ship.lastUpdate || null,
+        })),
       },
       chokepoints: chokepointMetrics.slice(0, 8).map((chokepoint) => ({
         name: chokepoint.name,
@@ -998,16 +799,17 @@ export default function WorldMonitorPage() {
         strandedShips: chokepoint.strandedShips,
         aircraft: chokepoint.aircraft,
       })),
-      globalSummary: `${shipData.length} vessels visible on globe, ${aircraftData.length} aircraft tracked. Vessels in/near chokepoints: ${chokepointMetrics.reduce((s, c) => s + c.vessels, 0)}. Vessels currently slow/stopped: ${shipData.filter((s) => s.speed <= 1).length}.`,
+      globalSummary: `${realShipData.length} real AIS vessels visible, ${aircraftData.length} OpenSky aircraft observed. Vessels in/near chokepoints: ${chokepointMetrics.reduce((s, c) => s + c.vessels, 0)}. Real vessels currently slow/stopped: ${realShipData.filter((s) => s.speed <= 1).length}.`,
     }),
     [
       aircraftData.length,
       aircraftTotal,
       chokepointMetrics,
-      shipData,
+      realShipData,
       shipDataLive,
       shipSource,
       shipTotal,
+      sourceStatus.aircraft.source,
     ],
   );
 
@@ -1027,44 +829,65 @@ export default function WorldMonitorPage() {
   const fetchAiBrief = useCallback(
     async (query?: string) => {
       setAiLoading(true);
+      setAiError("");
       try {
-        const eventTitles = allEvents.slice(0, 15).map((e) => e.title);
+        const evidenceEvents = allEvents.slice(0, 20).map((event) => ({
+          id: event.id,
+          title: event.title,
+          description: event.description || "",
+          source: event.source,
+          sourceDetail: event.sourceDetail || "",
+          timestamp: event.timestamp,
+          region: event.region,
+          category: event.category,
+          url: event.url || event.link || "",
+          threatScore: event.threatScore ?? null,
+        }));
         const res = await fetch("/api/world-monitor/ai-brief", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            events: eventTitles,
+            events: evidenceEvents,
             query: query || "",
             assetContext,
+            sourceStatus,
           }),
         });
-        if (!res.ok) throw new Error("AI brief failed");
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `AI analyzer failed (${res.status})`);
         setAiBrief(data);
       } catch (e) {
         console.warn("[AI Brief]", e);
+        setAiError(e instanceof Error ? e.message : "The AI analyzer is unavailable.");
       } finally {
         setAiLoading(false);
       }
     },
-    [allEvents, assetContext],
+    [allEvents, assetContext, sourceStatus],
   );
 
-  // Auto-fetch AI brief when events load
+  const autoBriefEvidenceKey = useMemo(
+    () => JSON.stringify({
+      events: allEvents.slice(0, 20).map((event) => [event.id, event.timestamp]),
+      aircraft: [sourceStatus.aircraft.mode, sourceStatus.aircraft.observedAt],
+      vessels: [sourceStatus.vessels.mode, sourceStatus.vessels.observedAt],
+    }),
+    [allEvents, sourceStatus.aircraft, sourceStatus.vessels],
+  );
+
+  // Refresh the automatic briefing only when its underlying evidence changes.
   useEffect(() => {
-    if (allEvents.length > 0 && !aiBrief) {
-      fetchAiBrief();
-    }
-  }, [allEvents.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (
+      !allEvents.length
+      || autoBriefEvidenceRef.current === autoBriefEvidenceKey
+      || Date.now() - autoBriefLastRunRef.current < 300_000
+    ) return;
+    autoBriefEvidenceRef.current = autoBriefEvidenceKey;
+    autoBriefLastRunRef.current = Date.now();
+    fetchAiBrief();
+  }, [allEvents.length, autoBriefEvidenceKey, fetchAiBrief]);
 
-  const threatLevel = computeThreatLevel(osintEvents);
-
-  const regionCounts = REGIONS_SUMMARY.map((r) => ({
-    ...r,
-    events: allEvents.filter((e) =>
-      (REGION_MAP[r.name] || []).includes(e.region),
-    ).length,
-  }));
+  const sourceSignalLevel = computeSignalLevel(osintEvents);
 
   const focusGlobeLocation = useCallback((target: GlobeFocusTarget) => {
     setApertureActive(false);
@@ -1263,13 +1086,10 @@ export default function WorldMonitorPage() {
 
   const SIDE_NAV_SECTIONS = [
     { id: "globe-hero", label: "Globe Monitor", icon: Globe2 },
-    { id: "risk-indices", label: "Risk Indices", icon: Activity },
+    { id: "risk-indices", label: "Signal Scores", icon: Activity },
     { id: "chokepoints", label: "Chokepoints", icon: Target },
     { id: "asset-tracking", label: "Asset Tracking", icon: Layers },
-    { id: "nuclear-monitor", label: "Nuclear Monitor", icon: Atom },
-    { id: "sanctions", label: "Sanctions Tracker", icon: ShieldAlert },
-    { id: "sigint-feeds", label: "SIGINT Feeds", icon: Radio },
-    { id: "country-briefs", label: "Country Briefs", icon: Flag },
+    { id: "country-briefs", label: "Location Briefs", icon: Flag },
   ] as const;
 
   // IntersectionObserver — track which section is currently in view
@@ -1443,13 +1263,13 @@ export default function WorldMonitorPage() {
           {/* Right */}
           <div className="flex items-center gap-3">
             <div
-              className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono ${threatLevel.bg} ${threatLevel.border}`}
+              className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono ${sourceSignalLevel.bg} ${sourceSignalLevel.border}`}
             >
               <div
-                className={`w-2 h-2 rounded-full ${threatLevel.pulse} animate-pulse`}
+                className={`w-2 h-2 rounded-full ${sourceSignalLevel.pulse} animate-pulse`}
               />
-              <span className={threatLevel.color}>
-                THREATCON: {threatLevel.label}
+              <span className={sourceSignalLevel.color}>
+                SOURCE SIGNAL: {sourceSignalLevel.label}
               </span>
             </div>
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg text-[11px] font-mono text-gray-400">
@@ -1480,7 +1300,7 @@ export default function WorldMonitorPage() {
 
         {/* Risk ticker bar */}
         <div className="px-4 py-1.5 border-t border-white/5 bg-black/40 flex items-center gap-4 overflow-x-auto">
-          {RISK_INDICES.map((idx) => (
+          {liveRiskIndices.map((idx) => (
             <div key={idx.name} className="flex items-center gap-2 shrink-0">
               <span className="text-[10px] text-gray-500 font-mono">
                 {idx.name.toUpperCase()}
@@ -1490,11 +1310,8 @@ export default function WorldMonitorPage() {
               >
                 {idx.value}
               </span>
-              <span
-                className={`text-[9px] font-mono ${idx.change > 0 ? "text-red-400" : "text-emerald-400"}`}
-              >
-                {idx.change > 0 ? "▲" : "▼"}
-                {Math.abs(idx.change)}
+              <span className="text-[9px] font-mono text-gray-600">
+                {idx.signalCount} signals
               </span>
             </div>
           ))}
@@ -1582,7 +1399,7 @@ export default function WorldMonitorPage() {
                   onShipClick={handleShipClick}
                   selectedEvent={selectedEvent}
                   aircraft={aircraftData}
-                  ships={shipData}
+                  ships={realShipData}
                   focusTarget={globeFocusTarget}
                   onZoomChange={setZoomLevel}
                 />
@@ -1592,7 +1409,11 @@ export default function WorldMonitorPage() {
               {apertureActive && (
                 <GodsEyeMap
                   aircraft={aircraftData}
-                  ships={shipData}
+                  ships={realShipData}
+                  sourceStatus={{
+                    aircraft: sourceStatus.aircraft,
+                    vessels: sourceStatus.vessels,
+                  }}
                   visible={apertureActive}
                   onClose={() => setApertureActive(false)}
                   selectedWebcam={selectedWebcam}
@@ -1618,10 +1439,10 @@ export default function WorldMonitorPage() {
                       </h2>
                     </div>
                     <div
-                      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-mono ${shipDataLive ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"}`}
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-mono ${sourceStatus.vessels.mode === "live" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : sourceStatus.vessels.mode === "stale" ? "border-orange-500/30 bg-orange-500/10 text-orange-300" : "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"}`}
                     >
                       <Radar className="h-3.5 w-3.5" />
-                      {shipDataLive ? "Live AIS" : "Demo AIS"}
+                      {sourceStatus.vessels.mode === "live" ? "Live AIS" : sourceStatus.vessels.mode === "stale" ? "Stale AIS" : "AIS unavailable"}
                     </div>
                   </div>
 
@@ -1682,13 +1503,15 @@ export default function WorldMonitorPage() {
                           {aiBrief.threatLevel || "MONITOR"}
                         </div>
                         <div className="text-[10px] text-gray-500">
-                          {new Date(
-                            aiBrief.timestamp || Date.now(),
-                          ).toLocaleTimeString()}
+                          {new Date(aiBrief.generatedAt).toLocaleTimeString()}
                         </div>
                       </div>
                       <div className="mt-1 text-sm font-semibold text-white">
                         {aiBrief.headline}
+                      </div>
+                      <div className="mt-1 text-[9px] font-mono text-gray-600">
+                        {aiBrief.model}{aiBrief.cached ? " · CACHED" : ""}{aiBrief.stale ? " · STALE" : ""}
+                        {aiBrief.dataAsOf ? ` · DATA AS OF ${new Date(aiBrief.dataAsOf).toLocaleString()}` : ""}
                       </div>
                       {aiBrief.queryAnswer && aiBrief.isQueryResponse && (
                         <div className="mt-2 rounded-xl border border-geo-gold/20 bg-geo-gold/5 p-2.5">
@@ -1732,13 +1555,18 @@ export default function WorldMonitorPage() {
                       )}
                     </div>
                   )}
+                  {aiError && (
+                    <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                      {aiError}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-[26px] border border-white/[0.08] bg-black/58 p-4 shadow-xl shadow-black/20 backdrop-blur-2xl">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-mono tracking-[0.22em] text-gray-500">
-                        LIVE ASSET COVERAGE
+                        CURRENT SOURCE COVERAGE
                       </div>
                       <p className="mt-1 text-xs text-gray-400">
                         Keep counts visible while leaving the globe clear.
@@ -1770,7 +1598,7 @@ export default function WorldMonitorPage() {
                         Vessels
                       </div>
                       <div className="mt-1 text-xl font-bold font-mono text-orange-400">
-                        {shipData.length.toLocaleString()}
+                        {realShipData.length.toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -1878,10 +1706,10 @@ export default function WorldMonitorPage() {
                               Vessels
                             </div>
                             <div className="mt-1 text-xl font-bold font-mono text-orange-400">
-                              {shipData.length.toLocaleString()}
+                              {realShipData.length.toLocaleString()}
                             </div>
                             <div className="text-[10px] text-gray-500">
-                              {shipDataLive ? "Live AIS" : shipSource}
+                              {sourceStatus.vessels.mode === "live" ? "Live AIS" : sourceStatus.vessels.mode === "stale" ? `Stale · ${shipSource}` : shipSource}
                             </div>
                           </div>
                         </div>
@@ -1991,13 +1819,15 @@ export default function WorldMonitorPage() {
                                 {aiBrief.threatLevel || "MONITOR"}
                               </div>
                               <div className="text-[10px] text-gray-500">
-                                {new Date(
-                                  aiBrief.timestamp || Date.now(),
-                                ).toLocaleTimeString()}
+                                {new Date(aiBrief.generatedAt).toLocaleTimeString()}
                               </div>
                             </div>
                             <div className="mt-1 text-sm font-semibold text-white">
                               {aiBrief.headline}
+                            </div>
+                            <div className="mt-1 text-[9px] font-mono text-gray-600">
+                              {aiBrief.model}{aiBrief.cached ? " · CACHED" : ""}{aiBrief.stale ? " · STALE" : ""}
+                              {aiBrief.dataAsOf ? ` · DATA AS OF ${new Date(aiBrief.dataAsOf).toLocaleString()}` : ""}
                             </div>
                             {aiBrief.queryAnswer && aiBrief.isQueryResponse && (
                               <div className="mt-2 rounded-xl border border-geo-gold/20 bg-geo-gold/5 p-2.5">
@@ -2040,6 +1870,11 @@ export default function WorldMonitorPage() {
                                 {aiBrief.keyInsight}
                               </p>
                             )}
+                          </div>
+                        )}
+                        {aiError && (
+                          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                            {aiError}
                           </div>
                         )}
                       </>
@@ -2157,7 +1992,7 @@ export default function WorldMonitorPage() {
                 <div className="w-px h-3 bg-white/10" />
                 <div className="flex items-center gap-1.5 text-[10px] text-orange-400">
                   <Ship className="w-3.5 h-3.5" />
-                  <span className="font-mono">{shipData.length} vessels</span>
+                  <span className="font-mono">{realShipData.length} real AIS vessels</span>
                 </div>
                 <div className="w-px h-3 bg-white/10" />
                 <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
@@ -2290,11 +2125,11 @@ export default function WorldMonitorPage() {
         <div className="mt-6 flex flex-col gap-6 w-full">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             <div id="risk-indices" className="scroll-mt-[140px]">
-              <RiskIndicesWidget data={RISK_INDICES} />
+              <RiskIndicesWidget data={liveRiskIndices} />
             </div>
             <div id="chokepoints" className="scroll-mt-[140px]">
               <ChokepointsWidget
-                data={CHOKEPOINTS}
+                data={chokepointMetrics}
                 onChokepointClick={handleChokepointClick}
               />
             </div>
@@ -2302,20 +2137,9 @@ export default function WorldMonitorPage() {
               <AssetTrackingWidget data={trackedAssets} />
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div id="nuclear-monitor" className="scroll-mt-[140px]">
-              <NuclearMonitorWidget data={NUCLEAR_STATUS} />
-            </div>
-            <div id="sanctions" className="scroll-mt-[140px]">
-              <SanctionsWidget data={SANCTIONS_DATA} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div id="sigint-feeds" className="scroll-mt-[140px]">
-              <SigintWidget data={SIGINT_FEEDS} />
-            </div>
+          <div className="grid grid-cols-1 gap-6">
             <div id="country-briefs" className="scroll-mt-[140px]">
-              <CountryBriefsWidget data={COUNTRY_BRIEFS} />
+              <CountryBriefsWidget data={liveCountryBriefs} />
             </div>
           </div>
         </div>
@@ -2562,6 +2386,3 @@ export default function WorldMonitorPage() {
     </main>
   );
 }
-
-
-

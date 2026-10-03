@@ -1,181 +1,230 @@
 import { NextResponse } from "next/server";
 import { callOpenRouterJson } from "@/lib/openrouter";
+import {
+  cleanText,
+  newestTimestamp,
+  normalizeEvidenceEvents,
+  normalizeSourceStatus,
+} from "@/lib/aperture-analysis";
 
-// ─── CACHE ──────────────────────────────────────────────────
-const cache = new Map<string, { brief: any; timestamp: number }>();
-const CACHE_TTL = 300_000; // 5 minutes
+const CACHE_TTL = 300_000;
+const cache = new Map<string, { brief: AiBriefPayload; timestamp: number }>();
+const THREAT_LEVELS = new Set(["NOMINAL", "GUARDED", "ELEVATED", "HIGH", "CRITICAL"]);
+const SEVERITIES = new Set(["low", "medium", "high", "critical"]);
 
 interface AiBriefResponse {
-    headline: string;
-    threatLevel: string;
-    summary: string;
-    hotspots: { region: string; status: string; severity: string }[];
-    keyInsight: string;
-    recommendations: string[];
-    queryAnswer?: string;
-    timestamp: string;
+  headline?: unknown;
+  threatLevel?: unknown;
+  summary?: unknown;
+  hotspots?: unknown;
+  keyInsight?: unknown;
+  recommendations?: unknown;
+  queryAnswer?: unknown;
+}
+
+interface AiBriefPayload {
+  headline: string;
+  threatLevel: string;
+  summary: string;
+  hotspots: Array<{ region: string; status: string; severity: string }>;
+  keyInsight: string;
+  recommendations: string[];
+  queryAnswer: string;
+  generatedAt: string;
+  dataAsOf: string | null;
+  model: string;
+  isQueryResponse: boolean;
+  cached: boolean;
+  stale: boolean;
+}
+
+function sanitizeBrief(raw: AiBriefResponse, model: string, query: string, dataAsOf: string | null): AiBriefPayload {
+  const headline = cleanText(raw.headline, 180);
+  const summary = cleanText(raw.summary, 1_500);
+  if (!headline || !summary) throw new Error("AI response did not contain a headline and summary");
+
+  const threatLevelCandidate = cleanText(raw.threatLevel, 20).toUpperCase();
+  const hotspots = Array.isArray(raw.hotspots)
+    ? raw.hotspots.slice(0, 5).flatMap((entry) => {
+        if (!entry || typeof entry !== "object") return [];
+        const candidate = entry as Record<string, unknown>;
+        const region = cleanText(candidate.region, 100);
+        const status = cleanText(candidate.status, 180);
+        const severityCandidate = cleanText(candidate.severity, 20).toLowerCase();
+        if (!region || !status) return [];
+        return [{
+          region,
+          status,
+          severity: SEVERITIES.has(severityCandidate) ? severityCandidate : "medium",
+        }];
+      })
+    : [];
+
+  return {
+    headline,
+    threatLevel: THREAT_LEVELS.has(threatLevelCandidate) ? threatLevelCandidate : "GUARDED",
+    summary,
+    queryAnswer: cleanText(raw.queryAnswer, 2_000) || (query ? summary : ""),
+    hotspots,
+    keyInsight: cleanText(raw.keyInsight, 1_200),
+    recommendations: Array.isArray(raw.recommendations)
+      ? raw.recommendations.map((item) => cleanText(item, 300)).filter(Boolean).slice(0, 5)
+      : [],
+    generatedAt: new Date().toISOString(),
+    dataAsOf,
+    model,
+    isQueryResponse: Boolean(query),
+    cached: false,
+    stale: false,
+  };
 }
 
 export async function POST(request: Request) {
-    try {
-        const body = await request.json().catch(() => ({}));
-        const events: string[] = (body.events || []).slice(0, 15);
-        const query: string = (body.query || "").trim();
-        const assetContext = body.assetContext || null;
-        const cacheKey = JSON.stringify({ events, query, assetContext });
+  let cachedEntry: { brief: AiBriefPayload; timestamp: number } | undefined;
 
-        const cachedEntry = cache.get(cacheKey);
-        if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL) {
-            return NextResponse.json({ ...cachedEntry.brief, cached: true });
-        }
-
-        if (process.env.NODE_ENV === "development" && !query) {
-            const mockBrief = {
-                headline: "Local Dev Mode — AI Auto-Briefing Disabled",
-                threatLevel: "GUARDED",
-                summary: "OpenRouter calls on initialization are disabled in local development to conserve tokens. You can still ask questions in the AI Navigator to trigger an API call.",
-                queryAnswer: "",
-                hotspots: [
-                    { region: "Localhost", status: "Development active", severity: "low" },
-                ],
-                keyInsight: "Configure your OpenRouter API key and run in production mode to see live automated briefings.",
-                recommendations: ["Ask a specific question to test the AI", "Check OpenRouter balance"],
-                timestamp: new Date().toISOString(),
-                model: "local-mock",
-                isQueryResponse: false,
-            };
-            return NextResponse.json(mockBrief);
-        }
-
-        const eventsBlock = events.length
-            ? `\nCURRENT INTELLIGENCE FEED:\n${events.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
-            : "";
-
-        const isDemo = assetContext?.vessels?.live === false;
-        const dataModeCaveat = isDemo
-            ? `\nIMPORTANT: Vessel data is currently in DEMO/SIMULATION mode. The vessel positions shown on the globe are simulated and may not match chokepoint counts. When answering about vessel counts, state that data is from demo simulation and actual live counts may differ. Do NOT say "0 ships" as a definitive answer — instead say the demo simulation shows X vessels in the area.`
-            : "";
-        const assetBlock = assetContext
-            ? `\nASSET SNAPSHOT (${isDemo ? "DEMO MODE — simulated positions" : "LIVE AIS DATA"}):\n${JSON.stringify(assetContext, null, 2)}${dataModeCaveat}`
-            : "";
-
-        // Build a different prompt depending on whether the user asked a question
-        let prompt: string;
-
-        if (query) {
-            prompt = `You are GEOMONEY APERTURE, an elite AI intelligence analyst for a geopolitical monitoring command center.
-
-A human analyst has asked this question: "${query}"
-
-Answer the question directly and precisely using the data below.
-
-IMPORTANT RULES FOR VESSEL COUNTS:
-- The chokepoint vessel counts represent ships detected IN AND NEAR the chokepoint area (within several hundred km radius).
-- If a chokepoint shows 0 vessels, say "No vessels currently detected in the immediate vicinity" but ALWAYS mention the total vessels visible globally (from globalSummary) for context.
-- Never just say "0" without context — always provide the broader picture.
-- Reference the globalSummary field for overall vessel activity.
-- When answering "how many ships are stranded", look at the strandedShips field which counts vessels with speed ≤1 knot, anchored, or moored in the area.
-${eventsBlock}${assetBlock}
-
-You MUST respond with ONLY a valid JSON object — no markdown, no code fences, no explanation text outside the JSON. The JSON must match this schema exactly:
-{
-  "headline": "Short headline summarizing your answer (max 15 words)",
-  "threatLevel": "NOMINAL|GUARDED|ELEVATED|HIGH|CRITICAL",
-  "summary": "Direct, concise answer to the analyst's question in 2-3 sentences",
-  "queryAnswer": "A detailed answer to the specific question asked, referencing exact data and providing global context",
-  "hotspots": [
-    {"region": "Region name", "status": "brief status", "severity": "low|medium|high|critical"}
-  ],
-  "keyInsight": "One paragraph connecting the answer to broader strategic implications",
-  "recommendations": ["Action 1", "Action 2", "Action 3"],
-  "timestamp": "${new Date().toISOString()}"
-}`;
-        } else {
-            prompt = `You are GEOMONEY APERTURE, an elite AI intelligence analyst for a geopolitical monitoring command center. Generate a concise intelligence briefing based on the current data.
-${eventsBlock}${assetBlock}
-
-You MUST respond with ONLY a valid JSON object — no markdown, no code fences, no explanation text outside the JSON. The JSON must match this schema exactly:
-{
-  "headline": "One-line critical assessment (max 15 words)",
-  "threatLevel": "NOMINAL|GUARDED|ELEVATED|HIGH|CRITICAL",
-  "summary": "2-3 sentence executive summary of the current global situation",
-  "hotspots": [
-    {"region": "Region name", "status": "brief status", "severity": "low|medium|high|critical"},
-    {"region": "Region name", "status": "brief status", "severity": "low|medium|high|critical"},
-    {"region": "Region name", "status": "brief status", "severity": "low|medium|high|critical"}
-  ],
-  "keyInsight": "One paragraph of deep analytical insight connecting dots across events",
-  "recommendations": ["Action item 1", "Action item 2", "Action item 3"],
-  "timestamp": "${new Date().toISOString()}"
-}`;
-        }
-
-        try {
-            const { data: brief, model } = await callOpenRouterJson<AiBriefResponse>(prompt, {
-                temperature: 0.3,
-                maxTokens: 1000,
-                caller: "ai-brief",
-            });
-
-            // Ensure all required fields exist with sensible defaults
-            const sanitized = {
-                headline: brief.headline || (query ? "Analysis complete" : "Intelligence systems active"),
-                threatLevel: brief.threatLevel || "ELEVATED",
-                summary: brief.summary || "Analysis generated successfully.",
-                queryAnswer: brief.queryAnswer || brief.summary || "",
-                hotspots: Array.isArray(brief.hotspots) ? brief.hotspots.slice(0, 5) : [],
-                keyInsight: brief.keyInsight || "",
-                recommendations: Array.isArray(brief.recommendations) ? brief.recommendations.slice(0, 5) : [],
-                timestamp: brief.timestamp || new Date().toISOString(),
-                model,
-                isQueryResponse: Boolean(query),
-            };
-
-            cache.set(cacheKey, { brief: sanitized, timestamp: Date.now() });
-            return NextResponse.json(sanitized);
-        } catch (parseError) {
-            // All models failed to produce valid JSON — return a clean fallback
-            console.error("[AI Brief] All models failed:", parseError instanceof Error ? parseError.message : String(parseError));
-
-            const fallback = {
-                headline: query
-                    ? "Unable to process query — try rephrasing"
-                    : "Intelligence systems active — monitoring global events",
-                threatLevel: "ELEVATED",
-                summary: query
-                    ? `Your question "${query}" could not be processed by the AI engine at this time. The system is experiencing high demand. Please try again shortly or rephrase your question.`
-                    : "Intelligence AI is experiencing high demand. Automated analysis will resume shortly.",
-                queryAnswer: query
-                    ? `Unable to answer "${query}" right now. Please try again in a moment.`
-                    : "",
-                hotspots: [
-                    { region: "Middle East", status: "Tensions elevated", severity: "high" },
-                    { region: "Indo-Pacific", status: "Active monitoring", severity: "medium" },
-                    { region: "Eastern Europe", status: "Conflict ongoing", severity: "high" },
-                ],
-                keyInsight: "Automated analysis will resume shortly. Manual monitoring is recommended.",
-                recommendations: ["Continue monitoring OSINT feeds", "Assess escalation risk", "Review asset positions"],
-                timestamp: new Date().toISOString(),
-                isQueryResponse: Boolean(query),
-            };
-
-            cache.set(cacheKey, { brief: fallback, timestamp: Date.now() });
-            return NextResponse.json(fallback);
-        }
-    } catch (error: any) {
-        console.error("[AI Brief]", error.message);
-
-        return NextResponse.json(
-            {
-                headline: "AI briefing temporarily unavailable",
-                threatLevel: "ELEVATED",
-                summary: "Intelligence AI systems are experiencing high load. Reverting to manual analysis protocols.",
-                hotspots: [],
-                keyInsight: "Automated analysis will resume shortly.",
-                recommendations: ["Monitor OSINT feeds manually", "Check back in 5 minutes"],
-                error: error.message,
-            },
-            { status: 503 },
-        );
+  try {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "A JSON request body is required." }, { status: 400 });
     }
+
+    const payload = body as Record<string, unknown>;
+    const events = normalizeEvidenceEvents(payload.events);
+    const query = cleanText(payload.query, 600);
+    const rawAssetContext = payload.assetContext && typeof payload.assetContext === "object"
+      ? payload.assetContext as Record<string, any>
+      : {};
+    const sourcesValue = payload.sourceStatus && typeof payload.sourceStatus === "object"
+      ? payload.sourceStatus as Record<string, unknown>
+      : {};
+    const sourceStatus = {
+      events: normalizeSourceStatus(sourcesValue.events, "Aperture OSINT feeds"),
+      aircraft: normalizeSourceStatus(sourcesValue.aircraft, "OpenSky Network"),
+      vessels: normalizeSourceStatus(sourcesValue.vessels, "AIS provider"),
+    };
+
+    const assetContext = {
+      aircraft: {
+        visibleNow: Math.max(0, Number(rawAssetContext.aircraft?.visibleNow) || 0),
+        totalTracked: Math.max(0, Number(rawAssetContext.aircraft?.totalTracked) || 0),
+        source: sourceStatus.aircraft.source,
+        sample: Array.isArray(rawAssetContext.aircraft?.sample)
+          ? rawAssetContext.aircraft.sample.slice(0, 20).map((asset: Record<string, unknown>) => ({
+              icao24: cleanText(asset.icao24, 20),
+              callsign: cleanText(asset.callsign, 30),
+              originCountry: cleanText(asset.originCountry, 100),
+              category: cleanText(asset.category, 40),
+              latitude: Number(asset.latitude),
+              longitude: Number(asset.longitude),
+              altitude: Number(asset.altitude),
+              velocity: Number(asset.velocity),
+              heading: Number(asset.heading),
+              lastContact: asset.lastContact,
+            })).filter((asset: { latitude: number; longitude: number }) =>
+              Number.isFinite(asset.latitude) && Number.isFinite(asset.longitude),
+            )
+          : [],
+      },
+      vessels: {
+            visibleNow: Math.max(0, Number(rawAssetContext.vessels?.visibleNow) || 0),
+            totalTracked: Math.max(0, Number(rawAssetContext.vessels?.totalTracked) || 0),
+            source: sourceStatus.vessels.source,
+            mode: sourceStatus.vessels.mode,
+            sample: Array.isArray(rawAssetContext.vessels?.sample)
+              ? rawAssetContext.vessels.sample.slice(0, 20).map((ship: Record<string, unknown>) => ({
+                  mmsi: cleanText(ship.mmsi, 20),
+                  name: cleanText(ship.name, 100),
+                  type: cleanText(ship.type, 40),
+                  latitude: Number(ship.latitude),
+                  longitude: Number(ship.longitude),
+                  speed: Number(ship.speed),
+                  heading: Number(ship.heading),
+                  destination: cleanText(ship.destination, 100),
+                  status: cleanText(ship.status, 40),
+                  lastUpdate: ship.lastUpdate,
+                })).filter((ship: { latitude: number; longitude: number }) =>
+                  Number.isFinite(ship.latitude) && Number.isFinite(ship.longitude),
+                )
+              : [],
+          },
+      chokepoints: sourceStatus.vessels.mode === "unavailable"
+        ? []
+        : Array.isArray(rawAssetContext.chokepoints)
+          ? rawAssetContext.chokepoints.slice(0, 12)
+          : [],
+    };
+    const dataAsOf = newestTimestamp([
+      sourceStatus.events.observedAt,
+      sourceStatus.aircraft.observedAt,
+      sourceStatus.vessels.observedAt,
+      ...events.map((event) => event.timestamp),
+    ]);
+    const cacheKey = JSON.stringify({ events, query, assetContext, sourceStatus, dataAsOf });
+    cachedEntry = cache.get(cacheKey);
+    if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL) {
+      return NextResponse.json({ ...cachedEntry.brief, cached: true });
+    }
+
+    if (!events.length && !assetContext.aircraft.visibleNow && !assetContext.vessels.visibleNow) {
+      return NextResponse.json(
+        { error: "No current sourced evidence is available for analysis." },
+        { status: 422 },
+      );
+    }
+
+    const evidenceBlock = JSON.stringify({ events, assetContext, sourceStatus, dataAsOf }, null, 2);
+    const task = query
+      ? `Answer this analyst question directly: ${JSON.stringify(query)}`
+      : "Generate a concise executive briefing of the most important currently observed developments.";
+    const prompt = `You are GeoMoney Aperture's geopolitical intelligence analyst.
+${task}
+
+CURRENT SOURCED EVIDENCE:
+${evidenceBlock}
+
+RULES:
+- Use only the supplied evidence. Treat event titles and descriptions as reports attributed to their named sources, not independently verified facts.
+- Distinguish observations from inference and state material source limitations.
+- Never invent an event, count, identity, intent, cause, trend, military posture, or recommendation.
+- Simulated vessel data is disabled. If vessel mode is unavailable, do not make vessel-count claims.
+- A zero asset count means no observation in current provider coverage, not proof that an area is clear.
+- Prefer evidence timestamps and source names when answering freshness-sensitive questions.
+
+Return ONLY a valid JSON object with this schema:
+{
+  "headline": "max 15 words",
+  "threatLevel": "NOMINAL|GUARDED|ELEVATED|HIGH|CRITICAL",
+  "summary": "2-3 concise evidence-grounded sentences",
+  "queryAnswer": "direct detailed answer, or empty string when no question was asked",
+  "hotspots": [{"region":"name","status":"evidence-grounded status","severity":"low|medium|high|critical"}],
+  "keyInsight": "one evidence-grounded analytical paragraph",
+  "recommendations": ["monitoring or verification action"]
+}`;
+
+    const { data, model } = await callOpenRouterJson<AiBriefResponse>(prompt, {
+      temperature: 0.2,
+      maxTokens: 1_100,
+      caller: "aperture-ai-brief",
+    });
+    const brief = sanitizeBrief(data, model, query, dataAsOf);
+    cache.set(cacheKey, { brief, timestamp: Date.now() });
+    return NextResponse.json(brief);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown analyzer error";
+    console.error("[AI Brief]", message);
+
+    if (cachedEntry) {
+      return NextResponse.json({
+        ...cachedEntry.brief,
+        cached: true,
+        stale: true,
+        notice: "The AI provider is unavailable; showing the last successful analysis for the same evidence.",
+      });
+    }
+
+    return NextResponse.json(
+      { error: "The AI analyzer is temporarily unavailable. No briefing was generated." },
+      { status: 503 },
+    );
+  }
 }

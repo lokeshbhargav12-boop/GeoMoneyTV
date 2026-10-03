@@ -1,6 +1,19 @@
 import React from "react";
 import { Target, Crosshair, BarChart3, Wifi, Flag, Ban, Atom } from "lucide-react";
-import { getRiskColor, riskBarColor } from "@/app/world-monitor/constants";
+
+function getRiskColor(value: number) {
+  if (value >= 75) return "text-red-400";
+  if (value >= 50) return "text-orange-400";
+  if (value >= 25) return "text-yellow-400";
+  return "text-emerald-400";
+}
+
+function riskBarColor(value: number) {
+  if (value >= 70) return "bg-red-500";
+  if (value >= 50) return "bg-orange-500";
+  if (value >= 30) return "bg-yellow-500";
+  return "bg-emerald-500";
+}
 
 export function ChokepointsWidget({ data, onChokepointClick }: { data: any[], onChokepointClick: (cp: any) => void }) {
   return (
@@ -8,9 +21,9 @@ export function ChokepointsWidget({ data, onChokepointClick }: { data: any[], on
       <div className="px-4 py-3 border-b border-white/10 bg-black/40">
         <div className="flex items-center gap-2">
           <Target className="w-4 h-4 text-geo-gold" />
-          <h2 className="text-sm font-bold tracking-wide">GLOBAL CHOKEPOINTS</h2>
+          <h2 className="text-sm font-bold tracking-wide">GLOBAL CHOKEPOINT SIGNALS</h2>
         </div>
-        <p className="text-[10px] text-gray-500 mt-1">Critical maritime & strategic bottlenecks</p>
+        <p className="text-[10px] text-gray-500 mt-1">Risk derived from current AIS, aircraft and sourced events</p>
       </div>
       <div className="flex-1 overflow-y-auto divide-y divide-white/5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
         {data.map((cp) => (
@@ -24,11 +37,11 @@ export function ChokepointsWidget({ data, onChokepointClick }: { data: any[], on
               <span className="text-xs font-semibold text-white">{cp.name}</span>
               <span
                 className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
-                  cp.risk >= 70
+                  cp.signalScore >= 70
                     ? "text-red-400 bg-red-500/10 border-red-500/30"
-                    : cp.risk >= 50
+                    : cp.signalScore >= 50
                       ? "text-orange-400 bg-orange-500/10 border-orange-500/30"
-                      : cp.risk >= 30
+                      : cp.signalScore >= 30
                         ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
                         : "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
                 }`}
@@ -36,14 +49,14 @@ export function ChokepointsWidget({ data, onChokepointClick }: { data: any[], on
                 {cp.status}
               </span>
             </div>
-            <div className="flex items-center justify-between text-[10px] text-gray-500 mb-2">
-              <span>{cp.dailyTraffic}</span>
-              <span>{cp.percentGlobal} global</span>
+            <div className="flex items-center justify-between gap-2 text-[10px] text-gray-500 mb-2">
+              <span>{cp.vessels ?? 0} AIS · {cp.aircraft ?? 0} aircraft</span>
+              <span>{cp.events ?? 0} sourced events</span>
             </div>
             <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full ${riskBarColor(cp.risk)}`}
-                style={{ width: `${cp.risk}%` }}
+                className={`h-full rounded-full ${riskBarColor(cp.signalScore)}`}
+                style={{ width: `${cp.signalScore}%` }}
               />
             </div>
           </button>
@@ -61,7 +74,7 @@ export function AssetTrackingWidget({ data }: { data: any[] }) {
           <Crosshair className="w-4 h-4 text-geo-gold" />
           <h2 className="text-sm font-bold tracking-wide">ASSET TRACKING</h2>
         </div>
-        <p className="text-[10px] text-gray-500 mt-1">Multi-domain surveillance systems</p>
+        <p className="text-[10px] text-gray-500 mt-1">Current observations from connected providers</p>
       </div>
       <div className="flex-1 overflow-y-auto divide-y divide-white/5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
         {data.map((asset) => (
@@ -102,7 +115,7 @@ export function RiskIndicesWidget({ data }: { data: any[] }) {
       <div className="px-4 py-3 border-b border-white/10 bg-black/40">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-geo-gold" />
-          <h2 className="text-sm font-bold tracking-wide">RISK INDICES</h2>
+          <h2 className="text-sm font-bold tracking-wide">SOURCE SIGNAL SCORES</h2>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto divide-y divide-white/5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
@@ -110,8 +123,8 @@ export function RiskIndicesWidget({ data }: { data: any[] }) {
           <div key={idx.name} className="px-4 py-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-white">{idx.name}</span>
-              <span className={`text-xs font-mono ${idx.change > 0 ? "text-red-400" : "text-emerald-400"}`}>
-                {idx.change > 0 ? "▲" : "▼"} {Math.abs(idx.change)}
+              <span className="text-[10px] font-mono text-gray-500">
+                {idx.signalCount ?? 0} signals
               </span>
             </div>
             <div className="flex items-center gap-3 mb-2">
@@ -129,7 +142,7 @@ export function RiskIndicesWidget({ data }: { data: any[] }) {
           </div>
         ))}
         <div className="px-4 py-4 bg-geo-gold/5 mt-auto">
-          <div className="text-[10px] text-gray-500 uppercase mb-1">Composite Risk Index</div>
+          <div className="text-[10px] text-gray-500 uppercase mb-1">Composite Signal Score</div>
           <div className="text-3xl font-bold text-geo-gold font-mono">
             {Math.round(data.reduce((s, i) => s + i.value, 0) / data.length)}
           </div>
@@ -147,7 +160,7 @@ export function SigintWidget({ data }: { data: any[] }) {
           <Wifi className="w-4 h-4 text-cyan-400" />
           <h2 className="text-sm font-bold tracking-wide">SIGINT INTERCEPTS</h2>
         </div>
-        <p className="text-[10px] text-gray-500 mt-1">Live signals &amp; electronic intelligence</p>
+        <p className="text-[10px] text-gray-500 mt-1">Reference scenarios — not a live intercept feed</p>
       </div>
       <div className="flex-1 overflow-y-auto divide-y divide-white/5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
         {data.map((sig, i) => (
@@ -177,9 +190,9 @@ export function CountryBriefsWidget({ data }: { data: any[] }) {
       <div className="px-4 py-3 border-b border-white/10 bg-black/40">
         <div className="flex items-center gap-2">
           <Flag className="w-4 h-4 text-geo-gold" />
-          <h2 className="text-sm font-bold tracking-wide">COUNTRY BRIEFS</h2>
+          <h2 className="text-sm font-bold tracking-wide">LOCATION BRIEFS</h2>
         </div>
-        <p className="text-[10px] text-gray-500 mt-1">Intelligence assessments &mdash; threat &amp; stability</p>
+        <p className="text-[10px] text-gray-500 mt-1">Current source-attributed event summaries</p>
       </div>
       <div className="flex-1 overflow-y-auto divide-y divide-white/5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
         {data.map((cb) => (
@@ -189,25 +202,25 @@ export function CountryBriefsWidget({ data }: { data: any[] }) {
                 <span className="text-base">{cb.flag}</span>
                 <span className="text-xs font-bold text-white">{cb.country}</span>
               </div>
-              <span className={`text-[10px] font-mono font-bold ${cb.threat >= 80 ? "text-red-400" : cb.threat >= 60 ? "text-orange-400" : cb.threat >= 40 ? "text-yellow-400" : "text-emerald-400"}`}>
-                THREAT: {cb.threat}
+              <span className={`text-[10px] font-mono font-bold ${cb.signalScore >= 80 ? "text-red-400" : cb.signalScore >= 60 ? "text-orange-400" : cb.signalScore >= 40 ? "text-yellow-400" : "text-emerald-400"}`}>
+                SIGNAL SCORE: {cb.signalScore}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
+            <div className="mb-2">
               <div>
-                <div className="text-[9px] text-gray-600 uppercase">Threat</div>
+                <div className="text-[9px] text-gray-600 uppercase">Source-weighted signal score</div>
                 <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mt-1">
-                  <div className={`h-full rounded-full ${cb.threat >= 70 ? "bg-red-500" : cb.threat >= 50 ? "bg-orange-500" : "bg-yellow-500"}`} style={{ width: `${cb.threat}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="text-[9px] text-gray-600 uppercase">Stability</div>
-                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mt-1">
-                  <div className={`h-full rounded-full ${cb.stability >= 60 ? "bg-emerald-500" : cb.stability >= 40 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${cb.stability}%` }} />
+                  <div className={`h-full rounded-full ${cb.signalScore >= 70 ? "bg-red-500" : cb.signalScore >= 50 ? "bg-orange-500" : "bg-yellow-500"}`} style={{ width: `${cb.signalScore}%` }} />
                 </div>
               </div>
             </div>
             <p className="text-[11px] text-gray-400 leading-relaxed mb-2">{cb.brief}</p>
+            {cb.source && (
+              <div className="mb-2 text-[9px] font-mono text-gray-600">
+                {cb.signalCount} sourced signal{cb.signalCount === 1 ? "" : "s"} · {cb.source}
+                {cb.timestamp ? ` · ${new Date(cb.timestamp).toLocaleString()}` : ""}
+              </div>
+            )}
             <div className="flex flex-wrap gap-1">
               {cb.hotTopics.map((topic: string) => (
                 <span key={topic} className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400 font-mono">

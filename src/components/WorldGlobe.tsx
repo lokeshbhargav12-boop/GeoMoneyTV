@@ -35,6 +35,8 @@ export interface AircraftData {
   heading: number;
   vertical_rate: number;
   category: string;
+  timePosition?: number | null;
+  lastContact?: number | null;
   trail?: Array<{
     latitude: number;
     longitude: number;

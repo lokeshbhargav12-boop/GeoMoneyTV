@@ -15,6 +15,8 @@ export interface AircraftState {
     on_ground: boolean;
     squawk: string;
     category: "commercial" | "cargo" | "military" | "private" | "unknown";
+    timePosition?: number | null;
+    lastContact?: number | null;
     trail?: AircraftTrackPoint[];
 }
 
@@ -28,7 +30,7 @@ interface AircraftTrackPoint {
 }
 
 // ─── CACHE ──────────────────────────────────────────────────
-let cache: { data: AircraftState[]; timestamp: number } | null = null;
+let cache: { data: AircraftState[]; observedAt: number; fetchedAt: number } | null = null;
 const CACHE_TTL = 20_000; // 20s — OpenSky anonymous rate limit is ~10 req/min
 const FLIGHT_TRACK_LOOKBACK_MS = Math.max(
     60 * 60 * 1000,
@@ -231,14 +233,14 @@ export async function GET(request: Request) {
         };
 
         // Return cached data if fresh
-        if (cache && Date.now() - cache.timestamp < CACHE_TTL) {
+        if (cache && Date.now() - cache.fetchedAt < CACHE_TTL) {
             const filtered = filterBounds(cache.data, bounds);
             return NextResponse.json(
                 {
                     aircraft: filtered,
                     total: cache.data.length,
                     cached: true,
-                    timestamp: cache.timestamp,
+                    timestamp: cache.observedAt,
                 },
                 { headers: { "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30" } },
             );
@@ -284,12 +286,20 @@ export async function GET(request: Request) {
                 on_ground: false,
                 squawk: s[14] || "",
                 category: classifyAircraft((s[1] || "").trim(), s[2] || ""),
+                timePosition: Number.isFinite(Number(s[3])) ? Number(s[3]) * 1000 : null,
+                lastContact: Number.isFinite(Number(s[4])) ? Number(s[4]) * 1000 : null,
             }));
 
         await persistAircraftTracks(aircraft);
         const hydratedAircraft = await hydrateAircraftTracks(aircraft);
 
-        cache = { data: hydratedAircraft, timestamp: Date.now() };
+        const observedAt = Number.isFinite(Number(raw.time))
+            ? Number(raw.time) * 1000
+            : Math.max(
+                0,
+                ...hydratedAircraft.map((asset) => asset.lastContact || asset.timePosition || 0),
+            ) || Date.now();
+        cache = { data: hydratedAircraft, observedAt, fetchedAt: Date.now() };
 
         const filtered = filterBounds(hydratedAircraft, bounds);
 
@@ -298,7 +308,7 @@ export async function GET(request: Request) {
                 aircraft: filtered,
                 total: hydratedAircraft.length,
                 cached: false,
-                timestamp: Date.now(),
+                timestamp: observedAt,
             },
             { headers: { "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30" } },
         );
@@ -312,7 +322,7 @@ export async function GET(request: Request) {
                 total: cache.data.length,
                 cached: true,
                 stale: true,
-                timestamp: cache.timestamp,
+                timestamp: cache.observedAt,
             });
         }
 

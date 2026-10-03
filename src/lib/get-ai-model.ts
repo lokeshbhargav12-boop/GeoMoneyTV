@@ -6,7 +6,7 @@ import { prisma } from './prisma'
  */
 export async function getAiModel(): Promise<string> {
     const envDefault =
-        process.env.OPENROUTER_AI_MODEL || 'google/gemma-3-27b-it:free'
+        process.env.OPENROUTER_AI_MODEL || 'qwen/qwen3.8-27b:free'
     try {
         const setting = await prisma.siteSettings.findUnique({
             where: { key: 'ai_model' },

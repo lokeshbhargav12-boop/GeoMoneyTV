@@ -6,20 +6,34 @@ function getOpenRouterApiKey(): string | undefined {
 
 /**
  * Models tried in sequence when the primary model fails.
- * Ordered by reliability on the free tier.
- * Last verified: April 2026 — remove any model that consistently returns 404.
+ * Ordered to prefer general instruction models that reliably return structured text.
+ * Last verified against OpenRouter's live /api/v1/models catalog: October 2026.
  */
 const FALLBACK_MODELS = [
-    'google/gemma-3-27b-it:free',             // Google AI Studio — 100% uptime
-    'google/gemma-4-26b-a4b-it:free',          // Gemma 4 MoE — high availability
-    'meta-llama/llama-3.3-70b-instruct:free',  // Meta Llama 3.3 70B — confirmed
-    'nvidia/nemotron-3-super-120b-a12b:free',  // NVIDIA Nemotron 120B — confirmed
-    'openai/gpt-oss-120b:free',               // OpenAI open-source 120B — confirmed
-    'minimax/minimax-m2.5:free',              // MiniMax M2.5 — confirmed
-    'deepseek/deepseek-r1:free',              // DeepSeek R1
-    'microsoft/phi-4:free',                   // Microsoft Phi-4
-    'z-ai/glm-4.5-air:free',                  // GLM 4.5 Air — confirmed backup
+    'nvidia/nemotron-3-super-120b-a12b:free',
+    'qwen/qwen3.8-27b:free',
+    'google/gemma-4-31b-it:free',
+    'google/gemma-4-26b-a4b-it:free',
+    'nvidia/nemotron-3.5-lightning:free',
+    'nvidia/nemotron-3-ultra-550b-a55b:free',
+    'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+    'thinkingmachines/inkling:free',
+    'apodex/apodex-1.1-mini:free',
+    'inclusionai/ling-3.0-flash-sante:free',
 ]
+
+const RETIRED_FREE_MODELS = new Set([
+    'google/gemma-3-27b-it:free',
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'meta-llama/llama-4-scout:free',
+    'microsoft/phi-4:free',
+    'google/gemini-2.0-flash-exp:free',
+    'deepseek/deepseek-r1:free',
+    'qwen/qwen3-235b-a22b:free',
+    'openai/gpt-oss-120b:free',
+    'minimax/minimax-m2.5:free',
+    'z-ai/glm-4.5-air:free',
+])
 
 /** Per-model request timeout in milliseconds. Prevents slow models blocking the chain. */
 const MODEL_TIMEOUT_MS = 20_000
@@ -74,7 +88,12 @@ async function callOpenRouterWithTransform<R>(
                 ...FALLBACK_MODELS,
             ]
             : (preferredModels.length ? preferredModels : [adminModel])
-    ).filter((model, index, list) => Boolean(model) && list.indexOf(model) === index)
+    ).filter(
+        (model, index, list) =>
+            Boolean(model)
+            && !RETIRED_FREE_MODELS.has(model)
+            && list.indexOf(model) === index,
+    )
 
     let lastError = 'No models available'
 
