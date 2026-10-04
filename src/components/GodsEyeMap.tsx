@@ -24,6 +24,8 @@ import {
 } from "@/lib/world-monitor-geo";
 import { getCartoTileUrl } from "@/lib/carto-tiles";
 import type { ApertureSourceStatus } from "@/lib/aperture-analysis";
+import MonitorSheet from './MonitorSheet';
+import PublicStreamPlayer from './PublicStreamPlayer';
 
 // ─── DARK MAP TILES ──────────────────────────────────────────
 const DARK_TILES = getCartoTileUrl("darkAll");
@@ -171,10 +173,12 @@ function PegmanCursor({ active }: { active: boolean }) {
 // ─── BOUNDING BOX SELECTION TOOL ─────────────────────────────
 function BboxDrawer({
   active,
+  touchSelection = false,
   currentBbox,
   onBboxChange,
 }: {
   active: boolean;
+  touchSelection?: boolean;
   currentBbox: L.LatLngBounds | null;
   onBboxChange: (bounds: L.LatLngBounds | null) => void;
 }) {
@@ -193,18 +197,23 @@ function BboxDrawer({
   }, [active, map]);
 
   useMapEvents({
+    click(e) {
+      if (!active || !touchSelection) return;
+      if (!start) { setStart(e.latlng); setEnd(e.latlng); onBboxChange(null); }
+      else { onBboxChange(L.latLngBounds(start, e.latlng)); setStart(null); setEnd(null); }
+    },
     mousedown(e) {
-      if (!active) return;
+      if (!active || touchSelection) return;
       setStart(e.latlng);
       setEnd(e.latlng);
       onBboxChange(null);
     },
     mousemove(e) {
-      if (!active || !start) return;
+      if (!active || !start || touchSelection) return;
       setEnd(e.latlng);
     },
     mouseup(e) {
-      if (!active || !start || !end) return;
+      if (!active || !start || !end || touchSelection) return;
       const bounds = L.latLngBounds(start, end);
       onBboxChange(bounds);
       setStart(null);
@@ -244,6 +253,9 @@ interface GodsEyeMapProps {
   onClose: () => void;
   selectedWebcam: Webcam | null;
   onSelectWebcam: (w: Webcam | null) => void;
+  compact?: boolean;
+  filterRequest?: number;
+  sheetSuppressed?: boolean;
 }
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────
@@ -255,7 +267,12 @@ export default function GodsEyeMap({
   onClose,
   selectedWebcam,
   onSelectWebcam,
+  compact = false,
+  filterRequest = 0,
+  sheetSuppressed = false,
 }: GodsEyeMapProps) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  useEffect(() => { if (filterRequest) setFiltersOpen(true); }, [filterRequest]);
   const [mapMode, setMapMode] = useState<"dark" | "satellite">("dark");
   const [mapCenter, setMapCenter] = useState<[number, number]>([25, 42]);
   const [mapZoom, setMapZoom] = useState(3);
@@ -287,9 +304,15 @@ export default function GodsEyeMap({
     evidence?: { vessels: number; aircraft: number };
   } | null>(null);
   const [bboxError, setBboxError] = useState("");
+  const bboxRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => { bboxRequest.current?.abort(); bboxRequest.current = null; }, []);
 
   const analyzeBbox = async () => {
     if (!selectedBbox) return;
+    bboxRequest.current?.abort();
+    const controller = new AbortController();
+    bboxRequest.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 55_000);
     setIsAnalyzingBbox(true);
     setBboxAnalysis(null);
     setBboxError("");
@@ -309,11 +332,8 @@ export default function GodsEyeMap({
       ) : [];
 
       // Avoid passing too big arrays
-      const shipsData = shipsInBox.slice(0, 100);
-      const aircraftData = aircraftInBox.slice(0, 100);
-
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 75_000);
+      const shipsData = shipsInBox.slice(0, 100).map(({ trail, ...ship }) => ship);
+      const aircraftData = aircraftInBox.slice(0, 100).map(({ trail, ...asset }) => asset);
       const res = await fetch("/api/analyze-bbox", {
         method: "POST",
         signal: controller.signal,
@@ -333,16 +353,16 @@ export default function GodsEyeMap({
           ].filter(Boolean),
           sourceStatus,
         }),
-      }).finally(() => window.clearTimeout(timeout));
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.error || `Region analyzer failed (${res.status})`);
       }
       if (!data.summary) throw new Error("The region analyzer returned no report.");
-      setBboxAnalysis(data);
+      if (bboxRequest.current === controller) setBboxAnalysis(data);
     } catch (e) {
       console.error(e);
-      setBboxError(
+      if (bboxRequest.current === controller) setBboxError(
         e instanceof DOMException && e.name === "AbortError"
           ? "The analyzer timed out. No report was generated."
           : e instanceof Error
@@ -350,8 +370,12 @@ export default function GodsEyeMap({
             : "The region analyzer is unavailable.",
       );
     } finally {
-      setIsAnalyzingBbox(false);
-      setBboxMode(false);
+      window.clearTimeout(timeout);
+      if (bboxRequest.current === controller) {
+        bboxRequest.current = null;
+        setIsAnalyzingBbox(false);
+        setBboxMode(false);
+      }
     }
   };
 
@@ -449,8 +473,9 @@ export default function GodsEyeMap({
           style={{ background: "#0a0a0a" }}
         >
           <MapController center={mapCenter} zoom={mapZoom} />
-          <BboxDrawer
+            <BboxDrawer
             active={bboxMode}
+              touchSelection={compact}
             currentBbox={selectedBbox}
             onBboxChange={setSelectedBbox}
           />
@@ -559,7 +584,7 @@ export default function GodsEyeMap({
 
         {/* ─── ANALYSIS RESULT PANEL ──────────────────── */}
         <AnimatePresence>
-          {(bboxAnalysis || bboxError) && (
+          {!compact && (bboxAnalysis || bboxError) && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -628,7 +653,13 @@ export default function GodsEyeMap({
         )}
 
         {/* ─── TOP BAR (Vision Pro glass) ─────────────────── */}
-        <div className="absolute top-3 left-3 right-3 z-[1001] flex items-center justify-between">
+        {compact && <div className="absolute left-2 right-2 top-2 z-[1001] flex flex-wrap gap-2">
+          <button type="button" onClick={() => setFiltersOpen(true)} className="min-h-[44px] rounded-xl border border-white/20 bg-black/85 px-3 text-sm text-white">Map tools</button>
+          <button type="button" onClick={() => { setBboxMode(!bboxMode); setSelectedBbox(null); }} className="min-h-[44px] rounded-xl border border-cyan-400/30 bg-black/85 px-3 text-sm text-cyan-200">{bboxMode ? 'Cancel selection' : 'Select region'}</button>
+          {selectedBbox && <button type="button" disabled={isAnalyzingBbox} onClick={analyzeBbox} className="min-h-[44px] rounded-xl bg-cyan-800 px-3 text-sm text-white">{isAnalyzingBbox ? 'Analyzing…' : 'Analyze area'}</button>}
+          {bboxMode && <p className="w-full rounded-lg bg-black/85 p-2 text-sm text-cyan-200">Tap two opposite corners to select a region.</p>}
+        </div>}
+        <div className={`${compact ? 'hidden' : 'flex'} absolute top-3 left-3 right-3 z-[1001] items-center justify-between`}>
           <div className="flex items-center gap-3">
             <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-4 py-2 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
@@ -793,8 +824,8 @@ export default function GodsEyeMap({
         </div>
 
         {/* ─── QUICK JUMP BUTTONS (bottom) ────────────────── */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1001]">
-          <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-2 py-2 flex items-center gap-1">
+        <div className="absolute bottom-3 left-3 right-3 z-[1001]">
+          <div className="mx-auto w-fit max-w-full overflow-x-auto bg-black/70 backdrop-blur-2xl border border-white/10 rounded-2xl px-2 py-2 flex items-center gap-1">
             {[
               { label: "Hormuz", lat: 26.5, lng: 56.2, z: 7 },
               { label: "Malacca", lat: 2.5, lng: 101.5, z: 7 },
@@ -811,7 +842,7 @@ export default function GodsEyeMap({
                   setMapCenter([loc.lat, loc.lng]);
                   setMapZoom(loc.z);
                 }}
-                className="px-3 py-1.5 rounded-xl text-[10px] font-mono text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+                className="min-h-[44px] shrink-0 px-3 py-1.5 rounded-xl text-xs font-mono text-gray-300 hover:text-white hover:bg-white/10 transition-all"
               >
                 {loc.label}
               </button>
@@ -820,7 +851,7 @@ export default function GodsEyeMap({
         </div>
 
         {/* ─── LIVE STREAM Picture-in-Picture ─────────────── */}
-        {selectedWebcam && !streetViewLocation && (
+        {selectedWebcam && !streetViewLocation && !compact && (
           <div className="absolute bottom-16 right-4 z-[1001] w-[420px]">
             <div className="bg-black/80 backdrop-blur-2xl border border-purple-500/20 rounded-2xl overflow-hidden shadow-2xl shadow-purple-500/10">
               <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
@@ -842,15 +873,8 @@ export default function GodsEyeMap({
                   </button>
                 </div>
               </div>
-              <div className="relative aspect-video bg-gray-950">
-                <iframe
-                  src={selectedWebcam.embedUrl}
-                  className="w-full h-full"
-                  allow="autoplay; encrypted-media; accelerometer; gyroscope"
-                  allowFullScreen
-                  title={selectedWebcam.title}
-                  style={{ border: "none" }}
-                />
+              <div className="relative bg-gray-950">
+                <PublicStreamPlayer feed={selectedWebcam} />
                 {/* CRT scan lines */}
                 <div
                   className="absolute inset-0 pointer-events-none opacity-[0.06]"
@@ -859,15 +883,6 @@ export default function GodsEyeMap({
                       "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.4) 2px, rgba(0,0,0,0.4) 4px)",
                   }}
                 />
-                {/* LIVE badge */}
-                <div className="absolute top-2 left-2 flex items-center gap-1 bg-red-600/90 px-2 py-0.5 rounded text-[9px] font-mono text-white">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  STREAM
-                </div>
-                {/* Timestamp */}
-                <div className="absolute bottom-2 right-2 text-[9px] font-mono text-gray-400 bg-black/60 px-2 py-0.5 rounded">
-                  {new Date().toLocaleTimeString()} UTC
-                </div>
               </div>
               {/* Open in Street View button */}
               <div className="px-3 py-2 flex items-center justify-between bg-black/40">
@@ -894,7 +909,7 @@ export default function GodsEyeMap({
         )}
 
         {/* ─── STREET VIEW Panel (overlays on map) ────────── */}
-        {streetViewLocation && (
+        {streetViewLocation && !compact && (
           <div className="absolute bottom-16 right-4 z-[1001] w-[480px]">
             <div className="bg-black/80 backdrop-blur-2xl border border-yellow-500/20 rounded-2xl overflow-hidden shadow-2xl shadow-yellow-500/10">
               {/* Header */}
@@ -979,7 +994,7 @@ export default function GodsEyeMap({
       </div>
 
       {/* ═══ SIDEBAR ═══════════════════════════════════════ */}
-      <div className="w-[270px] bg-black/70 backdrop-blur-2xl border-l border-white/5 flex flex-col shrink-0">
+      <div className={`${compact ? 'hidden' : 'flex'} w-[270px] bg-black/70 backdrop-blur-2xl border-l border-white/5 flex-col shrink-0`}>
         {/* Tabs */}
         <div className="flex border-b border-white/10">
           <button
@@ -1011,7 +1026,7 @@ export default function GodsEyeMap({
               <div className="flex items-center gap-2">
                 <span className="text-sm">📡</span>
                 <span className="text-[11px] font-bold tracking-wider">
-                  SURVEILLANCE FEEDS
+                  PUBLIC BROADCASTS & CAMERAS
                 </span>
               </div>
               <p className="text-[9px] text-gray-600 mt-0.5 font-mono">
@@ -1051,7 +1066,7 @@ export default function GodsEyeMap({
                       <div className="flex items-center gap-1 mt-0.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                         <span className="text-[8px] text-red-400 font-mono">
-                          PUBLIC FEED
+                          {cam.feedType === 'camera' ? 'LOCATION CAMERA' : 'BROADCAST · HQ PIN'}
                         </span>
                       </div>
                     </div>
@@ -1073,7 +1088,7 @@ export default function GodsEyeMap({
                 </span>
               </div>
               <p className="text-[9px] text-gray-600 mt-0.5 font-mono">
-                WALK ANYWHERE ON EARTH
+                PROVIDER IMAGERY · COVERAGE VARIES
               </p>
             </div>
 
@@ -1179,6 +1194,28 @@ export default function GodsEyeMap({
           </>
         )}
       </div>
+      {compact && !sheetSuppressed && (bboxAnalysis || bboxError) && !filtersOpen && !selectedWebcam && !streetViewLocation && <MonitorSheet title="Region analysis" onClose={() => { setBboxAnalysis(null); setBboxError(''); }}>
+        {bboxError ? <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{bboxError}<button type="button" onClick={analyzeBbox} className="mt-3 block min-h-[44px] rounded-lg border border-white/20 px-3">Retry analysis</button></div> : bboxAnalysis && <div className="space-y-3 text-sm text-gray-300"><p>{bboxAnalysis.model || 'AI model'} · Data as of {bboxAnalysis.dataAsOf ? new Date(bboxAnalysis.dataAsOf).toLocaleString() : 'unknown'}</p><p className="whitespace-pre-wrap leading-relaxed">{bboxAnalysis.summary}</p></div>}
+      </MonitorSheet>}
+      {compact && !sheetSuppressed && filtersOpen && <MonitorSheet title="Map filters and tools" onClose={() => setFiltersOpen(false)}>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-2 text-sm"><span>{[showAircraft, showShips, showWebcams].filter(Boolean).length} active layers</span><button type="button" onClick={() => { setShowAircraft(true); setShowShips(true); setShowWebcams(true); }} className="min-h-[44px] rounded-xl border border-white/20 px-3">Reset filters</button></div>
+          <div className="grid grid-cols-2 gap-2">
+            {[{ label: 'Aircraft', enabled: showAircraft, toggle: () => setShowAircraft(!showAircraft) }, { label: 'Vessels', enabled: showShips, toggle: () => setShowShips(!showShips) }, { label: 'Public feed pins', enabled: showWebcams, toggle: () => setShowWebcams(!showWebcams) }].map((layer) => <button type="button" key={layer.label} aria-pressed={layer.enabled} onClick={layer.toggle} className={`min-h-[48px] rounded-xl border px-3 text-left text-sm ${layer.enabled ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-100' : 'border-white/15 text-gray-400'}`}>{layer.label}</button>)}
+          </div>
+          <p className="text-sm text-gray-400">Aircraft: {sourceStatus.aircraft.mode} · Vessels: {sourceStatus.vessels.mode}. Pins identify public providers, not necessarily footage locations.</p>
+          <div className="flex gap-2">{['dark', 'satellite'].map((mode) => <button type="button" key={mode} aria-pressed={mapMode === mode} onClick={() => setMapMode(mode as 'dark' | 'satellite')} className="min-h-[44px] rounded-xl border border-white/20 px-3 text-sm">{mode}</button>)}</div>
+          <h3 className="text-sm font-semibold">Street View locations</h3>
+          <p className="text-sm text-gray-400">Street View is provider imagery, not live surveillance. Coverage is not guaranteed.</p>
+          <div className="grid grid-cols-2 gap-2">{STREETVIEW_LOCATIONS.map((location) => <button type="button" key={location.label} onClick={() => { handleStreetViewPreset(location); setFiltersOpen(false); }} className="min-h-[44px] rounded-xl border border-white/15 px-3 text-left text-sm">{location.label}</button>)}</div>
+        </div>
+      </MonitorSheet>}
+      {compact && !sheetSuppressed && selectedWebcam && !filtersOpen && <MonitorSheet title={selectedWebcam.title} onClose={() => onSelectWebcam(null)}><PublicStreamPlayer feed={selectedWebcam} /></MonitorSheet>}
+      {compact && !sheetSuppressed && streetViewLocation && !filtersOpen && !selectedWebcam && <MonitorSheet title="Street View imagery" onClose={() => setStreetViewLocation(null)}>
+        <p className="mb-3 text-sm text-gray-400">Recorded provider imagery; not a live feed. This location may not have Street View coverage.</p>
+        <iframe src={streetViewIframeUrl || undefined} title="Street View imagery" className="h-[40dvh] w-full rounded-xl" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
+        <a href={streetViewDirectUrl || '#'} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-[44px] items-center text-cyan-300">Open full Google Maps ↗</a>
+      </MonitorSheet>}
     </div>
   );
 }

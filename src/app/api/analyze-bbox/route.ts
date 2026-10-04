@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callOpenRouter } from "@/lib/openrouter";
+import { callOpenRouter, getAiFailure } from "@/lib/openrouter";
 import {
   cleanText,
   newestTimestamp,
@@ -9,6 +9,7 @@ import {
 } from "@/lib/aperture-analysis";
 
 const MAX_ASSET_SAMPLE = 100;
+export const maxDuration = 60;
 
 function sanitizeShip(value: unknown) {
   if (!value || typeof value !== "object") return null;
@@ -143,6 +144,8 @@ Write a concise 2-3 paragraph situational summary. Distinguish observed facts fr
       temperature: 0.2,
       maxTokens: 900,
       caller: "aperture-region-analysis",
+      timeoutMs: 50_000,
+      signal: request.signal,
     });
 
     return NextResponse.json({
@@ -161,9 +164,7 @@ Write a concise 2-3 paragraph situational summary. Distinguish observed facts fr
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown analyzer error";
     console.error("BBox Analysis error:", message);
-    return NextResponse.json(
-      { error: "The region analyzer is temporarily unavailable. No analysis was generated." },
-      { status: 503 },
-    );
+    const failure = getAiFailure(error);
+    return NextResponse.json(failure, { status: failure.status });
   }
 }

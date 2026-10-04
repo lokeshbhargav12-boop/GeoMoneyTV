@@ -201,6 +201,9 @@ describe("generateCoalCommentary — TTL cache", () => {
     removeBriefFile();
     globalThis.fetch = ((input: RequestInfo | URL) => {
       const url = urlOf(input);
+      if (url.hostname === "openrouter.ai" && url.pathname.endsWith('/models')) {
+        return Promise.resolve(makeRes({ data: [{ id: 'google/gemma-4-31b-it:free', supported_parameters: ['response_format'] }] }));
+      }
       if (url.hostname === "openrouter.ai") {
         openRouterCalls++;
         return Promise.resolve(makeRes({ choices: [{ message: { content: JSON.stringify(SUCCESS_BRIEF) } }] }));

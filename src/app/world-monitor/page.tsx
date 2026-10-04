@@ -50,6 +50,9 @@ import {
   Bug,
 } from "lucide-react";
 import OsintFeed from "@/components/OsintFeed";
+import MonitorSheet from '@/components/MonitorSheet';
+import LiveVideoGrid from '@/components/LiveVideoGrid';
+import { isSlowOrStopped, selectQueryEvidence } from '@/lib/aperture-query';
 import {
   ChokepointsWidget,
   AssetTrackingWidget,
@@ -214,7 +217,7 @@ const CHOKEPOINTS = [
 ];
 
 const AI_QUICK_QUERIES = [
-  "How many ships are stranded in the Strait of Hormuz right now?",
+  "What vessels are observed near Hormuz, and how many are slow or stopped?",
   "Which chokepoint has the heaviest vessel density currently?",
   "Show the current observed aircraft activity around the Middle East.",
 ];
@@ -330,6 +333,10 @@ export default function WorldMonitorPage() {
   const [aiError, setAiError] = useState("");
   const autoBriefEvidenceRef = useRef("");
   const autoBriefLastRunRef = useRef(0);
+  const aiRequestRef = useRef<{ controller: AbortController; manual: boolean } | null>(null);
+  const manualQueryRef = useRef(false);
+  const [filterRequest, setFilterRequest] = useState(0);
+  const [mapFilterRequest, setMapFilterRequest] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(4.5);
   const [apertureActive, setApertureActive] = useState(false);
   const [aiNavigatorMinimized, setAiNavigatorMinimized] = useState(true);
@@ -346,7 +353,7 @@ export default function WorldMonitorPage() {
   const [desktopHudOpen, setDesktopHudOpen] = useState(false);
   const [mobileHudOpen, setMobileHudOpen] = useState(false);
   const [mobileHudTab, setMobileHudTab] = useState<
-    "overview" | "ai" | "selection"
+    "overview" | "ai" | "selection" | "feeds"
   >("overview");
 
   // ─── NEW: Climate, Disease, Cyber state ────────────────
@@ -635,12 +642,7 @@ export default function WorldMonitorPage() {
         const aircraft = aircraftData.filter((asset) =>
           isNearChokepoint(asset.latitude, asset.longitude, chokepoint),
         );
-        const strandedShips = vessels.filter(
-          (ship) =>
-            ship.speed <= 1 ||
-            ship.status === "anchored" ||
-            ship.status === "moored",
-        );
+        const slowOrStopped = vessels.filter(isSlowOrStopped);
         const nearbyEvents = allEvents.filter((event) =>
           event.locations.some((location) =>
             isNearChokepoint(location.lat, location.lng, chokepoint),
@@ -657,7 +659,7 @@ export default function WorldMonitorPage() {
           signalScore,
           status: signalScore >= 75 ? "High signals" : signalScore >= 50 ? "Elevated signals" : signalScore >= 25 ? "Watched" : "Low signals",
           vessels: vessels.length,
-          strandedShips: strandedShips.length,
+          slowOrStopped: slowOrStopped.length,
           aircraft: aircraft.length,
           events: nearbyEvents.length,
         };
@@ -796,7 +798,7 @@ export default function WorldMonitorPage() {
       chokepoints: chokepointMetrics.slice(0, 8).map((chokepoint) => ({
         name: chokepoint.name,
         vessels: chokepoint.vessels,
-        strandedShips: chokepoint.strandedShips,
+        slowOrStopped: chokepoint.slowOrStopped,
         aircraft: chokepoint.aircraft,
       })),
       globalSummary: `${realShipData.length} real AIS vessels visible, ${aircraftData.length} OpenSky aircraft observed. Vessels in/near chokepoints: ${chokepointMetrics.reduce((s, c) => s + c.vessels, 0)}. Real vessels currently slow/stopped: ${realShipData.filter((s) => s.speed <= 1).length}.`,
@@ -827,11 +829,43 @@ export default function WorldMonitorPage() {
   }, [chokepointMetrics]);
 
   const fetchAiBrief = useCallback(
-    async (query?: string) => {
+    async (query?: string, automatic = false) => {
+      if (automatic && (aiRequestRef.current || manualQueryRef.current)) return;
+      aiRequestRef.current?.controller.abort();
+      const request = { controller: new AbortController(), manual: !automatic };
+      aiRequestRef.current = request;
+      if (!automatic) { manualQueryRef.current = true; setAiBrief(null); }
+      const timer = window.setTimeout(() => request.controller.abort(), 55_000);
       setAiLoading(true);
       setAiError("");
       try {
-        const evidenceEvents = allEvents.slice(0, 20).map((event) => ({
+        const focused = selectQueryEvidence(query || '', allEvents, aircraftData, realShipData);
+        const focusedContext = {
+          ...assetContext,
+          scope: focused.region || { name: 'Global provider coverage' },
+          aircraft: {
+            ...assetContext.aircraft,
+            visibleNow: focused.aircraft.length,
+            sample: focused.aircraft.slice(0, 20).map((asset) => ({
+              icao24: asset.icao24, callsign: asset.callsign, originCountry: asset.origin_country,
+              category: asset.category, latitude: asset.latitude, longitude: asset.longitude,
+              altitude: asset.altitude, velocity: asset.velocity, heading: asset.heading,
+              lastContact: asset.lastContact || asset.timePosition || null,
+            })),
+          },
+          vessels: {
+            ...assetContext.vessels,
+            visibleNow: focused.ships.length,
+            slowOrStopped: focused.ships.filter(isSlowOrStopped).length,
+            sample: focused.ships.slice(0, 20).map((ship) => ({
+              mmsi: ship.mmsi, name: ship.name, type: ship.type, latitude: ship.latitude,
+              longitude: ship.longitude, speed: ship.speed, heading: ship.heading,
+              destination: ship.destination, status: ship.status, lastUpdate: ship.lastUpdate || null,
+            })),
+          },
+          chokepoints: focused.region ? assetContext.chokepoints.filter((point) => point.name === focused.region?.name) : assetContext.chokepoints,
+        };
+        const evidenceEvents = focused.events.slice(0, 20).map((event) => ({
           id: event.id,
           title: event.title,
           description: event.description || "",
@@ -845,26 +879,30 @@ export default function WorldMonitorPage() {
         }));
         const res = await fetch("/api/world-monitor/ai-brief", {
           method: "POST",
+          signal: request.controller.signal,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             events: evidenceEvents,
             query: query || "",
-            assetContext,
+            assetContext: focusedContext,
             sourceStatus,
           }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `AI analyzer failed (${res.status})`);
-        setAiBrief(data);
+        if (aiRequestRef.current === request) setAiBrief(data);
       } catch (e) {
         console.warn("[AI Brief]", e);
-        setAiError(e instanceof Error ? e.message : "The AI analyzer is unavailable.");
+        if (aiRequestRef.current === request) setAiError(request.controller.signal.aborted ? 'The analysis request timed out. Please retry.' : e instanceof Error ? e.message : "The AI analyzer is unavailable.");
       } finally {
-        setAiLoading(false);
+        window.clearTimeout(timer);
+        if (aiRequestRef.current === request) { aiRequestRef.current = null; setAiLoading(false); }
       }
     },
-    [allEvents, assetContext, sourceStatus],
+    [allEvents, aircraftData, realShipData, assetContext, sourceStatus],
   );
+
+  useEffect(() => () => { aiRequestRef.current?.controller.abort(); aiRequestRef.current = null; }, []);
 
   const autoBriefEvidenceKey = useMemo(
     () => JSON.stringify({
@@ -884,7 +922,7 @@ export default function WorldMonitorPage() {
     ) return;
     autoBriefEvidenceRef.current = autoBriefEvidenceKey;
     autoBriefLastRunRef.current = Date.now();
-    fetchAiBrief();
+    fetchAiBrief(undefined, true);
   }, [allEvents.length, autoBriefEvidenceKey, fetchAiBrief]);
 
   const sourceSignalLevel = computeSignalLevel(osintEvents);
@@ -1074,7 +1112,7 @@ export default function WorldMonitorPage() {
     }
   }, [desktopDefaultsApplied, isCompactLayout]);
 
-  const openMobileHud = useCallback((tab: "overview" | "ai" | "selection") => {
+  const openMobileHud = useCallback((tab: "overview" | "ai" | "selection" | "feeds") => {
     setMobileHudTab(tab);
     setMobileHudOpen(true);
   }, []);
@@ -1131,7 +1169,7 @@ export default function WorldMonitorPage() {
 
   // ──────────────────────────────────────────────────────────
   return (
-    <main className="relative flex min-h-dvh flex-col pt-[104px] text-white sm:pt-[128px]">
+    <main className="relative flex min-h-dvh min-w-0 flex-col overflow-x-clip pt-[104px] text-white sm:pt-[128px]">
       {/* Tutorial overlay */}
       {(showTutorial || tutorialForced) && (
         <WorldMonitorTutorial
@@ -1253,8 +1291,7 @@ export default function WorldMonitorPage() {
               <div>
                 <h1 className="text-sm font-bold tracking-tight">
                   <span className="text-geo-gold">GEOMONEY APERTURE</span>
-                  <span className="text-white/40 mx-2">|</span>
-                  <span className="text-white/80">GeoMoney Aperture</span>
+                  <span className="hidden xl:inline"><span className="text-white/40 mx-2">|</span><span className="text-white/80">Global monitor</span></span>
                 </h1>
               </div>
             </div>
@@ -1323,54 +1360,14 @@ export default function WorldMonitorPage() {
           </div>
         </div>
 
-        <div className="border-t border-white/5 bg-black/45 px-4 py-2 xl:hidden">
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <button
-              type="button"
-              onClick={() => setApertureActive((current) => !current)}
-              className={`shrink-0 rounded-full border px-3 py-2 text-[11px] font-semibold transition-colors ${
-                apertureActive
-                  ? "border-cyan-300 bg-cyan-400 text-black"
-                  : "border-cyan-400/40 bg-cyan-500/10 text-cyan-300"
-              }`}
-            >
-              {apertureActive ? "Close Aperture" : "Open Aperture"}
-            </button>
-            {!apertureActive && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => openMobileHud("overview")}
-                  className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white"
-                >
-                  Overview
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openMobileHud("ai")}
-                  className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white"
-                >
-                  AI Navigator
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openMobileHud("selection")}
-                  className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-white"
-                >
-                  {selectedAsset || selectedEvent ? "Selection" : "Details"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* ═══ MAIN LAYOUT ════════════════════════════════════ */}
       {/* ═══ HERO FRAME (GLOBE + HUD) ════════════════════════════════════ */}
-      <div id="globe-hero" className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 pb-0 scroll-mt-[140px]">
+      <div id="globe-hero" className="relative w-full min-w-0 max-w-[1920px] mx-auto p-3 md:p-6 lg:p-8 pb-0 scroll-mt-[140px]">
         <div className="flex flex-col xl:flex-row gap-4 md:gap-6 relative">
           <div
-            className="relative z-10 flex-1 w-full h-[55vh] min-h-[450px] max-h-[700px] flex overflow-hidden rounded-[32px] border border-white/[0.08] shadow-2xl shadow-black/50"
+            className="relative z-10 flex-1 min-w-0 w-full h-[52dvh] min-h-[320px] max-h-[700px] sm:h-[55vh] sm:min-h-[450px] flex overflow-hidden rounded-2xl sm:rounded-[32px] border border-white/[0.08] shadow-2xl shadow-black/50"
           >
             <div className="flex-1 relative">
               {!isCompactLayout && (
@@ -1402,11 +1399,13 @@ export default function WorldMonitorPage() {
                   ships={realShipData}
                   focusTarget={globeFocusTarget}
                   onZoomChange={setZoomLevel}
+                  filterRequest={filterRequest}
+                  visible={!apertureActive}
                 />
               </div>
 
               {/* GEOMONEY APERTURE 2D MAP OVERLAY */}
-              {apertureActive && (
+              <>
                 <GodsEyeMap
                   aircraft={aircraftData}
                   ships={realShipData}
@@ -1418,8 +1417,11 @@ export default function WorldMonitorPage() {
                   onClose={() => setApertureActive(false)}
                   selectedWebcam={selectedWebcam}
                   onSelectWebcam={setSelectedWebcam}
+                  filterRequest={mapFilterRequest}
+                  compact={isCompactLayout}
+                  sheetSuppressed={mobileHudOpen}
                 />
-              )}
+              </>
             </div>
           </div>
 
@@ -1627,33 +1629,29 @@ export default function WorldMonitorPage() {
             </div>
           )}
 
-          {!apertureActive && isCompactLayout && (
-            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20">
-              <div className="pointer-events-auto rounded-[24px] border border-white/10 bg-black/72 shadow-2xl shadow-black/40 backdrop-blur-2xl">
-                <button
-                  type="button"
-                  onClick={() => setMobileHudOpen((current) => !current)}
-                  className="flex w-full items-center justify-between px-4 py-3"
-                >
-                  <div>
-                    <div className="text-[10px] font-mono tracking-[0.2em] text-geo-gold">
-                      MOBILE COMMAND SURFACE
-                    </div>
-                    <div className="mt-1 text-xs text-gray-300">
-                      Secondary controls stay in a sheet so the globe remains
-                      draggable.
-                    </div>
-                  </div>
-                  <ChevronRight
-                    className={`h-5 w-5 text-gray-400 transition-transform ${mobileHudOpen ? "rotate-90" : "-rotate-90"}`}
-                  />
-                </button>
-
+          {isCompactLayout && (
+            <div className="relative z-20 w-full min-w-0 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-gray-200">Explore the world</span>
+                <div className="flex rounded-xl border border-white/15 bg-black/40 p-1">
+                  {['Globe', 'Map'].map((label, index) => <button key={label} type="button" aria-pressed={apertureActive === Boolean(index)} onClick={() => { setApertureActive(Boolean(index)); setMobileHudOpen(false); }} className={`min-h-[44px] rounded-lg px-4 text-sm ${apertureActive === Boolean(index) ? 'bg-cyan-400/20 text-cyan-200' : 'text-gray-400'}`}>{label}</button>)}
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-[#091422] p-2">
+                <button type="button" onClick={() => { setMobileHudOpen(false); if (apertureActive) setMapFilterRequest((value) => value + 1); else setFilterRequest((value) => value + 1); }} className="flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl bg-cyan-400/10 text-sm text-cyan-200"><Layers className="h-4 w-4" />Filters</button>
+                <button type="button" onClick={() => openMobileHud('ai')} className="flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl bg-white/5 text-sm text-geo-gold"><Cpu className="h-4 w-4" />AI</button>
+                <button type="button" onClick={() => openMobileHud('feeds')} className="flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl bg-white/5 text-sm text-gray-200"><Video className="h-4 w-4" />Feeds</button>
+                <button type="button" onClick={() => openMobileHud('selection')} className="flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl bg-white/5 text-sm text-gray-200"><FileText className="h-4 w-4" />Details</button>
+              </div>
+              <button type="button" onClick={() => openMobileHud('overview')} className="flex min-h-[44px] w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-gray-300"><span>{aircraftData.length} aircraft · {realShipData.length} vessels observed</span><ChevronRight className="h-4 w-4" /></button>
+              {mobileHudOpen && <MonitorSheet title={mobileHudTab === 'ai' ? 'AI Navigator' : mobileHudTab === 'feeds' ? 'Public feeds' : mobileHudTab === 'selection' ? 'Selection details' : 'Source overview'} onClose={() => setMobileHudOpen(false)}>
+              <div className="space-y-3 [&_input]:text-base [&_button]:min-h-[44px] [&_p]:text-sm">
                 <div className="border-t border-white/5 px-3 py-2">
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     {[
                       ["overview", "Overview"],
                       ["ai", "AI"],
+                      ["feeds", "Feeds"],
                       [
                         "selection",
                         selectedAsset || selectedEvent
@@ -1668,7 +1666,7 @@ export default function WorldMonitorPage() {
                           type="button"
                           onClick={() => {
                             setMobileHudTab(
-                              key as "overview" | "ai" | "selection",
+                               key as "overview" | "ai" | "selection" | "feeds",
                             );
                             setMobileHudOpen(true);
                           }}
@@ -1686,7 +1684,8 @@ export default function WorldMonitorPage() {
                 </div>
 
                 {mobileHudOpen && (
-                  <div className="max-h-[52vh] space-y-3 overflow-y-auto border-t border-white/5 px-4 py-4">
+                  <div className="space-y-3 border-t border-white/5 py-4">
+                    {mobileHudTab === 'feeds' && <LiveVideoGrid />}
                     {mobileHudTab === "overview" && (
                       <>
                         <div className="grid grid-cols-2 gap-2">
@@ -1740,7 +1739,7 @@ export default function WorldMonitorPage() {
                                   </div>
                                   <div className="mt-1 text-[11px] text-gray-400">
                                     {chokepoint.vessels} vessels •{" "}
-                                    {chokepoint.strandedShips} stranded •{" "}
+                                    {chokepoint.slowOrStopped} slow/stopped •{" "}
                                     {chokepoint.aircraft} aircraft
                                   </div>
                                 </button>
@@ -1968,6 +1967,7 @@ export default function WorldMonitorPage() {
                   </div>
                 )}
               </div>
+              </MonitorSheet>}
             </div>
           )}
 

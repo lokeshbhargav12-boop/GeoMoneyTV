@@ -7,6 +7,9 @@ export interface Webcam {
     thumbnail: string;
     country: string;
     type: "live" | "stream" | "streetview";
+    providerUrl?: string;
+    channelUrl?: string;
+    feedType?: "broadcast" | "camera";
 }
 
 export const LIVE_WEBCAMS: Webcam[] = [
@@ -15,18 +18,23 @@ export const LIVE_WEBCAMS: Webcam[] = [
         title: "Al Jazeera English Live",
         lat: 25.2854,
         lng: 51.5310,
-        embedUrl: "https://www.youtube.com/embed/bNyUyrR0PHo?autoplay=1&mute=1",
+        embedUrl: "https://www.youtube.com/embed/gCNeDWCI0vo",
+        channelUrl: "https://www.youtube.com/@aljazeeraenglish/live",
+        providerUrl: "https://www.youtube.com/@aljazeeraenglish/live",
+        feedType: "broadcast",
         thumbnail: "https://images.unsplash.com/photo-1546201382-72ab3e318cf1?w=300&h=200&fit=crop",
         country: "QA",
         type: "live",
     },
     {
         id: "tokyo-shibuya",
-        title: "Shibuya Crossing, Tokyo",
-        lat: 35.6595,
-        lng: 139.7004,
+        title: "Shinjuku Kabukicho, Tokyo",
+        lat: 35.6944,
+        lng: 139.7026,
+        providerUrl: "https://www.youtube.com/watch?v=DjdUEyjx8GM",
+        feedType: "camera",
         embedUrl:
-            "https://www.youtube.com/embed/DjdUEyjx8GM?autoplay=1&mute=1",
+            "https://www.youtube.com/embed/DjdUEyjx8GM",
         thumbnail:
             "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=300&h=200&fit=crop",
         country: "JP",
@@ -34,38 +42,32 @@ export const LIVE_WEBCAMS: Webcam[] = [
     },
     {
         id: "sky-news",
+        channelUrl: "https://www.youtube.com/@SkyNews/live",
+        providerUrl: "https://www.youtube.com/@SkyNews/live",
+        feedType: "broadcast",
         title: "Sky News Global Live",
         lat: 51.5074,
         lng: -0.1278,
         embedUrl:
-            "https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1",
+            "https://www.youtube.com/embed/xDWQ3LkccY8",
         thumbnail:
             "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=300&h=200&fit=crop",
         country: "GB",
         type: "live",
     },
     {
-        id: "bloomberg-live",
-        title: "Bloomberg Financial News",
-        lat: 40.7128,
-        lng: -74.0060,
-        embedUrl:
-            "https://www.youtube.com/embed/dp8PhLsUcFE?autoplay=1&mute=1",
-        thumbnail:
-            "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=300&h=200&fit=crop",
-        country: "US",
-        type: "live",
-    },
-    {
         id: "nasa-live",
-        title: "NASA Earth Live",
-        lat: 0,
-        lng: 0,
+        title: "NASA — Official Broadcast",
+        channelUrl: "https://www.youtube.com/@NASA/live",
+        providerUrl: "https://www.youtube.com/@NASA/live",
+        feedType: "broadcast",
+        lat: 38.883,
+        lng: -77.016,
         embedUrl:
-            "https://www.youtube.com/embed/21X5lGlDOfg?autoplay=1&mute=1",
+            "https://www.youtube.com/embed/M3HKLzjvKPc",
         thumbnail:
             "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&h=200&fit=crop",
-        country: "ISS",
+        country: "US",
         type: "live",
     },
 ];
@@ -131,11 +133,12 @@ export function getDistanceKm(
 }
 
 export function getNearbyWebcams(lat: number, lng: number, limit = 4) {
-    return LIVE_WEBCAMS.filter((camera) => camera.country !== "ISS")
+    return LIVE_WEBCAMS.filter((camera) => camera.feedType === "camera")
         .map((camera) => ({
             ...camera,
             distanceKm: getDistanceKm(lat, lng, camera.lat, camera.lng),
         }))
+        .filter((camera) => camera.distanceKm <= 100)
         .sort((left, right) => left.distanceKm - right.distanceKm)
         .slice(0, limit);
 }

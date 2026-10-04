@@ -9,6 +9,8 @@
     "seed": "node scripts/create-admin.js && node scripts/init-settings.js",
     "start": "node server.js",
     "lint": "next lint",
+    "test:aperture": "node --require ./scripts/test/register.cjs --test scripts/test/aperture-analysis.test.ts scripts/test/aperture-reliability.test.ts",
+    "test:aperture:ui": "node scripts/test/aperture-ui.cjs",
     "postbuild": "echo 'Build completed successfully'",
     "postinstall": "prisma generate",
     "newsletter-queue": "node scripts/process-newsletter-queue.js",

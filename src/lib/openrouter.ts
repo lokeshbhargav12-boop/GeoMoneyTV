@@ -10,16 +10,9 @@ function getOpenRouterApiKey(): string | undefined {
  * Last verified against OpenRouter's live /api/v1/models catalog: October 2026.
  */
 const FALLBACK_MODELS = [
-    'nvidia/nemotron-3-super-120b-a12b:free',
-    'qwen/qwen3.8-27b:free',
     'google/gemma-4-31b-it:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',
     'google/gemma-4-26b-a4b-it:free',
-    'nvidia/nemotron-3.5-lightning:free',
-    'nvidia/nemotron-3-ultra-550b-a55b:free',
-    'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-    'thinkingmachines/inkling:free',
-    'apodex/apodex-1.1-mini:free',
-    'inclusionai/ling-3.0-flash-sante:free',
 ]
 
 const RETIRED_FREE_MODELS = new Set([
@@ -38,6 +31,69 @@ const RETIRED_FREE_MODELS = new Set([
 /** Per-model request timeout in milliseconds. Prevents slow models blocking the chain. */
 const MODEL_TIMEOUT_MS = 20_000
 
+export type AiFailureCode = 'configuration' | 'authentication' | 'rate_limit' | 'timeout' | 'invalid_output' | 'provider_unavailable'
+
+export class AiProviderError extends Error {
+    constructor(public code: AiFailureCode, message: string, public retryAfter?: number) {
+        super(message)
+        this.name = 'AiProviderError'
+    }
+}
+
+/** Safe public diagnostics: never expose upstream bodies, credentials or prompts. */
+export function getAiFailure(error: unknown) {
+    const code = error instanceof AiProviderError ? error.code : 'provider_unavailable'
+    const messages: Record<AiFailureCode, string> = {
+        configuration: 'AI is not configured on this server. An administrator must configure the provider key.',
+        authentication: 'The AI provider rejected this server’s credentials. An administrator must check the provider configuration.',
+        rate_limit: 'The AI provider is rate limited or has exhausted its quota. Please retry later.',
+        timeout: 'The AI provider did not finish within the request deadline. Please retry.',
+        invalid_output: 'The AI provider returned an incomplete or invalid answer. No new analysis was generated. Please retry.',
+        provider_unavailable: 'The AI provider is unavailable. No new analysis was generated. Please retry later.',
+    }
+    return {
+        code,
+        error: messages[code],
+        retryable: !['configuration', 'authentication'].includes(code),
+        retryAfter: error instanceof AiProviderError ? error.retryAfter : undefined,
+        status: code === 'rate_limit' ? 429 : code === 'timeout' ? 504 : 503,
+    }
+}
+
+interface ModelCapability { supported_parameters?: string[]; reasoning?: { mandatory?: boolean } }
+let catalog: Map<string, ModelCapability> | null = null
+let catalogAsOf = 0
+let catalogRequest: Promise<Map<string, ModelCapability>> | null = null
+
+async function getModelCapabilities(): Promise<Map<string, ModelCapability>> {
+    if (catalog && Date.now() - catalogAsOf < 3_600_000) return catalog
+    if (!catalogRequest) {
+        catalogRequest = (async () => {
+            const controller = new AbortController()
+            const timer = setTimeout(() => controller.abort(), 3_000)
+            try {
+                const response = await fetch('https://openrouter.ai/api/v1/models', { signal: controller.signal, cache: 'no-store' })
+                if (!response.ok) throw new Error('Model catalog unavailable')
+                const body = await response.json()
+                const models = new Map<string, ModelCapability>()
+                for (const model of body.data || []) if (typeof model.id === 'string') models.set(model.id, model)
+                catalog = models
+                catalogAsOf = Date.now()
+                return models
+            } catch {
+                catalog = catalog || new Map<string, ModelCapability>()
+                // Avoid re-fetching the catalog for every request during an outage.
+                catalogAsOf = Date.now() - 3_540_000
+                return catalog
+            } finally {
+                clearTimeout(timer)
+                catalogRequest = null
+            }
+        })()
+    }
+    return catalogRequest
+}
+
 export interface OpenRouterResult {
     content: string
     model: string
@@ -52,6 +108,12 @@ export interface OpenRouterOptions {
     preferredModels?: string[]
     /** When false, only try the explicitly selected/admin model and do not fall back. */
     allowFallback?: boolean
+    /** Includes model selection, all attempts, and response-body reads. */
+    timeoutMs?: number
+    modelTimeoutMs?: number
+    maxAttempts?: number
+    signal?: AbortSignal
+    jsonMode?: boolean
 }
 
 /**
@@ -68,7 +130,7 @@ async function callOpenRouterWithTransform<R>(
     const openRouterApiKey = getOpenRouterApiKey()
 
     if (!openRouterApiKey) {
-        throw new Error('OPENROUTER_API_KEY is not configured. If you just edited .env or .env.local, restart the Next.js dev server.')
+        throw new AiProviderError('configuration', 'OPENROUTER_API_KEY is not configured')
     }
 
     const {
@@ -77,9 +139,16 @@ async function callOpenRouterWithTransform<R>(
         caller = 'openrouter',
         preferredModels = [],
         allowFallback = true,
+        timeoutMs = 55_000,
+        modelTimeoutMs = MODEL_TIMEOUT_MS,
+        maxAttempts = 3,
+        signal,
+        jsonMode = false,
     } = options
 
-    const adminModel = await getAiModel()
+    const deadline = Date.now() + timeoutMs
+    if (signal?.aborted) throw new AiProviderError('timeout', 'Request cancelled')
+    const [adminModel, capabilities] = await Promise.all([getAiModel(), getModelCapabilities()])
     const models = (
         allowFallback
             ? [
@@ -93,22 +162,28 @@ async function callOpenRouterWithTransform<R>(
             Boolean(model)
             && !RETIRED_FREE_MODELS.has(model)
             && list.indexOf(model) === index,
-    )
+    ).slice(0, Math.max(1, maxAttempts))
 
-    let lastError = 'No models available'
+    let lastError = new AiProviderError('provider_unavailable', 'No models available')
 
     for (const model of models) {
+        if (signal?.aborted) throw new AiProviderError('timeout', 'Request cancelled')
+        const remaining = deadline - Date.now()
+        if (remaining <= 0) throw new AiProviderError('timeout', 'AI request deadline exceeded')
+        const controller = new AbortController()
+        const abort = () => controller.abort()
+        signal?.addEventListener('abort', abort, { once: true })
+        const timeoutId = setTimeout(abort, Math.min(modelTimeoutMs, remaining))
         try {
-            const controller = new AbortController()
-            const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS)
-
+            const capability = capabilities.get(model)
+            const parameters = capability?.supported_parameters || []
             const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                 method: 'POST',
                 signal: controller.signal,
                 headers: {
                     Authorization: `Bearer ${openRouterApiKey}`,
                     'Content-Type': 'application/json',
-                    'HTTP-Referer': 'https://geomoney.tv',
+                    'HTTP-Referer': 'https://geomoneytv.com',
                     'X-Title': 'GeoMoney Intelligence',
                 },
                 body: JSON.stringify({
@@ -116,26 +191,30 @@ async function callOpenRouterWithTransform<R>(
                     messages: [{ role: 'user', content: prompt }],
                     temperature,
                     max_tokens: maxTokens,
+                    ...(jsonMode && parameters.includes('response_format') ? { response_format: { type: 'json_object' } } : {}),
+                    ...(parameters.includes('reasoning') && !capability?.reasoning?.mandatory ? { reasoning: { enabled: false } } : {}),
                 }),
-            }).finally(() => clearTimeout(timeoutId))
+            })
 
             if (!res.ok) {
                 const body = await res.text()
                 if (res.status === 401 || res.status === 403) {
-                    throw new Error(
-                        'OpenRouter authentication failed. Check OPENROUTER_API_KEY and restart the Next.js dev server if you changed .env or .env.local.',
-                    )
+                    throw new AiProviderError('authentication', 'OpenRouter authentication failed')
                 }
-                lastError = `[${caller}] ${model}: HTTP ${res.status} — ${body.slice(0, 200)}`
-                console.warn(`callOpenRouter: model failed${allowFallback ? ', trying next.' : '.'} ${lastError}`)
+                if (res.status === 402) throw new AiProviderError('rate_limit', 'Provider credits exhausted', 60)
+                const retrySeconds = Number(res.headers.get('retry-after'))
+                lastError = new AiProviderError(res.status === 429 ? 'rate_limit' : 'provider_unavailable', `${model}: HTTP ${res.status}`, Number.isFinite(retrySeconds) && retrySeconds > 0 ? retrySeconds : undefined)
+                let providerCode: unknown
+                try { providerCode = JSON.parse(body)?.error?.code } catch { /* Not all upstream errors are JSON. */ }
+                console.warn(`[${caller}] ${lastError.message}; provider code: ${typeof providerCode === 'string' || typeof providerCode === 'number' ? providerCode : 'unspecified'}`)
                 continue
             }
 
             const data = await res.json()
-            const content: string = data.choices?.[0]?.message?.content ?? ''
+            const content = typeof data.choices?.[0]?.message?.content === 'string' ? data.choices[0].message.content : ''
 
             if (!content.trim()) {
-                lastError = `[${caller}] ${model}: empty response`
+                lastError = new AiProviderError('invalid_output', `${model}: empty response`)
                 console.warn(`callOpenRouter: empty content${allowFallback ? ', trying next.' : '.'} Model: ${model}`)
                 continue
             }
@@ -147,24 +226,24 @@ async function callOpenRouterWithTransform<R>(
                 console.info(`callOpenRouter: success with model ${model} [${caller}]`)
                 return result
             } catch (transformErr) {
-                lastError = `[${caller}] ${model}: transform failed — ${transformErr instanceof Error ? transformErr.message : String(transformErr)}`
-                console.warn(`callOpenRouter: bad output${allowFallback ? ', trying next.' : '.'} ${lastError}`)
+                lastError = new AiProviderError('invalid_output', `${model}: output validation failed`)
+                console.warn(`[${caller}] ${lastError.message}`, transformErr instanceof Error ? transformErr.message : 'Invalid output')
                 continue
             }
         } catch (err) {
-            if (
-                err instanceof Error &&
-                err.message.startsWith('OpenRouter authentication failed')
-            ) {
+            if (err instanceof AiProviderError && ['authentication', 'configuration', 'rate_limit'].includes(err.code)) {
                 throw err
             }
 
-            lastError = `[${caller}] ${model}: ${err instanceof Error ? err.message : String(err)}`
-            console.warn(`callOpenRouter: threw${allowFallback ? ', trying next.' : '.'} ${lastError}`)
+            lastError = new AiProviderError(controller.signal.aborted ? 'timeout' : 'provider_unavailable', `${model}: ${err instanceof Error ? err.message : String(err)}`)
+            console.warn(`[${caller}] ${lastError.message}`)
+        } finally {
+            clearTimeout(timeoutId)
+            signal?.removeEventListener('abort', abort)
         }
     }
 
-    throw new Error(`All AI models exhausted. Last error: ${lastError}`)
+    throw lastError
 }
 
 /**
@@ -189,7 +268,7 @@ export async function callOpenRouter(
  */
 export async function callOpenRouterJson<T = unknown>(
     prompt: string,
-    options: OpenRouterOptions = {},
+    options: OpenRouterOptions & { validate?: (data: T, model: string) => T } = {},
 ): Promise<{ data: T; model: string }> {
     return callOpenRouterWithTransform<{ data: T; model: string }>(
         prompt,
@@ -198,13 +277,13 @@ export async function callOpenRouterJson<T = unknown>(
             const last = content.lastIndexOf('}')
 
             if (first === -1 || last === -1 || last <= first) {
-                throw new Error(`No JSON object found. Preview: ${content.slice(0, 300)}`)
+                throw new Error('No JSON object found in provider response')
             }
 
             const data: T = JSON.parse(content.substring(first, last + 1))
-            return { data, model }
+            return { data: options.validate ? options.validate(data, model) : data, model }
         },
-        options,
+        { ...options, jsonMode: true },
     )
 }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PublicStreamPlayer from '@/components/PublicStreamPlayer';
 import { headers } from "next/headers";
 import {
   ArrowLeft,
@@ -433,13 +434,7 @@ export default async function WorldMonitorReportPage({
                         </span>
                       </div>
                       <div className="mb-3 overflow-hidden rounded-lg border border-white/10 bg-black/40">
-                        <iframe
-                          src={camera.embedUrl}
-                          title={camera.title}
-                          className="h-40 w-full"
-                          allow="autoplay; encrypted-media; picture-in-picture"
-                          allowFullScreen
-                        />
+                        <PublicStreamPlayer feed={camera} />
                       </div>
                       <div className="flex items-center justify-between gap-3 text-xs text-gray-400">
                         <span className="inline-flex items-center gap-1.5">

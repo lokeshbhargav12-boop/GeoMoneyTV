@@ -4,6 +4,7 @@ import { useRef, useMemo, useState, useEffect, useCallback } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Sphere, Line, Html, Stars } from "@react-three/drei";
 import * as THREE from "three";
+import MonitorFilters from './MonitorFilters';
 
 // ─── TYPES ───────────────────────────────────────────────────
 export interface GlobeEvent {
@@ -173,6 +174,8 @@ interface GlobeProps {
   focusTarget?: GlobeFocusTarget | null;
   onZoomChange?: (zoom: number) => void;
   layerState?: GlobeLayerState;
+  filterRequest?: number;
+  visible?: boolean;
 }
 
 // ─── CONSTANTS ───────────────────────────────────────────────
@@ -2544,6 +2547,8 @@ export default function WorldGlobe({
   ships,
   focusTarget,
   onZoomChange,
+  filterRequest = 0,
+  visible = true,
 }: GlobeProps) {
   const [contextLost, setContextLost] = useState(false);
   const [key, setKey] = useState(0);
@@ -2552,12 +2557,15 @@ export default function WorldGlobe({
   const [layerState, setLayerState] =
     useState<GlobeLayerState>(DEFAULT_LAYER_STATE);
 
+  useEffect(() => { if (filterRequest) setPanelOpen(true); }, [filterRequest]);
+  useEffect(() => { if (!visible) setPanelOpen(false); }, [visible]);
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    const media = window.matchMedia("(max-width: 1024px), (pointer: coarse)");
+    const media = window.matchMedia("(max-width: 1279px)");
     const updatePointerMode = () => {
       setIsCompactPointer(media.matches);
     };
@@ -2750,13 +2758,12 @@ export default function WorldGlobe({
         </span>
       </div>
 
-      <div
-        className={`absolute rounded-2xl border border-white/10 bg-black/70 backdrop-blur-xl shadow-2xl shadow-black/30 ${isCompactPointer ? "bottom-3 right-3 left-3" : "bottom-4 left-[6.5rem] w-[min(24rem,calc(100%-7.5rem))]"}`}
-      >
+      <MonitorFilters compact={isCompactPointer} open={panelOpen} onClose={() => setPanelOpen(false)}>
         <button
           type="button"
           onClick={() => setPanelOpen((open) => !open)}
-          className="flex w-full items-center justify-between px-4 py-3 text-left"
+          aria-expanded={panelOpen}
+          className={`${isCompactPointer ? 'hidden' : 'flex'} w-full items-center justify-between px-4 py-3 text-left`}
         >
           <div>
             <div className="text-[10px] font-mono tracking-[0.25em] text-gray-400">
@@ -2773,8 +2780,12 @@ export default function WorldGlobe({
 
         {panelOpen && (
           <div
-            className={`space-y-3 overflow-y-auto border-t border-white/5 px-4 py-3 text-[10px] ${isCompactPointer ? "max-h-[38vh]" : "max-h-[45vh]"}`}
+            className={`space-y-3 overflow-y-auto border-t border-white/5 px-4 py-3 text-[10px] ${isCompactPointer ? "" : "max-h-[45vh]"}`}
           >
+            <div className="flex items-center justify-between gap-2 text-sm text-gray-300">
+              <span>{Object.values(layerState.groups).filter(Boolean).length} active layers</span>
+              <button type="button" onClick={() => setLayerState(DEFAULT_LAYER_STATE)} className="rounded-lg border border-white/20 px-3 py-2">Reset filters</button>
+            </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-[9px] font-mono tracking-[0.2em] text-gray-500">
                 <span>CORE LAYERS</span>
@@ -2799,6 +2810,7 @@ export default function WorldGlobe({
                       key={key}
                       type="button"
                       onClick={() => toggleGroup(groupKey)}
+                      aria-pressed={enabled}
                       className={`rounded-lg border px-2.5 py-2 text-left transition ${
                         enabled
                           ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
@@ -2831,6 +2843,7 @@ export default function WorldGlobe({
                       key={key}
                       type="button"
                       onClick={() => toggleShipType(shipKey)}
+                      aria-pressed={enabled}
                       className={`rounded-full border px-2.5 py-1.5 transition ${
                         enabled
                           ? "border-orange-400/40 bg-orange-400/10 text-orange-100"
@@ -2865,6 +2878,7 @@ export default function WorldGlobe({
                       key={key}
                       type="button"
                       onClick={() => toggleEventCategory(categoryKey)}
+                      aria-pressed={enabled}
                       className={`rounded-full border px-2.5 py-1.5 transition ${
                         enabled
                           ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-100"
@@ -2895,6 +2909,7 @@ export default function WorldGlobe({
                       key={key}
                       type="button"
                       onClick={() => toggleInfrastructureType(infraKey)}
+                      aria-pressed={enabled}
                       className={`rounded-full border px-2.5 py-1.5 transition ${
                         enabled
                           ? "border-orange-400/40 bg-orange-400/10 text-orange-100"
@@ -2919,6 +2934,7 @@ export default function WorldGlobe({
                       key={key}
                       type="button"
                       onClick={() => toggleClimateType(climateKey)}
+                      aria-pressed={enabled}
                       className={`rounded-full border px-2.5 py-1.5 transition ${
                         enabled
                           ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-100"
@@ -2943,6 +2959,7 @@ export default function WorldGlobe({
                       key={key}
                       type="button"
                       onClick={() => toggleRouteGroup(routeKey)}
+                      aria-pressed={enabled}
                       className={`rounded-full border px-2.5 py-1.5 transition ${
                         enabled
                           ? "border-sky-400/40 bg-sky-400/10 text-sky-100"
@@ -2957,7 +2974,7 @@ export default function WorldGlobe({
             </div>
           </div>
         )}
-      </div>
+      </MonitorFilters>
     </div>
   );
 }

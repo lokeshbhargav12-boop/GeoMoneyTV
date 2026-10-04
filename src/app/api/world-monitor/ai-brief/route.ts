@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { callOpenRouterJson } from "@/lib/openrouter";
+import { callOpenRouterJson, getAiFailure } from "@/lib/openrouter";
+import { resolveQueryRegion } from '@/lib/aperture-query';
 import {
   cleanText,
   newestTimestamp,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/aperture-analysis";
 
 const CACHE_TTL = 300_000;
+export const maxDuration = 60;
 const cache = new Map<string, { brief: AiBriefPayload; timestamp: number }>();
 const THREAT_LEVELS = new Set(["NOMINAL", "GUARDED", "ELEVATED", "HIGH", "CRITICAL"]);
 const SEVERITIES = new Set(["low", "medium", "high", "critical"]);
@@ -20,6 +22,13 @@ interface AiBriefResponse {
   keyInsight?: unknown;
   recommendations?: unknown;
   queryAnswer?: unknown;
+}
+
+function validateBrief(raw: AiBriefResponse): AiBriefResponse {
+  if (!raw || typeof raw !== 'object' || !cleanText(raw.headline, 180) || !cleanText(raw.summary, 1500)) {
+    throw new Error('AI response must include a headline and summary');
+  }
+  return raw;
 }
 
 interface AiBriefPayload {
@@ -104,12 +113,13 @@ export async function POST(request: Request) {
     };
 
     const assetContext = {
+      scope: resolveQueryRegion(query) || { name: 'Global provider coverage' },
       aircraft: {
-        visibleNow: Math.max(0, Number(rawAssetContext.aircraft?.visibleNow) || 0),
-        totalTracked: Math.max(0, Number(rawAssetContext.aircraft?.totalTracked) || 0),
+        visibleNow: sourceStatus.aircraft.mode === 'unavailable' ? 0 : Math.max(0, Number(rawAssetContext.aircraft?.visibleNow) || 0),
+        totalTracked: sourceStatus.aircraft.mode === 'unavailable' ? 0 : Math.max(0, Number(rawAssetContext.aircraft?.totalTracked) || 0),
         source: sourceStatus.aircraft.source,
-        sample: Array.isArray(rawAssetContext.aircraft?.sample)
-          ? rawAssetContext.aircraft.sample.slice(0, 20).map((asset: Record<string, unknown>) => ({
+        sample: sourceStatus.aircraft.mode !== 'unavailable' && Array.isArray(rawAssetContext.aircraft?.sample)
+          ? rawAssetContext.aircraft.sample.slice(0, 20).filter((entry: unknown) => entry && typeof entry === 'object').map((asset: Record<string, unknown>) => ({
               icao24: cleanText(asset.icao24, 20),
               callsign: cleanText(asset.callsign, 30),
               originCountry: cleanText(asset.originCountry, 100),
@@ -126,12 +136,13 @@ export async function POST(request: Request) {
           : [],
       },
       vessels: {
-            visibleNow: Math.max(0, Number(rawAssetContext.vessels?.visibleNow) || 0),
-            totalTracked: Math.max(0, Number(rawAssetContext.vessels?.totalTracked) || 0),
+            visibleNow: sourceStatus.vessels.mode === 'unavailable' ? 0 : Math.max(0, Number(rawAssetContext.vessels?.visibleNow) || 0),
+            slowOrStopped: sourceStatus.vessels.mode === 'unavailable' ? null : Math.max(0, Number(rawAssetContext.vessels?.slowOrStopped) || 0),
+            totalTracked: sourceStatus.vessels.mode === 'unavailable' ? 0 : Math.max(0, Number(rawAssetContext.vessels?.totalTracked) || 0),
             source: sourceStatus.vessels.source,
             mode: sourceStatus.vessels.mode,
-            sample: Array.isArray(rawAssetContext.vessels?.sample)
-              ? rawAssetContext.vessels.sample.slice(0, 20).map((ship: Record<string, unknown>) => ({
+            sample: sourceStatus.vessels.mode !== 'unavailable' && Array.isArray(rawAssetContext.vessels?.sample)
+              ? rawAssetContext.vessels.sample.slice(0, 20).filter((entry: unknown) => entry && typeof entry === 'object').map((ship: Record<string, unknown>) => ({
                   mmsi: cleanText(ship.mmsi, 20),
                   name: cleanText(ship.name, 100),
                   type: cleanText(ship.type, 40),
@@ -165,7 +176,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ...cachedEntry.brief, cached: true });
     }
 
-    if (!events.length && !assetContext.aircraft.visibleNow && !assetContext.vessels.visibleNow) {
+    if (!events.length && !assetContext.aircraft.visibleNow && !assetContext.vessels.visibleNow
+      && !(query && (sourceStatus.aircraft.mode !== 'unavailable' || sourceStatus.vessels.mode !== 'unavailable'))) {
       return NextResponse.json(
         { error: "No current sourced evidence is available for analysis." },
         { status: 422 },
@@ -189,6 +201,9 @@ RULES:
 - Simulated vessel data is disabled. If vessel mode is unavailable, do not make vessel-count claims.
 - A zero asset count means no observation in current provider coverage, not proof that an area is clear.
 - Prefer evidence timestamps and source names when answering freshness-sensitive questions.
+- The scope describes the selected region and coverage radius. Counts are observed within that coverage, not a census of the entire strait.
+- Slow/stopped, anchored, or moored observations do NOT establish that a vessel is stranded, blocked, or disrupted. State that distinction if asked about stranding.
+- A short location-only query asks for the current observed situation in that scope.
 
 Return ONLY a valid JSON object with this schema:
 {
@@ -205,8 +220,16 @@ Return ONLY a valid JSON object with this schema:
       temperature: 0.2,
       maxTokens: 1_100,
       caller: "aperture-ai-brief",
+      timeoutMs: 50_000,
+      signal: request.signal,
+      validate: (raw) => {
+        validateBrief(raw);
+        if (query && !cleanText(raw.queryAnswer, 1500)) throw new Error('AI response must answer the user query');
+        return raw;
+      },
     });
     const brief = sanitizeBrief(data, model, query, dataAsOf);
+    if (cache.size >= 100) cache.delete(cache.keys().next().value as string);
     cache.set(cacheKey, { brief, timestamp: Date.now() });
     return NextResponse.json(brief);
   } catch (error) {
@@ -222,9 +245,10 @@ Return ONLY a valid JSON object with this schema:
       });
     }
 
-    return NextResponse.json(
-      { error: "The AI analyzer is temporarily unavailable. No briefing was generated." },
-      { status: 503 },
-    );
+    const failure = getAiFailure(error);
+    return NextResponse.json(failure, {
+      status: failure.status,
+      headers: failure.retryAfter ? { 'Retry-After': String(failure.retryAfter) } : undefined,
+    });
   }
 }
