@@ -10,6 +10,7 @@ import {
     MapPin,
     Factory,
     TrendingUp,
+    TrendingDown,
     Lock,
     Gem,
     Globe,
@@ -19,6 +20,7 @@ import {
     Activity,
     Atom,
 } from 'lucide-react'
+import MaterialPriceChart from '@/components/materials/MaterialPriceChart'
 
 interface MaterialBenchmarkInfo {
     id: string | null
@@ -32,6 +34,8 @@ interface MaterialBenchmarkInfo {
     isProxy: boolean
     isLive: boolean
     latest: { price: number; asOf: string } | null
+    change: number | null
+    changePercent: number | null
     source: { publisher: string; url: string | null } | null
 }
 
@@ -68,6 +72,8 @@ interface MaterialDetail {
         label: string
         isLive: boolean
         isProxy: boolean
+        change: number | null
+        changePercent: number | null
     } | null
 }
 
@@ -97,6 +103,21 @@ function formatDate(iso: string | null | undefined): string | null {
     const date = new Date(iso)
     if (Number.isNaN(date.getTime())) return null
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function ChangeChip({ pct }: { pct: number }) {
+    const up = pct >= 0
+    return (
+        <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${
+                up ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+            }`}
+        >
+            {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {up ? '+' : ''}
+            {pct.toFixed(2)}%
+        </span>
+    )
 }
 
 export default function MaterialDetailPage() {
@@ -188,8 +209,14 @@ export default function MaterialDetailPage() {
                 >
                     <div className="flex items-start justify-between flex-wrap gap-6">
                         <div>
-                            <div className="flex items-center gap-4 mb-2">
-                                <span className="text-6xl font-bold text-geo-gold">{material.symbol}</span>
+                            <div className="flex items-center gap-5 mb-2">
+                                {/* Periodic-table-style element tile */}
+                                <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-geo-gold/25 to-yellow-600/10 border border-geo-gold/40 flex flex-col items-center justify-center flex-shrink-0">
+                                    <span className="text-3xl font-bold text-geo-gold leading-none">{material.symbol}</span>
+                                    <span className="text-[10px] text-gray-400 mt-1 uppercase tracking-wide text-center px-1 leading-tight">
+                                        {material.category}
+                                    </span>
+                                </div>
                                 <div>
                                     <h1 className="text-4xl font-bold">{material.name}</h1>
                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -207,10 +234,15 @@ export default function MaterialDetailPage() {
                         </div>
                         {material.effectivePrice && (
                             <div className="text-right">
-                                <div className="text-3xl font-bold text-geo-gold">
-                                    {material.effectivePrice.currency === 'USD' ? '$' : `${material.effectivePrice.currency} `}
-                                    {formatPrice(material.effectivePrice.price)}
-                                    <span className="text-base text-gray-400 font-normal">/{material.effectivePrice.unit}</span>
+                                <div className="flex items-center justify-end gap-3 flex-wrap">
+                                    <div className="text-3xl font-bold text-geo-gold">
+                                        {material.effectivePrice.currency === 'USD' ? '$' : `${material.effectivePrice.currency} `}
+                                        {formatPrice(material.effectivePrice.price)}
+                                        <span className="text-base text-gray-400 font-normal">/{material.effectivePrice.unit}</span>
+                                    </div>
+                                    {material.effectivePrice.changePercent != null && (
+                                        <ChangeChip pct={material.effectivePrice.changePercent} />
+                                    )}
                                 </div>
                                 <div className="text-sm text-gray-400">{material.effectivePrice.label}</div>
                                 {priceAsOf && (
@@ -364,10 +396,13 @@ export default function MaterialDetailPage() {
                                                 <div className="text-right">
                                                     {b.latest ? (
                                                         <>
-                                                            <div className="text-lg font-bold text-geo-gold">
-                                                                {b.currency === 'USD' ? '$' : `${b.currency} `}
-                                                                {formatPrice(b.latest.price)}
-                                                                <span className="text-xs text-gray-400 font-normal">/{b.unit}</span>
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <div className="text-lg font-bold text-geo-gold">
+                                                                    {b.currency === 'USD' ? '$' : `${b.currency} `}
+                                                                    {formatPrice(b.latest.price)}
+                                                                    <span className="text-xs text-gray-400 font-normal">/{b.unit}</span>
+                                                                </div>
+                                                                {b.changePercent != null && <ChangeChip pct={b.changePercent} />}
                                                             </div>
                                                             <div className="text-xs text-gray-500">as of {formatDate(b.latest.asOf)}</div>
                                                         </>
@@ -385,6 +420,33 @@ export default function MaterialDetailPage() {
                             </motion.section>
                         )}
 
+
+                        {/* Price History (F5 observations) */}
+                        {material.benchmarks.some((b) => b.id) && (
+                            <motion.section
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: 0.33 }}
+                                className="bg-white/5 rounded-xl border border-white/10 p-6"
+                            >
+                                <div className="flex items-center gap-3 mb-4">
+                                    <Activity className="w-5 h-5 text-geo-gold" />
+                                    <h2 className="text-xl font-bold">Price History</h2>
+                                </div>
+                                <MaterialPriceChart
+                                    symbol={material.symbol}
+                                    benchmarks={material.benchmarks.map((b) => ({
+                                        id: b.id,
+                                        productForm: b.productForm,
+                                        benchmarkName: b.benchmarkName,
+                                        unit: b.unit,
+                                        currency: b.currency,
+                                        isLive: b.isLive,
+                                        hasData: b.latest != null,
+                                    }))}
+                                />
+                            </motion.section>
+                        )}
 
                         {/* Data Sources & Provenance (F4) */}
                         {material.sources.length > 0 && (

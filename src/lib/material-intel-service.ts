@@ -234,6 +234,8 @@ export interface MaterialBenchmarkInfo {
   isProxy: boolean
   isLive: boolean
   latest: { price: number; asOf: string } | null
+  change: number | null
+  changePercent: number | null
   source: { publisher: string; url: string | null } | null
 }
 
@@ -270,6 +272,8 @@ export interface MaterialDetail {
     label: string
     isLive: boolean
     isProxy: boolean
+    change: number | null
+    changePercent: number | null
   } | null
 }
 
@@ -286,6 +290,9 @@ export interface MaterialListItem {
   effectiveUnit: string | null
   priceAsOf: string | null
   priceIsLive: boolean
+  priceChange: number | null
+  priceChangePercent: number | null
+  benchmarkLabel: string | null
   lastUpdated: string | null
 }
 
@@ -303,6 +310,8 @@ function seedToDetail(seed: CriticalMaterialSeed): MaterialDetail {
     isProxy: b.isProxy ?? false,
     isLive: Boolean(b.feed),
     latest: null,
+    change: null,
+    changePercent: null,
     source: b.sourcePublisher ? { publisher: b.sourcePublisher, url: null } : null,
   }))
 
@@ -339,6 +348,8 @@ function seedToDetail(seed: CriticalMaterialSeed): MaterialDetail {
             label: `${seed.name} reference price`,
             isLive: false,
             isProxy: false,
+            change: null,
+            changePercent: null,
           }
         : null,
   }
@@ -360,7 +371,7 @@ async function loadDbMaterial(symbolOrKey: string) {
       priceBenchmarks: {
         include: {
           source: { select: { publisher: true, url: true } },
-          observations: { orderBy: { asOf: 'desc' as const }, take: 1 },
+          observations: { orderBy: { asOf: 'desc' as const }, take: 2 },
         },
       },
       sourceLinks: { include: { source: true } },
@@ -376,6 +387,10 @@ function dbToDetail(row: DbMaterialWithRelations): MaterialDetail {
 
   const benchmarks: MaterialBenchmarkInfo[] = row.priceBenchmarks.map((b) => {
     const latest = b.observations[0] ?? null
+    const previous = b.observations[1] ?? null
+    const change = latest && previous ? latest.price - previous.price : null
+    const changePercent =
+      change != null && previous && previous.price !== 0 ? (change / previous.price) * 100 : null
     return {
       id: b.id,
       productForm: b.productForm,
@@ -388,6 +403,8 @@ function dbToDetail(row: DbMaterialWithRelations): MaterialDetail {
       isProxy: /proxy/i.test(b.benchmarkName ?? ''),
       isLive: feedSeeds.has(`${b.productForm}::${b.unit}`),
       latest: latest ? { price: latest.price, asOf: latest.asOf.toISOString() } : null,
+      change,
+      changePercent,
       source: b.source ? { publisher: b.source.publisher, url: b.source.url } : null,
     }
   })
@@ -409,6 +426,8 @@ function dbToDetail(row: DbMaterialWithRelations): MaterialDetail {
         label: primaryInfo.benchmarkName ?? primaryInfo.productForm,
         isLive: primaryInfo.isLive,
         isProxy: primaryInfo.isProxy,
+        change: primaryInfo.change,
+        changePercent: primaryInfo.changePercent,
       }
     : row.price != null
       ? {
@@ -419,6 +438,8 @@ function dbToDetail(row: DbMaterialWithRelations): MaterialDetail {
           label: `${row.name} reference price`,
           isLive: false,
           isProxy: false,
+          change: null,
+          changePercent: null,
         }
       : null
 
@@ -533,6 +554,9 @@ function dbRowToListItem(row: {
     effectiveUnit: row.unit,
     priceAsOf: row.lastUpdated?.toISOString() ?? null,
     priceIsLive: false,
+    priceChange: null,
+    priceChangePercent: null,
+    benchmarkLabel: null,
     lastUpdated: row.lastUpdated?.toISOString() ?? null,
   }
 }
@@ -551,6 +575,9 @@ function seedToListItem(seed: CriticalMaterialSeed): MaterialListItem {
     effectiveUnit: seed.unit ?? 'kg',
     priceAsOf: null,
     priceIsLive: false,
+    priceChange: null,
+    priceChangePercent: null,
+    benchmarkLabel: null,
     lastUpdated: null,
   }
 }
@@ -563,7 +590,7 @@ export async function listMaterialsWithPrices(): Promise<MaterialListItem[]> {
       orderBy: { name: 'asc' },
       include: {
         priceBenchmarks: {
-          include: { observations: { orderBy: { asOf: 'desc' as const }, take: 1 } },
+          include: { observations: { orderBy: { asOf: 'desc' as const }, take: 2 } },
         },
       },
     })
@@ -577,13 +604,19 @@ export async function listMaterialsWithPrices(): Promise<MaterialListItem[]> {
           (b) => primarySeed && b.productForm === primarySeed.productForm && b.unit === primarySeed.unit && b.observations.length > 0,
         ) ?? row.priceBenchmarks.find((b) => b.observations.length > 0)
       const latest = primary?.observations[0]
+      const previous = primary?.observations[1]
       if (primary && latest) {
         item.effectivePrice = latest.price
         item.effectiveUnit = primary.unit
         item.priceAsOf = latest.asOf.toISOString()
+        item.benchmarkLabel = primary.benchmarkName ?? primary.productForm
         item.priceIsLive = benchmarksForMaterial(item.materialKey).some(
           (b) => b.feed && b.productForm === primary.productForm && b.unit === primary.unit,
         )
+        if (previous && previous.price !== 0) {
+          item.priceChange = latest.price - previous.price
+          item.priceChangePercent = ((latest.price - previous.price) / previous.price) * 100
+        }
       }
       return item
     })
@@ -694,5 +727,81 @@ export async function syncMaterialPrices(): Promise<MaterialPriceSyncResult> {
   }
 
   return result
+}
+
+
+// ---------------------------------------------------------------------------
+// Price history (powers the detail-page chart)
+// ---------------------------------------------------------------------------
+
+export interface MaterialPriceHistoryPoint {
+  asOf: string
+  price: number
+}
+
+export interface MaterialPriceHistoryResponse {
+  benchmark: {
+    id: string
+    productForm: string
+    grade: string | null
+    benchmarkName: string | null
+    market: string | null
+    currency: string
+    unit: string
+  }
+  points: MaterialPriceHistoryPoint[]
+}
+
+// Returns the observation series for a material's benchmark. When
+// `benchmarkId` is omitted the primary benchmark (or the first with data) is
+// used. Newest last for charting.
+export async function getMaterialPriceHistory(
+  symbolOrKey: string,
+  benchmarkId?: string | null,
+  days = 365,
+): Promise<MaterialPriceHistoryResponse | null> {
+  try {
+    const key = decodeURIComponent(symbolOrKey).trim()
+    if (!key) return null
+
+    const material = await prisma.rareEarthMaterial.findFirst({
+      where: { OR: [{ symbol: key }, { materialKey: key }, { name: key }] },
+      include: { priceBenchmarks: true },
+    })
+    if (!material || material.priceBenchmarks.length === 0) return null
+
+    const primarySeed = benchmarksForMaterial(material.materialKey ?? '').find((b) => b.isPrimary)
+    const benchmark =
+      (benchmarkId ? material.priceBenchmarks.find((b) => b.id === benchmarkId) : undefined) ??
+      material.priceBenchmarks.find(
+        (b) => primarySeed && b.productForm === primarySeed.productForm && b.unit === primarySeed.unit,
+      ) ??
+      material.priceBenchmarks[0]
+
+    const since = new Date()
+    since.setDate(since.getDate() - days)
+
+    const observations = await prisma.priceObservation.findMany({
+      where: { benchmarkId: benchmark.id, asOf: { gte: since } },
+      orderBy: { asOf: 'asc' },
+      take: 1500,
+    })
+
+    return {
+      benchmark: {
+        id: benchmark.id,
+        productForm: benchmark.productForm,
+        grade: benchmark.grade,
+        benchmarkName: benchmark.benchmarkName,
+        market: benchmark.market,
+        currency: benchmark.currency,
+        unit: benchmark.unit,
+      },
+      points: observations.map((o) => ({ asOf: o.asOf.toISOString(), price: o.price })),
+    }
+  } catch (error) {
+    console.error('getMaterialPriceHistory: query failed:', error)
+    return null
+  }
 }
 

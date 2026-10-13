@@ -9,6 +9,10 @@ interface RareEarthMaterial {
   symbol: string
   category: string
   description: string
+  effectivePrice?: number | null
+  effectiveUnit?: string | null
+  priceIsLive?: boolean
+  priceChangePercent?: number | null
 }
 
 export default function RareEarthSection() {
@@ -47,6 +51,23 @@ export default function RareEarthSection() {
               <div className="relative">
                 <h3 className="text-2xl font-bold group-hover:text-geo-gold transition-colors">{material.name}</h3>
                 <p className="mt-1 text-sm font-medium text-geo-gold">{material.category}</p>
+                {material.effectivePrice != null && (
+                  <p className="mt-2 text-base font-bold text-white flex items-center gap-2">
+                    {material.priceIsLive && (
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" title="Live price feed" />
+                    )}
+                    <span>
+                      ${material.effectivePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <span className="text-xs text-gray-400 font-normal ml-1">/{material.effectiveUnit}</span>
+                    </span>
+                    {material.priceChangePercent != null && (
+                      <span className={`text-xs font-semibold ${material.priceChangePercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {material.priceChangePercent >= 0 ? '+' : ''}
+                        {material.priceChangePercent.toFixed(2)}%
+                      </span>
+                    )}
+                  </p>
+                )}
                 <p className="mt-4 text-sm text-gray-400 line-clamp-3">
                   {material.description}
                 </p>
