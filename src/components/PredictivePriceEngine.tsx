@@ -1,19 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { TrendingUp, MapPin, Clock } from "lucide-react";
+import { TrendingUp, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 
 type Commodity = "gas" | "petrol" | "diesel" | "wti" | "brent";
 type Timeframe = "1week" | "1month";
-
-interface GeolocationState {
-  lat: number | null;
-  lon: number | null;
-  city: string;
-  loading: boolean;
-  error: string | null;
-}
 
 export function PredictivePriceEngine({
   simulationImpact = 0,
@@ -22,60 +14,6 @@ export function PredictivePriceEngine({
 }) {
   const [commodity, setCommodity] = useState<Commodity>("petrol");
   const [timeframe, setTimeframe] = useState<Timeframe>("1week");
-  const [geo, setGeo] = useState<GeolocationState>({
-    lat: null,
-    lon: null,
-    city: "Detecting Location...",
-    loading: true,
-    error: null,
-  });
-
-  const [lastCalculated, setLastCalculated] = useState<string>("...");
-
-  // Get User Geolocation and set time
-  useEffect(() => {
-    const d = new Date();
-    d.setMinutes(0, 0, 0);
-    setLastCalculated(
-      d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    );
-
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            // Reverse geocoding (mocked or actual API)
-            // For now, we simulate finding the city
-            setGeo({
-              lat: position.coords.latitude,
-              lon: position.coords.longitude,
-              city: "Local Region", // Replace with real reverse geocoding API
-              loading: false,
-              error: null,
-            });
-          } catch (err) {
-            setGeo((prev) => ({ ...prev, loading: false, city: "Global Avg" }));
-          }
-        },
-        (error) => {
-          setGeo((prev) => ({
-            ...prev,
-            loading: false,
-            error: "Location access denied",
-            city: "Global Avg",
-          }));
-        },
-      );
-    } else {
-      setGeo((prev) => ({
-        ...prev,
-        loading: false,
-        error: "Geolocation unsupported",
-        city: "Global Avg",
-      }));
-    }
-  }, []);
-
   // Mock Data generation based on parameters
   const getMockData = (
     currentCommodity: Commodity,
@@ -97,7 +35,7 @@ export function PredictivePriceEngine({
       const trend = Math.sin(i * 0.5) * volatility * base;
       const simBoost = i > 0 ? (simulationImpact / 100) * base : 0;
       const aiPrediction =
-        base + trend + Math.random() * volatility * base * 0.5 + simBoost;
+        base + trend + Math.cos(i * 0.7) * volatility * base * 0.25 + simBoost;
       return {
         baseline: base + trend * 0.5,
         predicted: aiPrediction,
@@ -128,34 +66,26 @@ export function PredictivePriceEngine({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <h3 className="text-xl font-bold flex items-center gap-2">
           <TrendingUp className="text-amber-500 w-5 h-5" />
-          AI Predictive Price Engine
+          Illustrative Price Scenario
         </h3>
 
         <div className="flex items-center gap-2 text-xs font-mono text-gray-400 bg-black/20 px-3 py-1.5 rounded-full border border-white/5">
           <Clock className="w-3 h-3 text-geo-gold" />
-          Updated: {lastCalculated}
+          Example assumptions
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 mb-8 justify-between">
-        {/* Geolocation Info */}
-        <div className="flex items-center gap-2 text-sm text-gray-300">
-          <MapPin
-            className={`w-4 h-4 ${geo.loading ? "text-gray-500 animate-pulse" : "text-blue-400"}`}
-          />
-          <span className="font-semibold">{geo.city}</span>
-          {geo.error && (
-            <span className="text-red-400 text-xs">({geo.error})</span>
-          )}
-        </div>
+      <p role="note" className="mb-4 text-sm text-amber-200">Simulation only: fixed example prices and deterministic curves, not AI forecasts or observed history. USD/gal for petrol/diesel, USD/MMBtu for gas, USD/bbl for WTI/Brent. Location does not affect these assumptions.</p>
 
+      <div className="flex flex-wrap gap-4 mb-8 justify-between">
         {/* Commodity Selector */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {(["petrol", "diesel", "gas", "wti", "brent"] as Commodity[]).map(
             (c) => (
               <button
                 key={c}
                 onClick={() => setCommodity(c)}
+                aria-pressed={commodity === c}
                 className={`px-3 py-1 text-xs rounded-full border transition-colors capitalize ${
                   commodity === c
                     ? "bg-amber-500/20 border-amber-500/50 text-amber-200 font-bold"
@@ -172,12 +102,14 @@ export function PredictivePriceEngine({
         <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/10">
           <button
             onClick={() => setTimeframe("1week")}
+            aria-pressed={timeframe === "1week"}
             className={`px-3 py-1 text-xs rounded-md transition-colors ${timeframe === "1week" ? "bg-white/20 text-white" : "text-gray-400"}`}
           >
             1 Week
           </button>
           <button
             onClick={() => setTimeframe("1month")}
+            aria-pressed={timeframe === "1month"}
             className={`px-3 py-1 text-xs rounded-md transition-colors ${timeframe === "1month" ? "bg-white/20 text-white" : "text-gray-400"}`}
           >
             1 Month
@@ -235,7 +167,7 @@ export function PredictivePriceEngine({
 
             {/* Tooltip on Hover (Optional now, but keep for exact details) */}
             <div className="absolute -top-10 bg-black text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none">
-              AI: ${data.predicted.toFixed(2)}
+                Scenario: ${data.predicted.toFixed(2)}
               <br />
               Base: ${data.baseline.toFixed(2)}
             </div>
@@ -266,11 +198,11 @@ export function PredictivePriceEngine({
       <div className="flex flex-wrap gap-4 mt-2 text-xs font-medium pl-2 bg-black/20 p-3 rounded-lg border border-white/5">
         <div className="flex items-center gap-2 text-gray-400">
           <div className="w-3 h-3 bg-blue-500 border border-blue-400 rounded-sm opacity-60" />
-          CURRENT / HISTORIC
+          EXAMPLE BASELINE
         </div>
         <div className="flex items-center gap-2 text-geo-gold">
           <div className="w-3 h-3 bg-geo-gold rounded-full shadow-[0_0_5px_rgba(255,215,0,0.5)]" />
-          AI PREDICTION
+          SIMULATED SCENARIO
         </div>
       </div>
     </div>

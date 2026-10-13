@@ -2,8 +2,36 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { writeFile } from 'fs/promises'
 import path from 'path'
+import fs from 'fs'
+
+const LOGO_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
+const MAX_LOGO_SIZE = 5 * 1024 * 1024
+
+async function resolveLogoUrl(rawValue?: string | null): Promise<string | null> {
+  const value = rawValue?.trim()
+  if (!value) return null
+
+  if (value.startsWith('/api/media/')) {
+    const assetId = value.replace('/api/media/', '').split('?')[0].split('#')[0]
+    if (!assetId) return null
+
+    const asset = await prisma.mediaAsset.findUnique({
+      where: { id: assetId },
+      select: { id: true },
+    })
+
+    return asset ? value : null
+  }
+
+  if (value.startsWith('/uploads/')) {
+    const relativePath = value.replace(/^\/uploads\//, '')
+    const localFilePath = path.join(process.cwd(), 'public', 'uploads', relativePath)
+    return fs.existsSync(localFilePath) ? value : null
+  }
+
+  return value
+}
 
 export async function GET() {
   try {
@@ -21,7 +49,7 @@ export async function GET() {
     })
 
     const settingsMap: any = {}
-    settings.forEach((setting) => {
+    for (const setting of settings) {
       if (setting.key === 'ticker_symbols' || setting.key === 'news_sources') {
         try {
           settingsMap[setting.key === 'ticker_symbols' ? 'tickers' : 'newsSources'] = JSON.parse(setting.value)
@@ -29,7 +57,7 @@ export async function GET() {
           settingsMap[setting.key === 'ticker_symbols' ? 'tickers' : 'newsSources'] = []
         }
       } else if (setting.key === 'logo_url') {
-        settingsMap.logoUrl = setting.value
+        settingsMap.logoUrl = await resolveLogoUrl(setting.value)
       } else if (setting.key === 'news_api_key') {
         settingsMap.newsApiKey = setting.value
       } else if (setting.key === 'alpha_vantage_key') {
@@ -41,10 +69,10 @@ export async function GET() {
         const camelKey = setting.key.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
         settingsMap[camelKey] = setting.value
       }
-    })
+    }
 
     return NextResponse.json({
-      logoUrl: settingsMap.logoUrl || '/logo.png',
+      logoUrl: settingsMap.logoUrl || '',
       tickers: settingsMap.tickers || [],
       newsSources: settingsMap.newsSources || [],
       newsApiKey: settingsMap.newsApiKey || '',
@@ -85,24 +113,40 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
     }
 
+    if (!LOGO_IMAGE_TYPES.includes(file.type)) {
+      return NextResponse.json(
+        {
+          error: 'Invalid logo format. Allowed types: JPEG, PNG, WEBP, GIF, SVG',
+        },
+        { status: 400 },
+      )
+    }
+
+    if (file.size > MAX_LOGO_SIZE) {
+      return NextResponse.json({ error: 'Logo file too large (max 5MB)' }, { status: 400 })
+    }
+
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    // Save to public/uploads
-    const filename = `logo-${Date.now()}${path.extname(file.name)}`
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+    const ext = path.extname(file.name).toLowerCase() || '.png'
+    const filename = `logo-${Date.now()}${ext}`
+    const newAsset = await prisma.mediaAsset.create({
+      data: {
+        kind: 'site-logo',
+        filename,
+        mimeType: file.type,
+        data: buffer,
+      },
+      select: { id: true },
+    })
 
-    // Ensure directory exists (you might want to use fs.mkdir here if not sure)
-    // For now assuming public exists, but uploads might not.
-    const fs = require('fs')
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+    const logoUrl = `/api/media/${newAsset.id}`
 
-    const filepath = path.join(uploadDir, filename)
-    await writeFile(filepath, buffer)
-
-    const logoUrl = `/uploads/${filename}`
+    const previousLogo = await prisma.siteSettings.findUnique({
+      where: { key: 'logo_url' },
+      select: { value: true },
+    })
 
     // Update database
     await prisma.siteSettings.upsert({
@@ -110,6 +154,14 @@ export async function POST(req: Request) {
       update: { value: logoUrl },
       create: { key: 'logo_url', value: logoUrl },
     })
+
+    const previousValue = previousLogo?.value?.trim()
+    if (previousValue?.startsWith('/api/media/')) {
+      const previousAssetId = previousValue.replace('/api/media/', '').split('?')[0].split('#')[0]
+      if (previousAssetId && previousAssetId !== newAsset.id) {
+        await prisma.mediaAsset.deleteMany({ where: { id: previousAssetId, kind: 'site-logo' } })
+      }
+    }
 
     return NextResponse.json({ logoUrl })
   } catch (error) {

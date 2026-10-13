@@ -90,7 +90,7 @@ export default function AssetFleetMatrix({
             Infrastructure Asset Matrix & Watchlist
           </h3>
           <p className="text-xs text-gray-400">
-            Monitoring 37 strategic global energy assets. Click any row to inspect & simulate outage impact.
+            {assets.length} reference assets. Output and utilization are illustrative assumptions. Use Inspect to explore an outage scenario.
           </p>
         </div>
 
@@ -98,6 +98,7 @@ export default function AssetFleetMatrix({
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-500" />
           <input
             type="text"
+            aria-label="Search infrastructure assets"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search asset, region, operator..."
@@ -129,6 +130,7 @@ export default function AssetFleetMatrix({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+                aria-pressed={activeTab === tab.id}
               className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
                 active
                   ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-300"
@@ -150,8 +152,8 @@ export default function AssetFleetMatrix({
               <th className="py-2 px-2">Asset Name & Operator</th>
               <th className="py-2 px-2">Region</th>
               <th className="py-2 px-2">Stream</th>
-              <th className="py-2 px-2">Output / Cap</th>
-              <th className="py-2 px-2">Utilization</th>
+              <th className="py-2 px-2">Example Output / Cap</th>
+              <th className="py-2 px-2">Assumed Utilization</th>
               <th className="py-2 px-2 text-right">Action</th>
             </tr>
           </thead>
@@ -180,6 +182,8 @@ export default function AssetFleetMatrix({
                     <td className="py-2 px-2">
                       <button
                         type="button"
+                        aria-label={`${isWatched ? "Unwatch" : "Watch"} ${asset.name}`}
+                        aria-pressed={isWatched}
                         onClick={(e) => {
                           e.stopPropagation();
                           onToggleMonitored(asset.id);

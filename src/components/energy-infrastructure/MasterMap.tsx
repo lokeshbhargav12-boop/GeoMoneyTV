@@ -58,8 +58,8 @@ const DATASET_OPTIONS: DataLayerOption[] = [
   },
   {
     id: "liveAssetTracking",
-    label: "Live Asset Tracking",
-    description: "Stress + ships + events",
+    label: "Provider Observations",
+    description: "Grid + events; vessel feed unavailable",
     accent: "text-amber-300",
   },
   {
@@ -168,7 +168,7 @@ export default function MasterMap({
         label: "Infrastructure nodes",
         color: "#22d3ee",
         size: 0.028,
-        points: assets.slice(0, 80).map((asset) => ({
+        points: assets.filter((asset) => activeLayer === "all" || asset.layer === activeLayer).slice(0, 80).map((asset) => ({
           id: asset.id,
           title: asset.name,
           lat: asset.lat,
@@ -223,6 +223,7 @@ export default function MasterMap({
     return sets;
   }, [
     assets,
+    activeLayer,
     climateEvents,
     dataLayerState.globalInfrastructure,
     dataLayerState.liveAssetTracking,
@@ -232,7 +233,7 @@ export default function MasterMap({
   ]);
 
   const summary = {
-    assets: dataLayerState.globalInfrastructure ? assets.length : 0,
+    assets: dataLayerState.globalInfrastructure ? assets.filter((asset) => activeLayer === "all" || asset.layer === activeLayer).length : 0,
     corridors: dataLayerState.globalInfrastructure ? corridors.length : 0,
     flows: dataLayerState.regionalHubs ? flows.length : 0,
     liveSignals: dataLayerState.liveAssetTracking
@@ -253,6 +254,7 @@ export default function MasterMap({
               return (
                 <button
                   key={option.id}
+                  aria-pressed={active}
                   onClick={() => onActiveLayerChange(option.id)}
                   className={`w-full rounded-lg border px-2 py-1.5 text-left text-xs transition ${
                     active
@@ -275,6 +277,7 @@ export default function MasterMap({
             <div className="inline-flex rounded-lg border border-white/10 bg-black/60 p-1">
               <button
                 onClick={() => onMapViewChange("2d")}
+                aria-pressed={mapView === "2d"}
                 className={`rounded-md px-2 py-1 text-xs transition ${
                   mapView === "2d"
                     ? "bg-cyan-500/20 text-cyan-200"
@@ -285,6 +288,7 @@ export default function MasterMap({
               </button>
               <button
                 onClick={() => onMapViewChange("3d")}
+                aria-pressed={mapView === "3d"}
                 className={`rounded-md px-2 py-1 text-xs transition ${
                   mapView === "3d"
                     ? "bg-cyan-500/20 text-cyan-200"
@@ -303,6 +307,7 @@ export default function MasterMap({
                 <button
                   key={option.id}
                   onClick={() => onToggleDataLayer(option.id)}
+                  aria-pressed={active}
                   className={`rounded-lg border p-2 text-left transition ${
                     active
                       ? "border-cyan-500/40 bg-cyan-500/10"
@@ -349,7 +354,12 @@ export default function MasterMap({
             arcs={globeArcs}
             pointSets={globePointSets}
             height="620px"
-            live={true}
+            live={false}
+            onPointClick={(point, set) => {
+              if (set.id !== "infra-assets") return;
+              const asset = assets.find((item) => item.id === point.id);
+              if (asset) onAssetClick?.(asset);
+            }}
             updatedAt={updatedAt ?? null}
           />
         )}
@@ -373,7 +383,7 @@ export default function MasterMap({
                 <p className="font-semibold text-gray-100">{summary.flows}</p>
               </div>
               <div>
-                <p className="text-gray-500">Live signals</p>
+                <p className="text-gray-500">Provider / reference nodes</p>
                 <p className="font-semibold text-amber-300">{summary.liveSignals}</p>
               </div>
             </div>
@@ -397,7 +407,7 @@ export default function MasterMap({
           <span className="mx-2 text-gray-600">•</span>
           <span className="inline-flex items-center gap-1 text-emerald-300">
             <Radio className="h-3.5 w-3.5" />
-            Live
+            Mixed sources
           </span>
           <span className="mx-2 text-gray-600">•</span>
           <span className="inline-flex items-center gap-1 text-amber-300">

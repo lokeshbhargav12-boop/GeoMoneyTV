@@ -6,9 +6,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const marketData = await getCoalMarketData();
+    const marketData = await getCoalMarketData(new URL(req.url).origin);
     const commentary = await generateCoalCommentary(marketData);
     return NextResponse.json(
       { ...commentary, timestamp: marketData.timestamp },

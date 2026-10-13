@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { solarEstimate, windEstimate, carbonEstimate } from "@/lib/energy-calculations";
+import EnergyDataNotice from "@/components/EnergyDataNotice";
 import {
   ArrowLeft,
   Sun,
@@ -415,6 +417,8 @@ export default function EnergyPage() {
     confidence: string;
   } | null>(null);
   const [aiError, setAiError] = useState("");
+  const [calculationErrors, setCalculationErrors] = useState<Record<string, string>>({});
+  const [feedError, setFeedError] = useState("");
 
   // Live hub data
   const [live, setLive] = useState<LiveHubData | null>(null);
@@ -427,8 +431,10 @@ export default function EnergyPage() {
         if (!res.ok) throw new Error("Failed to load live data");
         const data = await res.json();
         setLive(data);
+        setFeedError("");
       } catch (e) {
         console.warn("[Energy Hub] Live data unavailable", e);
+        setFeedError("Market refresh unavailable. Previous quotes may be stale; reference tools remain available.");
       } finally {
         setLiveLoading(false);
       }
@@ -440,74 +446,59 @@ export default function EnergyPage() {
 
   // ─── CALCULATORS ──────────────────────────────────────────
   const calculateSolarROI = () => {
-    const size = parseFloat(solarSize) || 0;
-    const cpw = parseFloat(costPerWatt) || 2.5;
-    const rate = parseFloat(electricityRate) || 0.14;
-    const hours = parseFloat(sunHours) || 5;
-
-    const annualKWh = size * hours * 365;
-    const annualSave = annualKWh * rate;
-    const totalCost = size * 1000 * cpw;
-    const paybackYears = totalCost / annualSave;
-    const total25 = annualSave * 25 - totalCost;
-
-    setSolarResult({
-      annualProduction: annualKWh.toLocaleString(undefined, {
-        maximumFractionDigits: 0,
-      }),
-      annualSavings: annualSave.toLocaleString(undefined, {
-        maximumFractionDigits: 0,
-      }),
-      payback: paybackYears.toFixed(1),
-      savings25: total25.toLocaleString(undefined, {
-        maximumFractionDigits: 0,
-      }),
-    });
+    setSolarResult(null);
+    try {
+      const result = solarEstimate(solarSize, costPerWatt, electricityRate, sunHours);
+      setCalculationErrors((prev) => ({ ...prev, solar: "" }));
+      setSolarResult({
+        annualProduction: result.annualProduction.toLocaleString(undefined, {
+          maximumFractionDigits: 0,
+        }),
+        annualSavings: result.annualSavings.toLocaleString(undefined, {
+          maximumFractionDigits: 0,
+        }),
+        payback: result.payback === null ? "No payback at zero savings" : `${result.payback.toFixed(1)} years`,
+        savings25: result.savings25.toLocaleString(undefined, {
+          maximumFractionDigits: 0,
+        }),
+      });
+    } catch (error) {
+      setCalculationErrors((prev) => ({ ...prev, solar: (error as Error).message }));
+    }
   };
 
   const calculateWindFarm = () => {
-    const turbines = parseInt(turbineCount) || 0;
-    const rating = parseFloat(turbineRating) || 3;
-    const cf = (parseFloat(capacityFactor) || 35) / 100;
-
-    const totalMW = turbines * rating;
-    const annualMWh = totalMW * cf * 8760;
-    const homes = Math.round(annualMWh / 10.5); // avg US home uses ~10.5 MWh/yr
-
-    setWindResult({
-      totalCapacity: totalMW.toLocaleString(undefined, {
-        maximumFractionDigits: 1,
-      }),
-      annualOutput: annualMWh.toLocaleString(undefined, {
-        maximumFractionDigits: 0,
-      }),
-      homesPowered: homes.toLocaleString(),
-    });
-  };
-
-  const carbonFactors: { [key: string]: number } = {
-    solar: 0.04, // tonnes CO2/MWh offset vs coal
-    wind: 0.04,
-    hydro: 0.038,
-    nuclear: 0.045,
-    geothermal: 0.035,
+    setWindResult(null);
+    try {
+      const result = windEstimate(turbineCount, turbineRating, capacityFactor);
+      setCalculationErrors((prev) => ({ ...prev, wind: "" }));
+      setWindResult({
+        totalCapacity: result.totalCapacity.toLocaleString(undefined, {
+          maximumFractionDigits: 1,
+        }),
+        annualOutput: result.annualOutput.toLocaleString(undefined, {
+          maximumFractionDigits: 0,
+        }),
+        homesPowered: result.homesPowered.toLocaleString(),
+      });
+    } catch (error) {
+      setCalculationErrors((prev) => ({ ...prev, wind: (error as Error).message }));
+    }
   };
 
   const calculateCarbon = () => {
-    const cap = parseFloat(renewableCapacity) || 0;
-    const factor = carbonFactors[sourceType] || 0.04;
-    // coal baseline: ~1 tonne CO2/MWh, renewable offset ≈ 0.9-1
-    const coalEmissionFactor = 1.0;
-    const annualMWh = cap * 0.25 * 8760; // 25% avg capacity factor
-    const co2 = annualMWh * (coalEmissionFactor - factor);
-    const equivTrees = co2 * 45; // ~45 trees absorb 1 tonne CO2/yr
-    const equivCars = co2 / 4.6; // avg car emits 4.6 tonnes CO2/yr
-
-    setCarbonResult({
-      co2Offset: co2.toLocaleString(undefined, { maximumFractionDigits: 0 }),
-      trees: equivTrees.toLocaleString(undefined, { maximumFractionDigits: 0 }),
-      cars: equivCars.toLocaleString(undefined, { maximumFractionDigits: 0 }),
-    });
+    setCarbonResult(null);
+    try {
+      const result = carbonEstimate(renewableCapacity, sourceType);
+      setCalculationErrors((prev) => ({ ...prev, carbon: "" }));
+      setCarbonResult({
+        co2Offset: result.co2Offset.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+        trees: result.trees.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+        cars: result.cars.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+      });
+    } catch (error) {
+      setCalculationErrors((prev) => ({ ...prev, carbon: (error as Error).message }));
+    }
   };
 
   // ─── AI ANALYZER ──────────────────────────────────────────
@@ -526,12 +517,11 @@ export default function EnergyPage() {
         body: JSON.stringify({ query: aiQuery }),
       });
 
-      if (!response.ok) throw new Error("Failed to analyze");
-
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to analyze");
       setAiResult(data);
-    } catch {
-      setAiError("Could not analyze. Please try again.");
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "Could not analyze. Please try again.");
     } finally {
       setAiLoading(false);
     }
@@ -672,6 +662,7 @@ export default function EnergyPage() {
             <Globe2 className="w-6 h-6 text-emerald-400" />
             Global Energy Mix Dashboard
           </h2>
+          <p className="mb-4 text-sm text-gray-300">Static reference figures and commentary; reporting periods and sources are not yet verified. These are not current global capacity observations.</p>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {ENERGY_SOURCES.map((source) => {
@@ -771,6 +762,7 @@ export default function EnergyPage() {
               <input
                 type="text"
                 value={aiQuery}
+                  aria-label="Energy analysis question"
                 onChange={(e) => setAiQuery(e.target.value)}
                 placeholder="Ask about energy geopolitics... (e.g., 'Impact of China's solar panel dominance on US energy security')"
                 className="w-full bg-black/50 border border-white/20 rounded-xl px-4 py-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-light text-lg"
@@ -977,7 +969,7 @@ export default function EnergyPage() {
             {live && (
               <span className="text-[10px] text-gray-500 font-normal ml-2 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live
+                Provider snapshot
               </span>
             )}
           </h2>
@@ -987,6 +979,8 @@ export default function EnergyPage() {
               Track prices for critical minerals and materials powering the
               energy transition.
             </p>
+            <p className="mb-4 text-xs text-gray-300">Quotes are delayed or stale. Missing observations show “Unavailable”, not a sample price.</p>
+            {feedError && <p role="status" className="mb-4 text-sm text-amber-200">{feedError}</p>}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {ENERGY_COMMODITIES.map((commodity) => {
                 const liveCommodity = live?.commodities?.find(
@@ -997,8 +991,8 @@ export default function EnergyPage() {
                     (commodity.symbol === "U₃O₈" && c.symbol === "URANIUM") ||
                     (commodity.symbol === "Li" && c.symbol === "LITHIUM")
                 );
-                const price = liveCommodity ? liveCommodity.price : commodity.price;
-                const change = liveCommodity ? liveCommodity.changePercent : commodity.change;
+                const price = liveCommodity ? liveCommodity.price : null;
+                const change = liveCommodity ? liveCommodity.changePercent : 0;
                 return (
                   <div
                     key={commodity.symbol}
@@ -1011,14 +1005,15 @@ export default function EnergyPage() {
                       <span
                         className={`text-xs font-medium ${change >= 0 ? "text-green-400" : "text-red-400"}`}
                       >
-                        {change >= 0 ? "+" : ""}
-                        {typeof change === "number" ? change.toFixed(2) : change}%
+                        {liveCommodity && change >= 0 ? "+" : ""}
+                        {liveCommodity ? `${change.toFixed(2)}%` : "—"}
                       </span>
                     </div>
                     <div className="text-white font-semibold">
-                      ${typeof price === "number" ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : price}
+                      {price === null ? "Unavailable" : `$${price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
                     </div>
                     <div className="text-gray-500 text-xs">{commodity.name}</div>
+                    <EnergyDataNotice status={liveCommodity?.dataStatus || "unavailable"} source={liveCommodity?.source || "No provider quote"} observedAt={liveCommodity?.lastTradingTimestamp} />
                     <div className="mt-2 text-[10px] text-emerald-400/70 font-medium uppercase tracking-wider">
                       {commodity.use}
                     </div>
@@ -1045,7 +1040,7 @@ export default function EnergyPage() {
           <div className="bg-white/5 rounded-xl border border-white/10 p-6">
             <p className="text-gray-400 text-sm mb-6">
               Calculate the return on investment for a solar panel installation
-              based on system size, costs, and local conditions.
+              based on entered system size, costs and sun hours.
             </p>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               <div>
@@ -1060,6 +1055,7 @@ export default function EnergyPage() {
                 </label>
                 <input
                   type="text"
+                  aria-label="Solar location coordinates (optional note)"
                   value={solarLocation}
                   onChange={(e) => setSolarLocation(e.target.value)}
                   placeholder="e.g. 34.05, -118.24"
@@ -1069,11 +1065,11 @@ export default function EnergyPage() {
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
+                <label htmlFor="energy-field-1" className="text-sm text-gray-400 block mb-1.5">
                   System Size (kW)
                 </label>
-                <input
-                  type="number"
+                <input id="energy-field-1"
+                  type="number" min="0" step="any"
                   value={solarSize}
                   onChange={(e) => setSolarSize(e.target.value)}
                   placeholder="e.g. 10"
@@ -1081,11 +1077,11 @@ export default function EnergyPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
+                <label htmlFor="energy-field-2" className="text-sm text-gray-400 block mb-1.5">
                   Cost per Watt ($)
                 </label>
-                <input
-                  type="number"
+                <input id="energy-field-2"
+                  type="number" min="0" step="any"
                   value={costPerWatt}
                   onChange={(e) => setCostPerWatt(e.target.value)}
                   placeholder="e.g. 2.50"
@@ -1093,11 +1089,11 @@ export default function EnergyPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
+                <label htmlFor="energy-field-3" className="text-sm text-gray-400 block mb-1.5">
                   Electricity Rate ($/kWh)
                 </label>
-                <input
-                  type="number"
+                <input id="energy-field-3"
+                  type="number" min="0" step="any"
                   value={electricityRate}
                   onChange={(e) => setElectricityRate(e.target.value)}
                   placeholder="e.g. 0.14"
@@ -1105,11 +1101,11 @@ export default function EnergyPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
+                <label htmlFor="energy-field-4" className="text-sm text-gray-400 block mb-1.5">
                   Peak Sun Hours/Day
                 </label>
-                <input
-                  type="number"
+                <input id="energy-field-4"
+                  type="number" min="0" step="any"
                   value={sunHours}
                   onChange={(e) => setSunHours(e.target.value)}
                   placeholder="e.g. 5"
@@ -1117,9 +1113,7 @@ export default function EnergyPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
-                  &nbsp;
-                </label>
+                <div aria-hidden="true" className="h-6" />
                 <button
                   onClick={calculateSolarROI}
                   className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold py-3 rounded-lg hover:from-yellow-400 hover:to-orange-400 transition-all"
@@ -1129,6 +1123,8 @@ export default function EnergyPage() {
               </div>
             </div>
 
+            <p className="mt-3 text-xs text-gray-300">Simple estimate: no degradation, financing, maintenance, incentives or system losses. Coordinates are optional notes only; they do not adjust solar yield.</p>
+            {calculationErrors.solar && <p role="alert" className="mt-3 text-sm text-rose-300">{calculationErrors.solar}</p>}
             {solarResult && (
               <div className="mt-6 grid md:grid-cols-4 gap-4">
                 <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
@@ -1146,7 +1142,7 @@ export default function EnergyPage() {
                 <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
                   <div className="text-sm text-gray-400">Payback Period</div>
                   <div className="text-xl font-bold text-cyan-400">
-                    {solarResult.payback} years
+                    {solarResult.payback}
                   </div>
                 </div>
                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
@@ -1194,6 +1190,7 @@ export default function EnergyPage() {
                 </label>
                 <input
                   type="text"
+                  aria-label="Wind location coordinates (optional note)"
                   value={windLocation}
                   onChange={(e) => setWindLocation(e.target.value)}
                   placeholder="e.g. 51.50, -0.12"
@@ -1203,11 +1200,11 @@ export default function EnergyPage() {
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
+                <label htmlFor="energy-field-5" className="text-sm text-gray-400 block mb-1.5">
                   Number of Turbines
                 </label>
-                <input
-                  type="number"
+                <input id="energy-field-5"
+                  type="number" min="0" step="any"
                   value={turbineCount}
                   onChange={(e) => setTurbineCount(e.target.value)}
                   placeholder="e.g. 50"
@@ -1215,11 +1212,11 @@ export default function EnergyPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
+                <label htmlFor="energy-field-6" className="text-sm text-gray-400 block mb-1.5">
                   Turbine Rating (MW)
                 </label>
-                <input
-                  type="number"
+                <input id="energy-field-6"
+                  type="number" min="0" step="any"
                   value={turbineRating}
                   onChange={(e) => setTurbineRating(e.target.value)}
                   placeholder="e.g. 3"
@@ -1227,11 +1224,11 @@ export default function EnergyPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
+                <label htmlFor="energy-field-7" className="text-sm text-gray-400 block mb-1.5">
                   Capacity Factor (%)
                 </label>
-                <input
-                  type="number"
+                <input id="energy-field-7"
+                  type="number" min="0" step="any"
                   value={capacityFactor}
                   onChange={(e) => setCapacityFactor(e.target.value)}
                   placeholder="e.g. 35"
@@ -1239,9 +1236,7 @@ export default function EnergyPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
-                  &nbsp;
-                </label>
+                <div aria-hidden="true" className="h-6" />
                 <button
                   onClick={calculateWindFarm}
                   className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold py-3 rounded-lg hover:from-cyan-400 hover:to-blue-400 transition-all"
@@ -1251,6 +1246,8 @@ export default function EnergyPage() {
               </div>
             </div>
 
+            <p className="mt-3 text-xs text-gray-300">Planning estimate using the entered capacity factor. Coordinates are optional notes only. Homes assume 10.5 MWh/year per household.</p>
+            {calculationErrors.wind && <p role="alert" className="mt-3 text-sm text-rose-300">{calculationErrors.wind}</p>}
             {windResult && (
               <div className="mt-6 grid md:grid-cols-3 gap-4">
                 <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
@@ -1299,7 +1296,7 @@ export default function EnergyPage() {
                   Renewable Capacity (MW)
                 </label>
                 <input
-                  type="number"
+                  type="number" min="0" step="any"
                   value={renewableCapacity}
                   onChange={(e) => setRenewableCapacity(e.target.value)}
                   placeholder="e.g. 100"
@@ -1307,10 +1304,10 @@ export default function EnergyPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
+                <label htmlFor="energy-field-8" className="text-sm text-gray-400 block mb-1.5">
                   Energy Source
                 </label>
-                <select
+                <select id="energy-field-8"
                   value={sourceType}
                   onChange={(e) => setSourceType(e.target.value)}
                   className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-green-500 transition-colors"
@@ -1323,9 +1320,7 @@ export default function EnergyPage() {
                 </select>
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1.5">
-                  &nbsp;
-                </label>
+                <div aria-hidden="true" className="h-6" />
                 <button
                   onClick={calculateCarbon}
                   className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-black font-bold py-3 rounded-lg hover:from-green-400 hover:to-emerald-400 transition-all"
@@ -1335,6 +1330,8 @@ export default function EnergyPage() {
               </div>
             </div>
 
+            <p className="mt-3 text-xs text-gray-300">Illustrative assumptions: 25% capacity factor for all sources, coal baseline 1 tCO₂/MWh, 45 trees/tCO₂/year and 4.6 tCO₂/car/year. Not a certified carbon credit calculation.</p>
+            {calculationErrors.carbon && <p role="alert" className="mt-3 text-sm text-rose-300">{calculationErrors.carbon}</p>}
             {carbonResult && (
               <div className="mt-6 grid md:grid-cols-3 gap-4">
                 <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">

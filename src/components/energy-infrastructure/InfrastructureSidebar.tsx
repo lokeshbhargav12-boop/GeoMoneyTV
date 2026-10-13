@@ -13,12 +13,14 @@ interface InfrastructureSidebarProps {
   items: InfrastructureNavItem[];
   lastUpdated?: string | null;
   error?: string | null;
+  onNavigate: (id: string) => void;
 }
 
 export default function InfrastructureSidebar({
   items,
   lastUpdated,
   error,
+  onNavigate,
 }: InfrastructureSidebarProps) {
   return (
     <aside className="hidden h-full lg:block">
@@ -41,9 +43,7 @@ export default function InfrastructureSidebar({
                 href={`#${item.id}`}
                 onClick={(event) => {
                   event.preventDefault();
-                  document
-                    .getElementById(item.id)
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  onNavigate(item.id);
                 }}
                 className="flex items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-sm text-gray-300 transition hover:border-white/10 hover:bg-white/5 hover:text-gray-100"
               >
@@ -57,7 +57,7 @@ export default function InfrastructureSidebar({
         <div className="mt-auto rounded-xl border border-white/10 bg-black/50 p-3">
           <div className="flex items-center gap-2 text-xs text-gray-300">
             <Activity className="h-3.5 w-3.5 text-emerald-400" />
-            Live feed
+            Provider snapshot
           </div>
           <p className="mt-1 text-[11px] text-gray-400">
             {lastUpdated

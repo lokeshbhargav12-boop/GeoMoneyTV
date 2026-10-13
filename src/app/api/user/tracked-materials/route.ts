@@ -71,6 +71,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ tracked })
 }
 
+// PATCH — record that the user just viewed a tracked material's page.
+// Drives the "Since You Last Checked" delta (C6).
+export async function PATCH(req: Request) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.email) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { materialId } = await req.json()
+    if (!materialId || typeof materialId !== 'string') {
+        return NextResponse.json({ error: 'materialId is required' }, { status: 400 })
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } })
+    if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    await prisma.trackedMaterial.updateMany({
+        where: { userId: user.id, materialId },
+        data: { lastSeenAt: new Date() },
+    })
+
+    return NextResponse.json({ success: true })
+}
+
 // DELETE — remove a tracked material
 export async function DELETE(req: Request) {
     const session = await getServerSession(authOptions)

@@ -6,9 +6,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const data = await getCoalMarketData();
+    const data = await getCoalMarketData(new URL(req.url).origin);
     return NextResponse.json(data, {
       headers: {
         "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",

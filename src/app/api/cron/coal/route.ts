@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     // 1. Warm the market data cache (EIA basin prices + aggregates, ticker,
     //    vessels, OSINT, climate).
     clearCoalMarketCache();
-    const marketData = await getCoalMarketData();
+    const marketData = await getCoalMarketData(new URL(req.url).origin);
 
     // 2. Force-regenerate the AI brief (clear bypasses the 4-hour TTL).
     clearCoalAiBriefCache();

@@ -4,6 +4,7 @@ import { useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
+import EnergyVisualizationBoundary from "@/components/EnergyVisualizationBoundary";
 
 function Tank({
   position,
@@ -146,6 +147,7 @@ export function SatelliteTanksScene() {
   }, []);
 
   return (
+    <EnergyVisualizationBoundary>
     <Canvas
       camera={{ position: [6, 5, 8], fov: 40 }}
       className="absolute inset-0 bg-[#020617]" // very dark blue/black background matches dashboard
@@ -181,5 +183,6 @@ export function SatelliteTanksScene() {
         minPolarAngle={Math.PI / 6}
       />
     </Canvas>
+    </EnergyVisualizationBoundary>
   );
 }

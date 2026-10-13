@@ -3,6 +3,7 @@ import { syncNewsToDatabase } from '@/lib/news-service';
 import { updateTickerData } from '@/lib/ticker-service';
 import { syncVideosToDatabase } from '@/lib/video-service';
 import { getEnergyInfrastructureData, clearEnergyInfrastructureCache } from '@/lib/energy-infrastructure-service';
+import { syncMaterialPrices } from '@/lib/material-intel-service';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow 60 seconds (Vercel max for Hobby/Pro limits vary)
@@ -35,6 +36,16 @@ export async function GET(req: Request) {
         const energyData = await getEnergyInfrastructureData();
         console.log(`Warmed energy infrastructure cache: ${energyData.commodities.length} commodities, ${energyData.storage.length} storage series.`);
 
+        // 5. Sync Critical Materials prices (best-effort; never fails the job)
+        let materialsResult: { updated: number; failed: number } | null = null;
+        try {
+            const prices = await syncMaterialPrices();
+            materialsResult = { updated: prices.updated, failed: prices.failed.length };
+            console.log(`Synced ${prices.updated} material price observations (${prices.failed.length} failed).`);
+        } catch (materialsError) {
+            console.error('Material price sync failed (non-fatal):', materialsError);
+        }
+
         return NextResponse.json({
             success: true,
             synced: {
@@ -48,7 +59,8 @@ export async function GET(req: Request) {
                     climate: energyData.climate.length,
                     osint: energyData.osint.length,
                     shipCounts: energyData.shipCounts.length,
-                }
+                },
+                materials: materialsResult,
             },
             timestamp: new Date().toISOString()
         });

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import EnergyDataNotice from "@/components/EnergyDataNotice";
 import {
   ArrowLeft,
   Globe2,
@@ -68,6 +69,7 @@ interface LiveData {
   interdependency: any;
   supplyDemandBalance?: any;
   macroIndicators?: any;
+  notice?: string;
 }
 
 const DASHBOARD_NAV: InfrastructureNavItem[] = [
@@ -77,14 +79,6 @@ const DASHBOARD_NAV: InfrastructureNavItem[] = [
   { id: "threat-radar", label: "Threat Radar", icon: Bell },
   { id: "fleet-matrix", label: "Fleet Matrix", icon: Factory },
   { id: "market-trends", label: "Market Trends", icon: LineChart },
-];
-
-const CORRIDOR_COORDINATES: Array<{ region: string; lat: number; lng: number }> = [
-  { region: "Strait of Hormuz", lat: 26.0, lng: 56.0 },
-  { region: "Euro ARA Hubs", lat: 52.0, lng: 4.0 },
-  { region: "US Gulf Coast", lat: 28.0, lng: -92.0 },
-  { region: "Singapore / Malacca", lat: 2.0, lng: 102.0 },
-  { region: "South China Sea", lat: 14.0, lng: 113.0 },
 ];
 
 function computePriceTrend(commodities: any[]) {
@@ -126,7 +120,7 @@ function buildCategoryComparison(commodities: any[]) {
 
 function mapLiveGridStress(liveGridStress: any[] | undefined): GridStressNode[] {
   if (!liveGridStress || liveGridStress.length === 0) {
-    return DEFAULT_GRID_STRESS;
+    return []; // Missing demand observations must not become reference stress alerts.
   }
 
   return liveGridStress.map((node: any) => ({
@@ -134,8 +128,7 @@ function mapLiveGridStress(liveGridStress: any[] | undefined): GridStressNode[] 
     name: node.name,
     lat: node.lat,
     lng: node.lng,
-    loadPercent:
-      typeof node.loadPercent === "number" ? node.loadPercent : (node.loadGW ?? null),
+    loadPercent: typeof node.loadPercent === "number" ? node.loadPercent : null,
     capacityGW: typeof node.capacityGW === "number" ? node.capacityGW : 0,
     alert:
       node.alert === "critical" || node.alert === "elevated" || node.alert === "normal"
@@ -145,7 +138,7 @@ function mapLiveGridStress(liveGridStress: any[] | undefined): GridStressNode[] 
 }
 
 function mapEvents(events: any[] | undefined, fallbackType: string): MapEvent[] {
-  return (events || []).map((event, index) => ({
+  return (events || []).filter((event) => Number.isFinite(event.lat ?? event.latitude) && Number.isFinite(event.lng ?? event.longitude)).map((event, index) => ({
     id: event.id ?? `${fallbackType}-${index}`,
     title: event.title ?? event.name ?? fallbackType,
     type: event.type ?? fallbackType,
@@ -155,38 +148,11 @@ function mapEvents(events: any[] | undefined, fallbackType: string): MapEvent[] 
         : typeof event.threatScore === "number"
           ? event.threatScore
           : 50,
-    lat: Number(event.lat ?? event.latitude ?? 0),
-    lng: Number(event.lng ?? event.longitude ?? 0),
+    lat: Number(event.lat ?? event.latitude ?? NaN),
+    lng: Number(event.lng ?? event.longitude ?? NaN),
     region: event.region ?? "Global",
     timestamp: event.timestamp,
   }));
-}
-
-function mapShips(shipCounts: any[] | undefined): MapShip[] {
-  return (shipCounts || []).flatMap((entry, index) => {
-    const coord = CORRIDOR_COORDINATES.find((item) => item.region === entry.region);
-    if (!coord) return [];
-    return [
-      {
-        mmsi: `tank-${index}`,
-        name: `${entry.region} Tankers`,
-        type: "tanker",
-        latitude: coord.lat + 0.35,
-        longitude: coord.lng + 0.35,
-        speed: 12,
-        destination: "Transit",
-      },
-      {
-        mmsi: `lng-${index}`,
-        name: `${entry.region} LNG`,
-        type: "lng",
-        latitude: coord.lat - 0.3,
-        longitude: coord.lng - 0.3,
-        speed: 10,
-        destination: "Hub",
-      },
-    ];
-  });
 }
 
 function buildRefineryRows(assets: MapAsset[]) {
@@ -223,10 +189,10 @@ export default function EnergyInfrastructurePage() {
 
   const [rawDataOpen, setRawDataOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchLive = async () => {
+  const fetchLive = useCallback(async (refresh = false) => {
+      setLoading(true);
       try {
-        const response = await fetch("/api/energy/infrastructure", {
+        const response = await fetch(`/api/energy/infrastructure${refresh ? "?refresh=1" : ""}`, {
           cache: "no-store",
         });
         if (!response.ok) throw new Error("Failed to load data");
@@ -234,16 +200,16 @@ export default function EnergyInfrastructurePage() {
         setLive(payload);
         setError(null);
       } catch {
-        setError("Live data unavailable. Using static reference layers.");
+        setError("Refresh failed. Previous observations may be stale; reference layers remain available.");
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchLive();
-    const refreshId = setInterval(fetchLive, 60_000);
-    return () => clearInterval(refreshId);
   }, []);
+  useEffect(() => {
+    fetchLive();
+    const refreshId = setInterval(() => fetchLive(), 60_000);
+    return () => clearInterval(refreshId);
+  }, [fetchLive]);
 
   const enrichedAssets = useMemo(() => getEnrichedAssets(), []);
   const [selectedAsset, setSelectedAsset] = useState<MapAsset>(() => enrichedAssets[0]);
@@ -252,6 +218,13 @@ export default function EnergyInfrastructurePage() {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<
     "inspector" | "supply-demand" | "threat-radar" | "fleet-matrix"
   >("inspector");
+
+  const navigateWorkspace = (id: string) => {
+    const isTab = ["inspector", "supply-demand", "threat-radar", "fleet-matrix"].includes(id);
+    if (isTab) setActiveWorkspaceTab(id as typeof activeWorkspaceTab);
+    document.getElementById(isTab ? "workspace-console" : id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", `#${id}`);
+  };
 
   // LocalStorage persistence for user's watched assets and notes
   useEffect(() => {
@@ -296,7 +269,7 @@ export default function EnergyInfrastructurePage() {
   const flows: FlowRoute[] = DEFAULT_FLOWS;
   const climateEvents = mapEvents(live?.climate, "climate");
   const osintEvents = mapEvents(live?.osint, "osint");
-  const ships = mapShips(live?.shipCounts);
+  const ships: MapShip[] = []; // No position feed connected; never synthesize AIS markers.
   const gridStress = mapLiveGridStress(live?.gridStress);
 
   const priceTrend = computePriceTrend(live?.commodities || []);
@@ -325,8 +298,8 @@ export default function EnergyInfrastructurePage() {
         accent: "text-cyan-300",
       },
       {
-        label: "Live Commodity Feeds",
-        value: live?.commodities?.length || 9,
+        label: "Observed Quote Feeds",
+        value: live?.commodities?.length ?? 0,
         accent: "text-amber-300",
       },
       {
@@ -343,16 +316,7 @@ export default function EnergyInfrastructurePage() {
     [assets.length, gridStress.length, live?.commodities?.length, monitoredAssetIds.length],
   );
 
-  const liveCommoditiesList = live?.commodities && live.commodities.length > 0 ? live.commodities : [
-    { symbol: "CRUDE", label: "WTI Crude", price: 78.42, changePercent: 1.10, marketStatus: "OPEN" },
-    { symbol: "BRENT", label: "Brent Crude", price: 82.15, changePercent: 1.13, marketStatus: "OPEN" },
-    { symbol: "NATGAS", label: "Henry Hub", price: 2.48, changePercent: -1.59, marketStatus: "OPEN" },
-    { symbol: "TTF", label: "Dutch TTF", price: 34.80, changePercent: 3.57, marketStatus: "OPEN" },
-    { symbol: "COAL", label: "Newcastle Coal", price: 132.50, changePercent: -0.93, marketStatus: "OPEN" },
-    { symbol: "URANIUM", label: "Uranium U3O8", price: 85.50, changePercent: 0.59, marketStatus: "OPEN" },
-    { symbol: "COPPER", label: "Copper", price: 4.18, changePercent: 0.72, marketStatus: "OPEN" },
-    { symbol: "CARBON", label: "EU Carbon", price: 68.40, changePercent: -0.94, marketStatus: "OPEN" },
-  ];
+  const liveCommoditiesList = live?.commodities ?? [];
 
   return (
     <main className="min-h-screen bg-gray-950 text-gray-100 pt-28 pb-12">
@@ -374,14 +338,15 @@ export default function EnergyInfrastructurePage() {
               </h1>
             </div>
             <p className="mt-0.5 text-xs text-gray-400">
-              Operational situational monitoring, asset-level outage simulation, live calamity radar, and macroeconomic equilibrium.
+              Reference infrastructure, provider observations and clearly labelled planning simulations.
             </p>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => fetchLive(true)}
+              disabled={loading}
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-gray-300 transition hover:text-white"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -390,18 +355,24 @@ export default function EnergyInfrastructurePage() {
           </div>
         </div>
 
+        <div role="status" className="mb-4 rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-sm text-gray-300">
+          {live?.notice || "Reference assets and illustrative scenario assumptions. Awaiting provider observations; no live vessel positions are connected."}
+          {error && <p className="mt-2 text-rose-300">{error}</p>}
+        </div>
+
         {/* Live Commodity Ticker Strip */}
         <div className="mb-4 overflow-x-auto rounded-xl border border-white/10 bg-black/60 p-2 backdrop-blur-md" style={{ scrollbarWidth: "none" }}>
           <div className="flex items-center gap-4 min-w-max">
             <div className="flex items-center gap-1.5 border-r border-white/15 pr-3 text-[11px] font-semibold uppercase tracking-wider text-cyan-300">
               <Activity className="h-3.5 w-3.5 text-cyan-400 animate-pulse" />
-              Live Telemetry
+              Provider quotes
             </div>
             {liveCommoditiesList.map((c: any) => {
               const isUp = Number(c.changePercent || 0) >= 0;
               return (
                 <div key={c.symbol} className="flex items-center gap-1.5 text-xs font-mono">
                   <span className="font-semibold text-gray-300">{c.label || c.symbol}:</span>
+                  <EnergyDataNotice status={c.dataStatus || "unavailable"} source={c.source || "Stored quote"} observedAt={c.lastTradingTimestamp} />
                   <span className="font-bold text-white">${Number(c.price || 0).toFixed(2)}</span>
                   <span
                     className={`rounded px-1 py-0.2 text-[10px] font-bold ${
@@ -431,6 +402,7 @@ export default function EnergyInfrastructurePage() {
             items={DASHBOARD_NAV}
             lastUpdated={live?.timestamp ?? null}
             error={error}
+            onNavigate={navigateWorkspace}
           />
 
           <div className="h-full space-y-4 overflow-y-auto pr-1">
@@ -444,9 +416,7 @@ export default function EnergyInfrastructurePage() {
                       href={`#${item.id}`}
                       onClick={(event) => {
                         event.preventDefault();
-                        document
-                          .getElementById(item.id)
-                          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        navigateWorkspace(item.id);
                       }}
                       className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] whitespace-nowrap text-gray-300"
                     >
@@ -510,7 +480,8 @@ export default function EnergyInfrastructurePage() {
                 <div className="flex flex-wrap gap-1.5 self-start sm:self-auto">
                   <button
                     type="button"
-                    onClick={() => setActiveWorkspaceTab("inspector")}
+                    aria-pressed={activeWorkspaceTab === "inspector"}
+                  onClick={() => setActiveWorkspaceTab("inspector")}
                     className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
                       activeWorkspaceTab === "inspector"
                         ? "border-cyan-400/60 bg-cyan-400/20 text-cyan-300"
@@ -522,7 +493,8 @@ export default function EnergyInfrastructurePage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveWorkspaceTab("supply-demand")}
+                    aria-pressed={activeWorkspaceTab === "supply-demand"}
+                  onClick={() => setActiveWorkspaceTab("supply-demand")}
                     className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
                       activeWorkspaceTab === "supply-demand"
                         ? "border-amber-400/60 bg-amber-400/20 text-amber-300"
@@ -534,7 +506,8 @@ export default function EnergyInfrastructurePage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveWorkspaceTab("threat-radar")}
+                    aria-pressed={activeWorkspaceTab === "threat-radar"}
+                  onClick={() => setActiveWorkspaceTab("threat-radar")}
                     className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
                       activeWorkspaceTab === "threat-radar"
                         ? "border-rose-400/60 bg-rose-400/20 text-rose-300"
@@ -546,7 +519,8 @@ export default function EnergyInfrastructurePage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveWorkspaceTab("fleet-matrix")}
+                    aria-pressed={activeWorkspaceTab === "fleet-matrix"}
+                  onClick={() => setActiveWorkspaceTab("fleet-matrix")}
                     className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
                       activeWorkspaceTab === "fleet-matrix"
                         ? "border-purple-400/60 bg-purple-400/20 text-purple-300"
@@ -563,6 +537,7 @@ export default function EnergyInfrastructurePage() {
               <div className="mt-4">
                 {activeWorkspaceTab === "inspector" && (
                   <AssetInspectorTweaker
+                    key={selectedAsset.id}
                     asset={selectedAsset}
                     climateEvents={live?.climate || []}
                     osintEvents={live?.osint || []}
@@ -582,14 +557,7 @@ export default function EnergyInfrastructurePage() {
                 )}
 
                 {activeWorkspaceTab === "threat-radar" && (
-                  <ThreatCalamityRadar
-                    climateEvents={live?.climate || []}
-                    osintEvents={live?.osint || []}
-                    onFocusCoordinates={(lat, lng) => {
-                      const el = document.getElementById("global-map");
-                      el?.scrollIntoView({ behavior: "smooth" });
-                    }}
-                  />
+                  <ThreatCalamityRadar climateEvents={live?.climate || []} osintEvents={live?.osint || []} />
                 )}
 
                 {activeWorkspaceTab === "fleet-matrix" && (
@@ -624,8 +592,8 @@ export default function EnergyInfrastructurePage() {
 
               <div className="grid gap-3 lg:grid-cols-3">
                 <TrendChart
-                  title="Energy Output Trend"
-                  subtitle="Synthetic weekly trend from live grid aggregates"
+                  title="Illustrative Output Profile"
+                  subtitle="Fixed example daily profile — not observed output"
                   labels={outputTrend.labels}
                   values={outputTrend.values}
                   variant="line"
@@ -633,8 +601,8 @@ export default function EnergyInfrastructurePage() {
                   valueSuffix=" GW"
                 />
                 <TrendChart
-                  title="Pricing Trend"
-                  subtitle="Rolling trend from current commodity basket"
+                  title="Illustrative Pricing Profile"
+                  subtitle="Modelled profile — not historical market prices"
                   labels={priceTrend.labels}
                   values={priceTrend.values}
                   variant="line"
@@ -709,10 +677,10 @@ export default function EnergyInfrastructurePage() {
               <header className="mb-3 flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-100">
-                    Trader Interdependency Tools
+                    Illustrative Interdependency Models
                   </h2>
                   <p className="text-xs text-gray-400">
-                    Cross-market supply-chain signals linking infrastructure, oil, gas and coal flows.
+                    Heuristic planning indices, not validated trading signals. Missing feeds do not establish a balanced market or low risk.
                   </p>
                 </div>
                 <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] uppercase tracking-wider text-cyan-200">

@@ -96,7 +96,7 @@ export default function EnergySection() {
             </h2>
             <p className="mt-2 text-gray-500 text-sm">
               Track renewable systems, fossil corridors, and the global energy
-              transition in one desk
+              transition in one desk. Capacity highlights are static reference figures, not a live feed.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

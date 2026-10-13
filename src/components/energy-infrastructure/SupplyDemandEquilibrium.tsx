@@ -49,6 +49,9 @@ export default function SupplyDemandEquilibrium({
 
   return (
     <div className="space-y-4 text-gray-100">
+      <p role="note" className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">
+        Illustrative planning assumptions — not current global supply, demand, inventories, freight rates or measured market premiums. Do not use these values as trading signals.
+      </p>
       {/* Top Supply-Demand Summary Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3">
@@ -111,7 +114,7 @@ export default function SupplyDemandEquilibrium({
           Global Oil & Methane Supply / Demand Balance Sheet
         </h3>
         <p className="mt-0.5 text-[11px] text-gray-400">
-          Estimates combining live EIA inventory withdrawals, OPEC+ output, and seasonal consumption models.
+          Fixed example assumptions for scenario exploration. No live balance-sheet provider is connected.
         </p>
 
         <div className="mt-3 overflow-x-auto">

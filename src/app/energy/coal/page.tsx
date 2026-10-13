@@ -62,7 +62,7 @@ interface CoalMarketData {
     exposure: string;
     watch: string;
     vesselCount: number;
-    congestion: "low" | "moderate" | "high";
+    congestion: "low" | "moderate" | "high" | "unavailable";
   }[];
   osint: any[];
   climate: any[];
@@ -122,7 +122,7 @@ export default function CoalPage() {
     from: r.origin,
     to: r.destination,
     color:
-      r.congestion === "high"
+      r.congestion === "unavailable" ? "#94a3b8" : r.congestion === "high"
         ? "#ef4444"
         : r.congestion === "moderate"
           ? "#f59e0b"
@@ -182,8 +182,8 @@ export default function CoalPage() {
               </span>
             </h1>
             <p className="text-gray-400 mt-4 max-w-3xl text-sm leading-relaxed">
-              A live coal desk for benchmark pricing, EIA coal data, route monitoring, vessel tracking,
-              AI market briefings, and plant calculators. Every feed updates automatically.
+              Provider benchmarks, monthly EIA fundamentals, sampled AIS routes,
+              AI briefings and planning calculators. Availability and observation times vary by source.
             </p>
           </motion.div>
         </div>
@@ -231,7 +231,7 @@ export default function CoalPage() {
         <section id="benchmarks" className="mb-16">
           <div className="flex items-center justify-between gap-4 mb-6">
             <h2 className="text-2xl font-bold flex items-center gap-3">
-              <TrendingUp className="w-6 h-6 text-amber-300" /> Live Coal Benchmarks
+              <TrendingUp className="w-6 h-6 text-amber-300" /> Coal Benchmarks
             </h2>
             {data?.timestamp && (
               <span className="text-[10px] text-gray-500 uppercase tracking-widest">
@@ -246,7 +246,7 @@ export default function CoalPage() {
             </div>
           )}
 
-          {error && !data && (
+          {error && (
             <div className="p-4 bg-red-500/10 border-l-2 border-red-500 text-red-200 text-sm rounded-xl mb-6">
               {error}
               <button onClick={fetchData} className="ml-3 text-amber-400 hover:underline text-xs">Retry</button>
@@ -262,7 +262,7 @@ export default function CoalPage() {
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">
-                      {benchmark.live ? "Live Benchmark" : "Benchmark"}
+                      {benchmark.price === null ? "Unavailable" : "Provider quote (may be delayed)"}
                     </p>
                     <h2 className="text-lg font-bold text-white">{benchmark.label}</h2>
                   </div>
@@ -314,7 +314,7 @@ export default function CoalPage() {
               {[
                 { label: "Coal Generation", value: data.eia.coalGeneration, unit: "GWh" },
                 { label: "Coal Stocks", value: data.eia.coalStocks, unit: "ktons" },
-                { label: "Coal Production", value: data.eia.coalProduction, unit: "ktons" },
+                { label: "Coal Receipts (not production)", value: data.eia.coalProduction, unit: "ktons" },
                 { label: "Coal Exports", value: data.eia.coalExports, unit: "ktons" },
               ].map((item) => (
                 <div
@@ -323,7 +323,7 @@ export default function CoalPage() {
                 >
                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">{item.label}</p>
                   <div className="text-2xl font-bold text-white">
-                    {item.value !== null ? item.value.toLocaleString(undefined, { maximumFractionDigits: 1 }) : "—"}
+                    {typeof item.value === "number" && Number.isFinite(item.value) ? item.value.toLocaleString() : "Unavailable"}
                     <span className="text-sm text-gray-500 ml-1">{item.unit}</span>
                   </div>
                 </div>
@@ -343,7 +343,7 @@ export default function CoalPage() {
             <h2 className="text-2xl font-bold flex items-center gap-3">
               <Ship className="w-6 h-6 text-amber-300" /> Coal Route Monitor
             </h2>
-            <span className="text-xs uppercase tracking-widest text-gray-500">Live vessel positions</span>
+            <span className="text-xs text-gray-300">Sampled AIS coverage; missing feed is not zero traffic</span>
           </div>
 
           {/* Layer toggles */}
@@ -361,6 +361,7 @@ export default function CoalPage() {
                 <button
                   key={id}
                   onClick={() => toggleLayer(id)}
+                  aria-pressed={active}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
                     active
                       ? "border-amber-400/40 bg-amber-400/15 text-amber-200"
@@ -387,7 +388,7 @@ export default function CoalPage() {
               sizeScale={0.8}
               plantOpacity={0.55}
               plantColorByCapacity
-              live={!!data}
+              live={false}
               updatedAt={data?.timestamp ?? null}
               onArcClick={(a) =>
                 setSelectedRoute(selectedRoute === a.id ? null : a.id)
@@ -415,7 +416,7 @@ export default function CoalPage() {
                             : "bg-emerald-500/20 text-emerald-400"
                       }`}
                     >
-                      {route.vesselCount} vessels
+                      {route.congestion === "unavailable" ? "Coverage unavailable" : `${route.vesselCount} sampled vessels`}
                     </span>
                   </div>
                   <div className="text-[10px] text-gray-500 mb-2">{route.mode}</div>
@@ -444,14 +445,14 @@ export default function CoalPage() {
           <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr] lg:items-center">
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-amber-200/80 mb-2">
-                Separate coal desk restored
+                Coal intelligence tools
               </p>
               <h2 className="text-2xl font-bold text-white mb-3">
-                Coal now has its own live desk again.
+                Explore coal benchmarks and planning tools.
               </h2>
               <p className="text-sm text-gray-300 leading-relaxed">
-                Use the broader fossil desk for cross-fuel corridor context, but coal once again has
-                dedicated live benchmarks, route monitoring, AI briefings, and plant calculators.
+                Use the broader fossil desk for cross-fuel context, or stay here for
+                provider benchmarks, sampled route monitoring, AI briefings and plant calculators.
               </p>
             </div>
             <div className="flex flex-wrap gap-3 lg:justify-end">

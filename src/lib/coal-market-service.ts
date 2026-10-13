@@ -1,6 +1,7 @@
 import { callOpenRouterJson } from "@/lib/openrouter";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
+import { energyApiUrl } from "@/lib/energy-data";
 
 // ─── TYPES ──────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ export interface CoalRouteStatus {
   exposure: string;
   watch: string;
   vesselCount: number;
-  congestion: "low" | "moderate" | "high";
+  congestion: "low" | "moderate" | "high" | "unavailable";
 }
 
 export interface CoalMarketPayload {
@@ -294,11 +295,11 @@ async function fetchEiaCoalData() {
 
 // ─── TICKER BENCHMARKS ──────────────────────────────────────
 
-async function fetchCoalBenchmarks(): Promise<CoalBenchmark[]> {
+async function fetchCoalBenchmarks(origin?: string): Promise<CoalBenchmark[]> {
   let benchmarks: CoalBenchmark[];
 
   try {
-    const res = await fetch("http://localhost:3000/api/ticker", { cache: "no-store" });
+    const res = await fetch(energyApiUrl("/api/ticker", origin), { cache: "no-store", signal: AbortSignal.timeout(12000) });
     if (!res.ok) throw new Error("Ticker API failed");
     const data = (await res.json()) as any[];
 
@@ -308,13 +309,14 @@ async function fetchCoalBenchmarks(): Promise<CoalBenchmark[]> {
           item.symbol?.toUpperCase() === base.symbol.toUpperCase() ||
           item.label?.toUpperCase().includes(base.symbol.toUpperCase()),
       );
-      if (live && typeof live.price === "number") {
+      if (live && typeof live.price === "number" && Number.isFinite(live.price) && live.lastTradingTimestamp) {
         return {
           ...base,
           price: live.price,
           change: live.change ?? 0,
           changePercent: live.changePercent ?? 0,
           live: true,
+          asOf: live.lastTradingTimestamp,
         };
       }
       return base;
@@ -348,7 +350,8 @@ async function fetchCoalBenchmarks(): Promise<CoalBenchmark[]> {
             const previousClose = Number(quote.regularMarketPreviousClose) || price || 0;
             const changePercent = previousClose && price ? ((price - previousClose) / previousClose) * 100 : 0;
             if (price && Number.isFinite(price)) {
-              return { ...base, price, change, changePercent, live: true };
+              const asOf = quote.regularMarketTime instanceof Date ? quote.regularMarketTime.toISOString() : undefined;
+              return { ...base, price, change, changePercent, live: true, asOf };
             }
           } catch (e) {
             console.warn(`[CoalMarket] Direct quote failed for ${base.symbol}:`, e);
@@ -449,17 +452,19 @@ function pointToSegmentDistance(
   return haversineKm(lat, lng, xx, yy);
 }
 
-async function fetchVesselsAndComputeRoutes(): Promise<{
+async function fetchVesselsAndComputeRoutes(origin?: string): Promise<{
   routes: CoalRouteStatus[];
   vessels: any[];
 }> {
   try {
-    const res = await fetch("http://localhost:3000/api/world-monitor/ships", {
+    const res = await fetch(energyApiUrl("/api/world-monitor/ships", origin), {
       cache: "no-store",
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) throw new Error("Ships API failed");
     const data = await res.json();
-    const vessels = (data.ships || []) as any[];
+    if (data.live !== true || !data.timestamp || Date.now() - new Date(data.timestamp).getTime() > 15 * 60_000) throw new Error("Current vessel coverage unavailable");
+    const vessels = ((data.ships || []) as any[]).filter((v) => v.live === true && Number.isFinite(v.latitude) && Number.isFinite(v.longitude));
 
     const bulkVessels = vessels.filter(
       (v) =>
@@ -482,7 +487,7 @@ async function fetchVesselsAndComputeRoutes(): Promise<{
     return { routes, vessels: bulkVessels.slice(0, 100) };
   } catch (error) {
     console.warn("[CoalMarket] Vessel fetch failed:", error);
-    return { routes: COAL_ROUTES, vessels: [] };
+    return { routes: COAL_ROUTES.map((route) => ({ ...route, congestion: "unavailable" as const })), vessels: [] };
   }
 }
 
@@ -530,10 +535,11 @@ function isCoalRegionClimate(event: any): boolean {
   );
 }
 
-async function fetchCoalOsint(): Promise<any[]> {
+async function fetchCoalOsint(origin?: string): Promise<any[]> {
   try {
-    const res = await fetch("http://localhost:3000/api/world-monitor/osint", {
+    const res = await fetch(energyApiUrl("/api/world-monitor/osint", origin), {
       cache: "no-store",
+      signal: AbortSignal.timeout(12000),
     });
     if (!res.ok) throw new Error("OSINT API failed");
     const data = await res.json();
@@ -544,10 +550,11 @@ async function fetchCoalOsint(): Promise<any[]> {
   }
 }
 
-async function fetchCoalClimate(): Promise<any[]> {
+async function fetchCoalClimate(origin?: string): Promise<any[]> {
   try {
-    const res = await fetch("http://localhost:3000/api/world-monitor/climate", {
+    const res = await fetch(energyApiUrl("/api/world-monitor/climate", origin), {
       cache: "no-store",
+      signal: AbortSignal.timeout(12000),
     });
     if (!res.ok) throw new Error("Climate API failed");
     const data = await res.json();
@@ -565,17 +572,17 @@ const CACHE_TTL = 120_000; // 2 minutes
 
 // ─── AGGREGATOR ─────────────────────────────────────────────
 
-export async function getCoalMarketData(): Promise<CoalMarketPayload> {
+export async function getCoalMarketData(origin?: string): Promise<CoalMarketPayload> {
   if (cache && Date.now() - cache.ts < CACHE_TTL) {
     return cache.data;
   }
 
   const [benchmarks, eia, { routes, vessels }, osint, climate] = await Promise.all([
-    fetchCoalBenchmarks(),
+    fetchCoalBenchmarks(origin),
     fetchEiaCoalData(),
-    fetchVesselsAndComputeRoutes(),
-    fetchCoalOsint(),
-    fetchCoalClimate(),
+    fetchVesselsAndComputeRoutes(origin),
+    fetchCoalOsint(origin),
+    fetchCoalClimate(origin),
   ]);
 
   const data: CoalMarketPayload = {
@@ -727,12 +734,12 @@ Respond with ONLY a JSON object in this exact shape:
       return { ...stale };
     }
     return {
-      summary: "AI commentary is temporarily unavailable. Live data above remains current.",
-      priceOutlook: "Please check live benchmarks and route status for the latest signals.",
-      routeRisks: payload.routes.map((r) => ({
+      summary: "AI commentary is temporarily unavailable. Check each provider's observation time and coverage before using market data.",
+      priceOutlook: "No AI outlook available. Missing route coverage does not establish low congestion.",
+      routeRisks: payload.routes.filter((r) => r.congestion !== "unavailable").map((r) => ({
         route: r.name,
         risk: r.exposure,
-        severity: r.congestion,
+        severity: r.congestion as "low" | "moderate" | "high",
       })),
       watchpoints: ["Monitor benchmark price action", "Watch coal corridor vessel counts", "Track EIA coal stocks and generation"],
       confidence: "Low",

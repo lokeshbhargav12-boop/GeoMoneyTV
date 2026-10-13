@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { energyNumber } from "@/lib/energy-calculations";
 import {
   Calculator,
   Factory,
@@ -31,6 +32,13 @@ function fmtNumber(value: number, digits = 0) {
   return value.toLocaleString("en-IN", { maximumFractionDigits: digits });
 }
 
+function validationError(fields: Array<[string, string, number?, number?]>) {
+  try {
+    fields.forEach(([value, label, min, max]) => energyNumber(value, label, min, max));
+    return "";
+  } catch (error) { return (error as Error).message; }
+}
+
 export default function CoalCalculators() {
   const [plantCapacity, setPlantCapacity] = useState("850");
   const [plantLoad, setPlantLoad] = useState("72");
@@ -48,6 +56,9 @@ export default function CoalCalculators() {
     String(US_COAL_EMISSION_FACTOR_AVG),
   );
   const [emissionsSubregion, setEmissionsSubregion] = useState("US");
+  const burnError = validationError([[plantCapacity, "Capacity", 0, 1_000_000], [plantLoad, "Capacity factor", 0, 100], [heatRate, "Heat rate", 1, 100_000], [coalEnergy, "Heat content", 0.01, 100], [coalPrice, "Coal price", 0, 100_000]]);
+  const stockError = validationError([[stockpileTons, "Stockpile", 0, 1e12], [dailyBurn, "Daily burn", 0, 1e9], [dailyInbound, "Inbound deliveries", 0, 1e9]]);
+  const emissionsError = validationError([[emissionsCapacity, "Capacity", 0, 1_000_000], [emissionsLoad, "Capacity factor", 0, 100], [emissionsFactor, "Emission factor", 0, 10]]);
 
   const applyPreset = (preset: typeof PRESETS[0]) => {
     setPlantCapacity(preset.capacity);
@@ -136,8 +147,10 @@ export default function CoalCalculators() {
               { label: "Coal Price ($/ton)", value: coalPrice, setter: setCoalPrice },
             ].map((field) => (
               <div key={field.label}>
-                <label className="text-sm text-gray-400 block mb-1.5">{field.label}</label>
+                <label htmlFor={`burn-${field.label}`} className="text-sm text-gray-400 block mb-1.5">{field.label}</label>
                 <input
+                  id={`burn-${field.label}`}
+                  type="number" min="0" step="any"
                   value={field.value}
                   onChange={(e) => field.setter(e.target.value)}
                   className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-300"
@@ -145,7 +158,8 @@ export default function CoalCalculators() {
               </div>
             ))}
           </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {burnError && <p role="alert" className="mt-3 text-sm text-rose-300">{burnError}</p>}
+          {!burnError && <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
               <div className="text-xs text-gray-500 mb-1">Annual output</div>
               <div className="text-xl font-bold text-white">{fmtNumber(burnModel.annualMWh)} MWh</div>
@@ -166,7 +180,7 @@ export default function CoalCalculators() {
               <div className="text-xs text-gray-500 mb-1">Cost of fuel / MWh</div>
               <div className="text-xl font-bold text-white">${burnModel.costPerMWh.toFixed(2)} / MWh</div>
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* Stockpile Runway */}
@@ -182,8 +196,10 @@ export default function CoalCalculators() {
               { label: "Inbound Deliveries (tons/day)", value: dailyInbound, setter: setDailyInbound },
             ].map((field) => (
               <div key={field.label}>
-                <label className="text-sm text-gray-400 block mb-1.5">{field.label}</label>
+                <label htmlFor={`stock-${field.label}`} className="text-sm text-gray-400 block mb-1.5">{field.label}</label>
                 <input
+                  id={`stock-${field.label}`}
+                  type="number" min="0" step="any"
                   value={field.value}
                   onChange={(e) => field.setter(e.target.value)}
                   className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-300"
@@ -191,7 +207,8 @@ export default function CoalCalculators() {
               </div>
             ))}
           </div>
-          <div className="mt-5 grid gap-3">
+          {stockError && <p role="alert" className="mt-3 text-sm text-rose-300">{stockError}</p>}
+          {!stockError && <div className="mt-5 grid gap-3">
             <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-4">
               <div className="text-xs text-gray-500 mb-1">Net stockpile draw</div>
               <div className="text-xl font-bold text-white">{fmtNumber(stockpileModel.netDraw)} t/day</div>
@@ -206,9 +223,9 @@ export default function CoalCalculators() {
             </div>
             {stockpileModel.depletion.length > 0 && (
               <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="text-xs text-gray-500 mb-2">90-day depletion curve</div>
+                <div className="text-xs text-gray-400 mb-2">Daily depletion curve (up to 90 days)</div>
                 <div className="flex items-end gap-0.5 h-20">
-                  {stockpileModel.depletion.slice(0, 30).map((point, idx) => {
+                  {stockpileModel.depletion.map((point, idx) => {
                     const max = Number(stockpileTons) || 1;
                     const h = max > 0 ? (point.stock / max) * 100 : 0;
                     return (
@@ -223,7 +240,7 @@ export default function CoalCalculators() {
                 </div>
               </div>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* Emissions View */}
@@ -238,8 +255,10 @@ export default function CoalCalculators() {
               { label: "Capacity Factor (%)", value: emissionsLoad, setter: setEmissionsLoad },
             ].map((field) => (
               <div key={field.label}>
-                <label className="text-sm text-gray-400 block mb-1.5">{field.label}</label>
+                <label htmlFor={`emissions-${field.label}`} className="text-sm text-gray-400 block mb-1.5">{field.label}</label>
                 <input
+                  id={`emissions-${field.label}`}
+                  type="number" min="0" step="any"
                   value={field.value}
                   onChange={(e) => field.setter(e.target.value)}
                   className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-300"
@@ -249,6 +268,7 @@ export default function CoalCalculators() {
             <div>
               <label className="text-sm text-gray-400 block mb-1.5">eGRID Subregion (Emission Factor)</label>
               <select
+                aria-label="eGRID subregion"
                 value={emissionsSubregion}
                 onChange={(e) => {
                   setEmissionsSubregion(e.target.value);
@@ -269,13 +289,16 @@ export default function CoalCalculators() {
             <div>
               <label className="text-sm text-gray-400 block mb-1.5">Emission Factor override (tCO₂/MWh)</label>
               <input
+                aria-label="Emission factor override (tCO₂/MWh)"
+                type="number" min="0" max="10" step="any"
                 value={emissionsFactor}
                 onChange={(e) => setEmissionsFactor(e.target.value)}
                 className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-300"
               />
             </div>
           </div>
-          <div className="mt-5 grid gap-3">
+          {emissionsError && <p role="alert" className="mt-3 text-sm text-rose-300">{emissionsError}</p>}
+          {!emissionsError && <div className="mt-5 grid gap-3">
             <div className="rounded-xl border border-red-400/20 bg-red-400/10 p-4">
               <div className="text-xs text-gray-500 mb-1">Annual generation</div>
               <div className="text-xl font-bold text-white">{fmtNumber(emissionsModel.annualMWh)} MWh</div>
@@ -304,7 +327,7 @@ export default function CoalCalculators() {
                 <span>CO₂</span>
               </div>
             </div>
-          </div>
+          </div>}
         </div>
       </div>
 
@@ -312,7 +335,7 @@ export default function CoalCalculators() {
       <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
         <div className="flex items-center gap-2 mb-4">
           <Scale className="w-5 h-5 text-amber-300" />
-          <h3 className="text-lg font-bold">Grade Comparator ($/MMBtu)</h3>
+            <h3 className="text-lg font-bold">Illustrative Grade Comparator ($/MMBtu)</h3>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {COAL_GRADES.map((grade) => {

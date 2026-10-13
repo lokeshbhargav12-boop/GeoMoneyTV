@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { callOpenRouterJson } from '@/lib/openrouter';
+import { callOpenRouterJson, getAiFailure } from '@/lib/openrouter';
 
 export async function POST(req: Request) {
     try {
         const { query } = await req.json();
 
-        if (!query) {
-            return NextResponse.json({ error: 'query is required' }, { status: 400 });
+        if (typeof query !== 'string' || !query.trim() || query.length > 2000) {
+            return NextResponse.json({ error: 'Enter an energy question of 1–2000 characters.' }, { status: 400 });
         }
 
         const prompt = `
@@ -44,22 +44,26 @@ INSTRUCTIONS:
 - Mention key countries (US, China, EU, India, Russia, Saudi Arabia, Australia, etc.)
 - Be analytical, factual, and avoid speculation
 - Cover both renewable and traditional energy where relevant
+- No live observations or external sources were supplied. State that this is general analysis, not current market intelligence. Never invent current prices, events or citations.
 `;
 
         const { data: analysisJson } = await callOpenRouterJson(prompt, {
             temperature: 0.3,
             maxTokens: 800,
             caller: 'energy',
+            signal: req.signal,
+            validate: (data: any) => {
+                if (typeof data?.summary !== 'string' || !Array.isArray(data.strategic_implications) || !data.strategic_implications.every((v: unknown) => typeof v === 'string') || !Array.isArray(data.affected_markets) || !data.affected_markets.every((v: any) => typeof v?.market === 'string' && typeof v?.impact === 'string' && typeof v?.direction === 'string') || !Array.isArray(data.key_players) || !data.key_players.every((v: any) => typeof v?.name === 'string' && typeof v?.role === 'string') || typeof data.outlook?.short_term !== 'string' || typeof data.outlook?.long_term !== 'string' || typeof data.confidence !== 'string') throw new Error('Invalid energy analysis structure');
+                return data;
+            },
         });
 
         return NextResponse.json(analysisJson);
 
     } catch (error) {
         console.error('AI Energy Analysis Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to analyze energy query' },
-            { status: 500 }
-        );
+        const failure = getAiFailure(error);
+        return NextResponse.json(failure, { status: failure.status });
     }
 }
 

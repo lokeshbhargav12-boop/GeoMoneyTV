@@ -81,7 +81,7 @@ export default function ThreatCalamityRadar({
               Natural Calamities & Geopolitical Threat Radar
             </h3>
             <p className="text-xs text-gray-400">
-              Active weather events, storms, heat domes, droughts, and OSINT conflict alerts intersecting energy corridors.
+              NASA natural-event reports and energy news. Scores are illustrative priorities, not verified severity or conflict assessments; corridor intersections are not established.
             </p>
           </div>
         </div>
@@ -91,6 +91,7 @@ export default function ThreatCalamityRadar({
           <button
             type="button"
             onClick={() => setFilterType("all")}
+            aria-pressed={filterType === "all"}
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               filterType === "all"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
@@ -102,6 +103,7 @@ export default function ThreatCalamityRadar({
           <button
             type="button"
             onClick={() => setFilterType("climate")}
+            aria-pressed={filterType === "climate"}
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               filterType === "climate"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
@@ -113,6 +115,7 @@ export default function ThreatCalamityRadar({
           <button
             type="button"
             onClick={() => setFilterType("osint")}
+            aria-pressed={filterType === "osint"}
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               filterType === "osint"
                 ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
@@ -127,8 +130,8 @@ export default function ThreatCalamityRadar({
       {/* Threat List */}
       <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
         {combinedThreats.length === 0 ? (
-          <p className="col-span-2 py-6 text-center text-xs text-gray-500">
-            No active threat anomalies currently flagged.
+          <p className="sm:col-span-2 py-6 text-center text-xs text-gray-400">
+            No reports available in current provider coverage. This does not prove the area is clear.
           </p>
         ) : (
           combinedThreats.map((threat) => {

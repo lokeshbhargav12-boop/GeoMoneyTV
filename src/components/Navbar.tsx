@@ -54,6 +54,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
   const [lang, setLang] = useState("en");
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 
   useEffect(() => {
     // Determine initial language from googtrans cookie
@@ -62,6 +63,10 @@ export default function Navbar({ logoUrl }: NavbarProps) {
       setLang(match[1]);
     }
   }, []);
+
+  useEffect(() => {
+    setLogoLoadFailed(false);
+  }, [logoUrl]);
 
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const code = e.target.value;
@@ -84,11 +89,12 @@ export default function Navbar({ logoUrl }: NavbarProps) {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 shrink-0">
-            {logoUrl ? (
+            {logoUrl && !logoLoadFailed ? (
               <img
                 src={logoUrl}
                 alt="GeoMoney TV"
                 className="h-10 w-10 object-contain rounded-full"
+                onError={() => setLogoLoadFailed(true)}
               />
             ) : (
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-geo-gold to-yellow-600" />

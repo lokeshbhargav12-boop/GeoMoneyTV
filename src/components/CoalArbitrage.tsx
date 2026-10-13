@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { energyNumber } from "@/lib/energy-calculations";
 import { DollarSign, Ship, Anchor, TrendingUp } from "lucide-react";
 
 interface CoalArbitrageProps {
@@ -16,6 +17,9 @@ export default function CoalArbitrage({ benchmarks = [] }: CoalArbitrageProps) {
   const [destinationBenchmark, setDestinationBenchmark] = useState("API2 Rotterdam");
 
   const destinationPrice = benchmarks.find((b) => b.label === destinationBenchmark)?.price ?? null;
+  let inputError = "";
+  try { [originPrice, freight, insurance, loading, loss].forEach((value) => energyNumber(value, "Cost", 0, 100_000)); }
+  catch (error) { inputError = (error as Error).message; }
 
   const deliveredCost = useMemo(() => {
     const origin = Number.parseFloat(originPrice) || 0;
@@ -45,10 +49,12 @@ export default function CoalArbitrage({ benchmarks = [] }: CoalArbitrageProps) {
             { label: "Quality loss / moisture ($/t)", value: loss, setter: setLoss, icon: TrendingUp },
           ].map((field) => (
             <div key={field.label}>
-              <label className="text-sm text-gray-400 block mb-1.5">{field.label}</label>
+              <label htmlFor={`arbitrage-${field.label}`} className="text-sm text-gray-400 block mb-1.5">{field.label}</label>
               <div className="relative">
                 <field.icon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input
+                  id={`arbitrage-${field.label}`}
+                  type="number" min="0" step="any"
                   value={field.value}
                   onChange={(e) => field.setter(e.target.value)}
                   className="w-full bg-black/50 border border-white/20 rounded-lg pl-10 pr-4 py-3 text-white focus:outline-none focus:border-amber-300"
@@ -60,20 +66,21 @@ export default function CoalArbitrage({ benchmarks = [] }: CoalArbitrageProps) {
           <div>
             <label className="text-sm text-gray-400 block mb-1.5">Destination benchmark</label>
             <select
+              aria-label="Destination benchmark"
               value={destinationBenchmark}
               onChange={(e) => setDestinationBenchmark(e.target.value)}
               className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-300"
             >
               {benchmarks.map((b) => (
                 <option key={b.label} value={b.label}>
-                  {b.label} {b.price !== null ? `($${b.price.toFixed(2)})` : "(live)"}
+                  {b.label} {b.price !== null ? `($${b.price.toFixed(2)})` : "(unavailable)"}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-amber-300/20 bg-gradient-to-br from-amber-300/10 to-transparent p-6 flex flex-col justify-center">
+        {inputError ? <p role="alert" className="text-sm text-rose-300">{inputError}</p> : <div className="rounded-2xl border border-amber-300/20 bg-gradient-to-br from-amber-300/10 to-transparent p-6 flex flex-col justify-center">
           <div className="text-sm text-gray-400 mb-1">Delivered cost</div>
           <div className="text-4xl font-bold text-white mb-4">${deliveredCost.toFixed(2)}<span className="text-lg text-gray-500">/t</span></div>
 
@@ -99,7 +106,7 @@ export default function CoalArbitrage({ benchmarks = [] }: CoalArbitrageProps) {
           {destinationPrice === null && (
             <p className="text-sm text-gray-500">Select a live benchmark with available price data.</p>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   );

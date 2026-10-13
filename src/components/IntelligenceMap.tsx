@@ -470,10 +470,10 @@ export default function IntelligenceMap({
           >
             <Popup className="geo-popup" autoPan={false}>
               <div className="bg-purple-900/60 border border-purple-500/30 p-2 rounded-lg text-purple-200 text-xs font-bold tracking-wider">
-                [CLASSIFIED TARGET]
+                AIS HEURISTIC FLAG
                 <br />
                 <span className="text-red-400/80 font-normal">
-                  ANOMALY DETECTED
+                  SPEED / STATUS INCONSISTENCY — UNVERIFIED
                 </span>
                 <br />
                 MMSI: {vessel.mmsi} | SPD: {vessel.speed} kn
@@ -495,6 +495,7 @@ export default function IntelligenceMap({
                 <span className="font-bold border-b border-orange-500/30 pb-1 mb-1 block">
                   {ref.name}
                 </span>
+                <p className="mb-2 text-amber-200">Reference location; illustrative output, not thermal telemetry.</p>
                 <div className="grid grid-cols-2 gap-2 mt-1">
                   <span>Sign:</span>
                   <span

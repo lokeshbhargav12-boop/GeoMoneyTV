@@ -6,13 +6,17 @@ import Link from "next/link";
 import { ArrowLeft, Atom, Star } from "lucide-react";
 
 interface RareEarthMaterial {
-  id: string;
+  id: string | null;
   name: string;
   symbol: string;
   category: string;
   description: string;
-  price?: number;
-  unit?: string;
+  price?: number | null;
+  unit?: string | null;
+  effectivePrice?: number | null;
+  effectiveUnit?: string | null;
+  priceAsOf?: string | null;
+  priceIsLive?: boolean;
 }
 
 export default function MaterialsPage() {
@@ -102,12 +106,13 @@ export default function MaterialsPage() {
             <Atom className="w-8 h-8 text-geo-gold" />
             <div>
               <h1 className="text-4xl font-bold tracking-tight">
-                Critical{" "}
-                <span className="text-geo-gold">Rare Earth Materials</span>
+                Critical Materials{" "}
+                <span className="text-geo-gold">Intelligence</span>
               </h1>
               <p className="mt-2 text-lg text-gray-400">
-                Essential elements powering modern technology and geopolitical
-                dynamics
+                Supply chains, markets and geopolitical risk across the
+                materials underpinning energy, technology, defence and advanced
+                industry
               </p>
             </div>
           </div>
@@ -143,10 +148,19 @@ export default function MaterialsPage() {
           </div>
         ) : materials.length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredMaterials.map((material) => (
+            {filteredMaterials.map((material) => {
+              const displayPrice = material.effectivePrice ?? material.price ?? null;
+              const displayUnit = material.effectiveUnit ?? material.unit ?? null;
+              const priceDate = material.priceAsOf
+                ? new Date(material.priceAsOf).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })
+                : null;
+              return (
               <Link
-                key={material.id}
-                href={`/materials/${material.symbol}`}
+                key={material.id ?? material.symbol}
+                href={`/materials/${encodeURIComponent(material.symbol)}`}
                 className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition-all hover:border-geo-gold/50 hover:bg-white/10 cursor-pointer"
               >
                 <div className="absolute right-4 top-4 text-5xl font-bold text-geo-gold/10 group-hover:text-geo-gold/20 transition-colors">
@@ -159,12 +173,22 @@ export default function MaterialsPage() {
                   <p className="mt-1 text-sm font-medium text-geo-gold">
                     {material.category}
                   </p>
-                  {material.price && (
-                    <p className="mt-2 text-lg font-bold text-white">
-                      ${material.price.toFixed(2)}
-                      {material.unit && (
-                        <span className="text-sm text-gray-400 ml-1">
-                          /{material.unit}
+                  {displayPrice != null && (
+                    <p className="mt-2 text-lg font-bold text-white flex items-center gap-2">
+                      {material.priceIsLive && (
+                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" title="Live price feed" />
+                      )}
+                      <span>
+                        ${displayPrice.toFixed(2)}
+                        {displayUnit && (
+                          <span className="text-sm text-gray-400 ml-1">
+                            /{displayUnit}
+                          </span>
+                        )}
+                      </span>
+                      {priceDate && (
+                        <span className="text-xs text-gray-500 font-normal">
+                          as of {priceDate}
                         </span>
                       )}
                     </p>
@@ -178,9 +202,9 @@ export default function MaterialsPage() {
                     Critical Material
                   </span>
                   <div className="flex items-center gap-2">
-                    {session?.user && (
+                    {session?.user && material.id && (
                       <button
-                        onClick={(e) => toggleTrack(e, material.id)}
+                        onClick={(e) => toggleTrack(e, material.id as string)}
                         disabled={trackingInProgress === material.id}
                         className={`p-1.5 rounded-md transition-all ${
                           trackedIds.has(material.id)
@@ -204,13 +228,14 @@ export default function MaterialsPage() {
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-xl border border-white/10 bg-white/5 p-16 text-center">
             <Atom className="w-16 h-16 mx-auto mb-4 text-gray-600" />
             <p className="text-gray-400 text-lg">
-              No rare earth materials found.
+              No critical materials found.
             </p>
             <p className="text-gray-500 text-sm mt-2">
               Add materials from the admin panel.

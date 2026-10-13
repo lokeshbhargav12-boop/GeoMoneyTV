@@ -37,6 +37,11 @@ interface BiasAnalysisResponse {
   confidence: number;
 }
 
+const FALLBACK_EXPLANATION_SNIPPET =
+  'fallback lexical framing analysis because the primary AI analysis provider was unavailable';
+const FALLBACK_HIDDEN_CONTEXT_SNIPPET =
+  'fallback mode: verify source ownership, selective omission, and geopolitical incentives behind framing before making strategic decisions.';
+
 const LEFT_HINTS = [
   'progressive',
   'social justice',
@@ -273,10 +278,28 @@ function normalizeAnalysisPayload(
   };
 }
 
+function isFallbackAnalysis(candidate: unknown): boolean {
+  if (!candidate || typeof candidate !== 'object') return false;
+
+  const payload = candidate as {
+    bias?: { explanation?: unknown };
+    hidden_context?: unknown;
+  };
+
+  const explanation = String(payload.bias?.explanation ?? '').toLowerCase();
+  const hiddenContext = String(payload.hidden_context ?? '').toLowerCase();
+
+  return (
+    explanation.includes(FALLBACK_EXPLANATION_SNIPPET) ||
+    hiddenContext.includes(FALLBACK_HIDDEN_CONTEXT_SNIPPET)
+  );
+}
+
 export async function POST(req: Request) {
   let title = '';
   let text = '';
   let articleId: string | undefined;
+  let forceRefresh = false;
 
   try {
     let body: unknown;
@@ -293,6 +316,7 @@ export async function POST(req: Request) {
     title = typeof payload.title === 'string' ? payload.title.trim() : '';
     text = typeof payload.text === 'string' ? payload.text.trim() : '';
     articleId = typeof payload.articleId === 'string' ? payload.articleId : undefined;
+    forceRefresh = payload.forceRefresh === true;
 
     if (!text && !title) {
       return NextResponse.json(
@@ -302,7 +326,7 @@ export async function POST(req: Request) {
     }
 
     // Check if we have cached analysis in DB
-    if (articleId) {
+    if (articleId && !forceRefresh) {
       try {
         const article = await prisma.article.findUnique({
           where: { id: articleId },
@@ -310,8 +334,13 @@ export async function POST(req: Request) {
         });
         if (article?.aiAnalysis) {
           const cached = JSON.parse(article.aiAnalysis);
+
+          if (isFallbackAnalysis(cached)) {
+            console.info('Bias analysis cache contains fallback payload; regenerating from AI provider.');
+          } else {
           const normalizedCached = normalizeAnalysisPayload(cached, title, text);
           return NextResponse.json(normalizedCached);
+          }
         }
       } catch (cacheError) {
         console.warn('Bias analysis cache read failed; regenerating:', cacheError);

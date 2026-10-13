@@ -90,8 +90,9 @@ export default function AssetInspectorTweaker({
         price: benchmarkSymbol === "CRUDE" ? 78.40 : benchmarkSymbol === "NATGAS" ? 2.48 : 100,
         change: 0.5,
         changePercent: 0.64,
-        marketStatus: "OPEN",
-        lastTradingTimestamp: new Date().toISOString(),
+        marketStatus: "REFERENCE",
+        lastTradingTimestamp: null,
+        dataStatus: "reference",
       }
     );
   }, [commodities, benchmarkSymbol]);
@@ -121,16 +122,7 @@ export default function AssetInspectorTweaker({
       }
     }
 
-    for (const o of osintEvents) {
-      threats.push({
-        id: o.id,
-        title: o.title,
-        type: "osint",
-        distKm: 780,
-        severity: o.threatScore,
-        label: o.category.toUpperCase(),
-      });
-    }
+    // Ungelocated headlines cannot be assigned an invented proximity.
 
     return threats.sort((a, b) => a.distKm - b.distKm).slice(0, 4);
   }, [asset.lat, asset.lng, climateEvents, osintEvents]);
@@ -163,6 +155,7 @@ export default function AssetInspectorTweaker({
 
   return (
     <article className="rounded-2xl border border-cyan-500/30 bg-gradient-to-b from-gray-900/95 via-gray-950/90 to-black p-4 text-gray-100 shadow-2xl backdrop-blur-xl">
+      <p role="note" className="mb-3 text-sm text-amber-200">Simulation: output, utilization, share, price sensitivity and profiles are illustrative assumptions, not asset telemetry. Missing benchmarks use a reference scenario price.</p>
       {/* Header */}
       <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
         <div>
@@ -219,12 +212,12 @@ export default function AssetInspectorTweaker({
         </div>
 
         <div className="rounded-xl border border-white/10 bg-black/40 p-2.5">
-          <p className="text-[10px] uppercase tracking-wider text-gray-400">Current Output</p>
+          <p className="text-[10px] uppercase tracking-wider text-gray-400">Scenario Output</p>
           <p className={`mt-1 text-base font-bold ${capacitySlider < 80 ? "text-amber-400" : "text-emerald-400"}`}>
             {tweakedOutput} {unit}
           </p>
           <p className="text-[10px] text-gray-500">
-            {capacitySlider !== 100 ? `${capacitySlider}% simulated` : `${asset.utilizationPercent ?? 92}% operating`}
+            {capacitySlider}% of illustrative baseline
           </p>
         </div>
 
@@ -248,7 +241,7 @@ export default function AssetInspectorTweaker({
       {/* 7-Day Output History Mini-Sparkline */}
       <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-gray-200">7-Day Output Stability Profile</span>
+          <span className="font-semibold text-gray-200">Illustrative 7-Day Output Profile</span>
           <span className="text-[11px] text-gray-400">Avg: {baseOutput} {unit}</span>
         </div>
         <div className="mt-2 flex items-end justify-between gap-1.5 h-10 pt-1">
@@ -350,7 +343,7 @@ export default function AssetInspectorTweaker({
         {capacitySlider !== 100 && (
           <div className="mt-2.5 rounded-lg border border-white/10 bg-black/70 p-2.5">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
-              Live Projected Ripple Effect
+              Simulated Ripple Effect
             </p>
             <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs">
               <div>
@@ -381,7 +374,7 @@ export default function AssetInspectorTweaker({
 
         <div className="mt-2 space-y-1.5">
           {nearbyThreats.length === 0 ? (
-            <p className="text-xs text-gray-500">No active storm or conflict anomalies within 1500km.</p>
+            <p className="text-xs text-gray-400">No geolocated events in current provider coverage within 1500km. This does not establish that the area is clear.</p>
           ) : (
             nearbyThreats.map((t) => (
               <div

@@ -29,6 +29,7 @@ interface PlantFeature {
 
 interface Props {
   query: PlantLayerQuery;
+  onStatus?: (message: string | null) => void;
   onPlantClick?: (p: PlantClickInfo) => void;
   /** hover feedback for the HTML tooltip (null = nothing hovered) */
   onPlantHover?: (
@@ -45,6 +46,7 @@ interface Props {
 
 export default function PlantsInstancedLayer({
   query,
+  onStatus,
   onPlantClick,
   onPlantHover,
   sizeScale = 1,
@@ -69,12 +71,19 @@ export default function PlantsInstancedLayer({
     if (q.bbox) params.set("bbox", q.bbox.join(","));
     if (q.limit != null) params.set("limit", String(q.limit));
     const ctrl = new AbortController();
+    setFeatures([]);
+    onStatus?.("Loading reference plant inventory…");
     fetch(`/api/map/power-plants?${params.toString()}`, { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((fc) => setFeatures(fc.features ?? []))
+      .then((fc) => {
+        setFeatures(fc.features ?? []);
+        onStatus?.(fc.features?.length ? null : "No reference plant records match these filters. This is not evidence of absent real assets.");
+      })
       .catch((e) => {
-        if (e?.name !== "AbortError")
+        if (e?.name !== "AbortError") {
           console.error("[Globe] plants load failed:", e);
+          onStatus?.("Reference plant inventory could not load. Change filters or refresh to retry.");
+        }
       });
     return () => ctrl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps

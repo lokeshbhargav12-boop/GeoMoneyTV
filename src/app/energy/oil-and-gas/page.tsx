@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { normalizeSourceStatus, toIsoTimestamp, type ApertureSourceStatus } from "@/lib/aperture-analysis";
 import { PredictivePriceEngine } from "@/components/PredictivePriceEngine";
 import { SatelliteTanksScene } from "@/components/OilTanksVisualization";
 import { motion, AnimatePresence } from "framer-motion";
@@ -62,21 +63,21 @@ const INTELLIGENCE_LAYERS = [
   },
   {
     id: "shadow",
-    name: "Shadow Mode",
-    desc: "AI-detected Dark Ships",
+    name: "Movement Heuristics",
+    desc: "AIS anomalies, not dark-ship detection",
     icon: Crosshair,
     color: "text-purple-400",
     layman:
-      "Highlights vessels moving suspiciously (e.g., speeding cargo ships or ships claiming to be stopped but moving). This reveals 'dark fleets' often used to evade oil sanctions.",
+      "Flags simple AIS speed/status inconsistencies. This is not AI detection and does not establish sanctions evasion, identity or intent. Vessels without AIS are not visible.",
   },
   {
     id: "thermal",
     name: "Thermal Pulse",
-    desc: "Refinery heat signatures",
+    desc: "Illustrative refinery markers",
     icon: Thermometer,
     color: "text-red-400",
     layman:
-      "Plots major global oil refineries and shows their current output deviations. If a refinery's output drops, local fuel prices might spike.",
+      "Reference refinery locations with example output labels. No satellite heat or observed refinery output feed is connected.",
   },
   {
     id: "temp",
@@ -119,7 +120,8 @@ const INTELLIGENCE_LAYERS = [
 export default function OilAndGasIntelligence() {
   const [simulationMode, setSimulationMode] = useState(false);
   const [simulationImpact, setSimulationImpact] = useState(0);
-  const [activeLayer, setActiveLayer] = useState("shadow");
+  const [activeLayer, setActiveLayer] = useState("ais");
+  const [vesselStatus, setVesselStatus] = useState<ApertureSourceStatus>({ mode: "unavailable", source: "AIS provider", observedAt: null });
   const [shipData, setShipData] = useState<any[]>([]);
   const [converterValue, setConverterValue] = useState("1000");
   const [fromUnit, setFromUnit] = useState<ConversionUnit>("bbl");
@@ -182,14 +184,17 @@ export default function OilAndGasIntelligence() {
           ships: shipsInBox,
           aircraft: [],
           bounds,
-          layer: activeLayer,
+          layers: [activeLayer],
+          totals: { vessels: shipsInBox.length, aircraft: 0 },
+          sourceStatus: { vessels: vesselStatus, aircraft: { mode: "unavailable", source: "Not enabled", observedAt: null } },
         }),
       });
       const data = await res.json();
-      setBboxAnalysis(data.summary || "Failed to analyze region.");
+      if (!res.ok) throw new Error(data.error || `Analysis request failed (${res.status}).`);
+      setBboxAnalysis(data.summary || "No analysis summary returned.");
     } catch (e) {
       console.error(e);
-      setBboxAnalysis("Analysis failed due to network error.");
+      setBboxAnalysis(e instanceof Error ? e.message : "Analysis failed due to network error.");
     } finally {
       setIsAnalyzingBbox(false);
     }
@@ -198,15 +203,20 @@ export default function OilAndGasIntelligence() {
   const fetchShips = async () => {
     try {
       const res = await fetch("/api/world-monitor/ships");
-      if (!res.ok) return;
+      if (!res.ok) throw new Error("Vessel provider unavailable");
       const data = await res.json();
+      const observedAt = toIsoTimestamp(data.timestamp);
+      const mode = data.live !== true ? "unavailable" : observedAt && Date.now() - Date.parse(observedAt) <= 15 * 60_000 ? "live" : "stale";
+      setVesselStatus(normalizeSourceStatus({ mode, source: data.source, observedAt, notice: data.notice }, "AIS provider"));
       // Only keep relevant oil & gas supply chain vessels (tankers, lng, bulk)
       const relevantShips = (data.ships || []).filter((s: any) =>
-        ["tanker", "lng"].includes(s.type?.toLowerCase() || ""),
+        data.live === true && s.live === true && Number.isFinite(s.latitude) && Number.isFinite(s.longitude) && ["tanker", "lng"].includes(s.type?.toLowerCase() || ""),
       );
       setShipData(relevantShips);
     } catch (e) {
       console.warn("[Ships fetch failed]", e);
+      setShipData([]);
+      setVesselStatus((prev) => ({ ...prev, mode: "unavailable", notice: "Vessel refresh failed. No current positions displayed." }));
     }
   };
 
@@ -249,6 +259,7 @@ export default function OilAndGasIntelligence() {
           {/* Simulation Dock Toggle */}
           <button
             onClick={() => setSimulationMode(!simulationMode)}
+            aria-pressed={simulationMode}
             className={`flex items-center gap-3 px-6 py-3 rounded-full border transition-all ${simulationMode ? "bg-amber-500/20 border-amber-500 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.3)]" : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"}`}
           >
             <Cpu className="w-5 h-5" />
@@ -309,6 +320,10 @@ export default function OilAndGasIntelligence() {
           </div>
         </div>
 
+        <p role="status" className="mb-4 rounded-xl border border-amber-400/20 p-3 text-sm text-gray-300">
+          AIS: {vesselStatus.mode} · {vesselStatus.source}{vesselStatus.observedAt ? ` · As of ${new Date(vesselStatus.observedAt).toLocaleString()}` : " · No observation time"}. {vesselStatus.notice}
+          Sampled coverage only, not global traffic. Refinery/weather hub labels, forecasts and tank scenes are illustrative. Weather tiles require a configured provider key.
+        </p>
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           {/* --- LEFT COL: MAIN MAP & FORECAST --- */}
           <div className="xl:col-span-3 flex flex-col gap-6">
@@ -326,15 +341,16 @@ export default function OilAndGasIntelligence() {
                   setSelectedBbox={setSelectedBbox}
                   simulationMode={simulationMode}
                   onSimulationDrag={() =>
-                    setSimulationImpact((prev) => prev + 15)
+                    setSimulationImpact((prev) => Math.min(100, prev + 15))
                   }
                 />
               </div>
 
               {/* AI Region Select Controls (Top Right) */}
-              <div className="absolute top-4 right-4 z-10 flex gap-2">
+              <div className="absolute top-4 right-4 z-[800] flex gap-2">
                 <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-1 py-1 flex items-center gap-1 shadow-2xl">
                   <button
+                    aria-pressed={bboxMode}
                     onClick={() => {
                       setBboxMode(!bboxMode);
                       if (bboxMode) setSelectedBbox(null);
@@ -360,7 +376,7 @@ export default function OilAndGasIntelligence() {
               </div>
 
               {/* Layer Toggles overlay */}
-              <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-2 flex flex-col gap-2 max-h-[calc(100%-220px)] overflow-y-auto custom-scrollbar">
+              <div className="absolute top-20 sm:top-4 left-4 z-[800] bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-2 flex flex-col gap-2 max-h-[calc(100%-260px)] overflow-y-auto custom-scrollbar">
                 <span className="text-xs font-semibold text-gray-400 px-2 pb-1 border-b border-white/10">
                   INTELLIGENCE LAYERS
                 </span>
@@ -368,6 +384,7 @@ export default function OilAndGasIntelligence() {
                   <button
                     key={layer.id}
                     onClick={() => setActiveLayer(layer.id)}
+                    aria-pressed={activeLayer === layer.id}
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${activeLayer === layer.id ? "bg-white/10" : "hover:bg-white/5"}`}
                   >
                     <layer.icon
@@ -389,7 +406,8 @@ export default function OilAndGasIntelligence() {
                     initial={{ opacity: 0, y: 50, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 50, scale: 0.95 }}
-                    className="absolute bottom-4 right-4 max-w-sm w-[350px] z-50 pointer-events-auto"
+                    className="absolute bottom-4 right-4 max-w-sm w-[calc(100%-2rem)] sm:w-[350px] z-[1000] pointer-events-auto"
+                    role="status"
                   >
                     <div className="bg-black/90 backdrop-blur-2xl border border-cyan-500/40 rounded-xl p-4 shadow-[0_10px_40px_-10px_rgba(6,182,212,0.3)]">
                       <div className="flex justify-between items-start mb-3 border-b border-white/10 pb-2">
@@ -405,6 +423,7 @@ export default function OilAndGasIntelligence() {
                             setSelectedBbox(null);
                           }}
                           className="text-gray-500 hover:text-white"
+                          aria-label="Close region analysis"
                         >
                           ✕
                         </button>
@@ -425,11 +444,11 @@ export default function OilAndGasIntelligence() {
                 if (!activeLayerInfo?.layman) return null;
 
                 return (
-                  <div className="absolute bottom-4 left-4 z-10 w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-4 shadow-2xl">
+                  <div className="absolute bottom-4 left-4 z-[800] w-[calc(100%-2rem)] sm:w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-4 shadow-2xl">
                     <div className="flex items-center gap-2 mb-2">
                       <BrainCircuit className="w-4 h-4 text-emerald-400" />
                       <h3 className="text-xs font-bold text-emerald-400 tracking-wider">
-                        AI SUMMARIZER
+                        LAYER GUIDE
                       </h3>
                     </div>
                     <p className="text-xs text-gray-300 leading-relaxed">
@@ -537,9 +556,9 @@ export default function OilAndGasIntelligence() {
                     Volatility
                   </h3>
                   <p className="text-sm text-gray-400 mb-6">
-                    Real-time delivery risk tracking based only on live crude
-                    tanker and LNG carrier AIS traffic in critical energy
-                    chokepoints.
+                    Heuristic traffic counts from sampled tanker/LNG AIS coverage,
+                    not measured delivery risk or global congestion. Unknown
+                    coverage is shown as unavailable.
                   </p>
 
                   <div className="space-y-4">
@@ -561,13 +580,13 @@ export default function OilAndGasIntelligence() {
                             </span>
                             <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                               <Anchor className="w-3 h-3" /> {region.data.ships}{" "}
-                              energy vessels detected
+                              sampled vessels ({vesselStatus.mode})
                             </div>
                           </div>
                           <span
                             className={`text-2xl font-black ${region.data.text}`}
                           >
-                            {region.data.score}
+                            {vesselStatus.mode === "unavailable" ? "N/A" : region.data.score}
                           </span>
                         </div>
 
@@ -666,33 +685,25 @@ export default function OilAndGasIntelligence() {
 
             {/* Analyzer for Latest Insights */}
             {(() => {
-              const numVal =
-                parseFloat((shipData.length * 2.1).toFixed(1)) || 1450.0;
-              const inTransitMBarrels =
-                shipData.length > 0
-                  ? (shipData.length * 2.1).toFixed(1)
-                  : "1,450.0";
-              const globalStorage = 4120.5; // Baseline mock
-              const totalSupply = numVal + globalStorage;
-              const transitPercent = ((numVal / totalSupply) * 100).toFixed(1);
+              const inTransitMBarrels = "Unavailable";
+              const transitPercent = "0";
 
               return (
                 <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-colors" />
                   <h3 className="font-bold flex items-center gap-2 mb-4 text-white relative z-10">
-                    <BrainCircuit className="w-5 h-5 text-blue-400" /> AI OSINT
-                    Analyzer
+                    <BrainCircuit className="w-5 h-5 text-blue-400" /> Storage Visualization Demo
                   </h3>
                   <div className="space-y-4 relative z-10">
                     {/* Satellite Imagery */}
                     <div className="border border-white/5 bg-black/40 rounded-lg p-3">
                       <div className="flex justify-between items-center mb-2">
                         <p className="text-xs text-blue-200 font-medium">
-                          OPEC+ Storage Satellite Feed
+                          Illustrative 3D Storage Tanks
                         </p>
                         <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold tracking-wider">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          LIVE
+                          SIMULATED
                         </span>
                       </div>
                       <div className="relative w-full h-48 rounded border border-white/10 overflow-hidden mb-2">
@@ -706,14 +717,13 @@ export default function OilAndGasIntelligence() {
                             LOC: 26°16&apos;18&quot;N 50°08&apos;19&quot;E
                           </span>
                           <span className="text-[10px] text-emerald-400 font-mono bg-black/60 px-1 inline-block w-max mt-0.5 border border-white/10">
-                            EST. VOL: +4.2% CAPACITY
+                            EXAMPLE SCENE — NO OBSERVED VOLUME
                           </span>
                         </div>
                       </div>
                       <p className="text-[11px] text-gray-400 leading-relaxed">
-                        AI detection highlights whether visible storage behavior
-                        is consistent with normal export cadence or whether it
-                        is diverging from nearby tanker activity.
+                        Generated 3D illustration only. No satellite imagery,
+                        tank-volume observations or AI storage detection are connected.
                       </p>
                     </div>
 
@@ -750,11 +760,11 @@ export default function OilAndGasIntelligence() {
                               Onshore Storage (SPR + Comm)
                             </span>
                             <span className="text-white font-bold">
-                              {globalStorage.toLocaleString()} MBBL
+                              Unavailable
                             </span>
                           </div>
                           <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                            <div className="bg-orange-500 h-1.5 rounded-full w-[82%]"></div>
+                            <div className="bg-orange-500 h-1.5 rounded-full w-0"></div>
                           </div>
                         </div>
                       </div>

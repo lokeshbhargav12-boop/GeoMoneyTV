@@ -7,6 +7,33 @@ import Ticker from "@/components/Ticker";
 import Script from "next/script";
 import { prisma } from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
+import fs from "fs";
+import path from "path";
+
+async function resolveLogoUrl(rawValue?: string | null): Promise<string | null> {
+  const value = rawValue?.trim();
+  if (!value) return null;
+
+  if (value.startsWith("/api/media/")) {
+    const assetId = value.replace("/api/media/", "").split("?")[0].split("#")[0];
+    if (!assetId) return null;
+
+    const asset = await prisma.mediaAsset.findUnique({
+      where: { id: assetId },
+      select: { id: true },
+    });
+
+    return asset ? value : null;
+  }
+
+  if (value.startsWith("/uploads/")) {
+    const relativePath = value.replace(/^\/uploads\//, "");
+    const localFilePath = path.join(process.cwd(), "public", "uploads", relativePath);
+    return fs.existsSync(localFilePath) ? value : null;
+  }
+
+  return value;
+}
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,7 +48,7 @@ const getLogoUrl = unstable_cache(
       const logoSetting = await prisma.siteSettings.findUnique({
         where: { key: "logo_url" },
       });
-      return logoSetting?.value || null;
+      return await resolveLogoUrl(logoSetting?.value);
     } catch {
       return null;
     }

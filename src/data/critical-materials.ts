@@ -76,7 +76,7 @@ export const CRITICAL_MATERIALS_DATA: CriticalMaterialSeed[] = [
   {
     name: 'Europium',
     symbol: 'Eu',
-    category: 'Rare Earth',
+    category: 'Light Rare Earth',
     description: 'Critical phosphor material used in advanced displays and lighting.',
     applications: ['Display phosphors', 'LED lighting', 'Security inks'],
     countries: ['China', 'United States'],
@@ -88,7 +88,7 @@ export const CRITICAL_MATERIALS_DATA: CriticalMaterialSeed[] = [
   {
     name: 'Gadolinium',
     symbol: 'Gd',
-    category: 'Heavy Rare Earth',
+    category: 'Light Rare Earth',
     description: 'Used in medical imaging contrast agents and specialty alloys.',
     applications: ['MRI contrast agents', 'Nuclear control materials', 'Alloys'],
     countries: ['China', 'Australia', 'United States'],
@@ -196,7 +196,7 @@ export const CRITICAL_MATERIALS_DATA: CriticalMaterialSeed[] = [
   {
     name: 'Scandium',
     symbol: 'Sc',
-    category: 'Rare Earth',
+    category: 'Rare Earth (Scandium)',
     description: 'Enhances aluminum alloys for aerospace and emerging hydrogen systems.',
     applications: ['Al-Sc alloys', 'Solid oxide fuel cells', 'Aerospace components'],
     countries: ['China', 'Russia', 'Ukraine', 'Australia'],
@@ -518,8 +518,10 @@ export const CRITICAL_MATERIALS_DATA: CriticalMaterialSeed[] = [
     unit: 'kg',
   },
   {
+    // Note: element symbol is U. U3O8 is a commercial uranium-oxide
+    // benchmark product and belongs in the price-benchmark layer, not here.
     name: 'Uranium',
-    symbol: 'U3O8',
+    symbol: 'U',
     category: 'Nuclear Fuel',
     description: 'Primary fuel input for global commercial nuclear power generation.',
     applications: ['Nuclear fuel cycle', 'Strategic reserves', 'Advanced reactors'],

@@ -1,5 +1,6 @@
 import { callOpenRouter } from "@/lib/openrouter";
-import { getStoredTickerData, getMiningCommodityData } from "@/lib/ticker-service";
+import { getStoredTickerData } from "@/lib/ticker-service";
+import { finiteEnergyValue, quoteStatus, type EnergyDataStatus } from "@/lib/energy-data";
 import prisma from "@/lib/prisma";
 
 // ─── TYPES ──────────────────────────────────────────────────
@@ -12,6 +13,8 @@ export interface LiveCommodity {
   changePercent: number;
   marketStatus: string;
   lastTradingTimestamp: string | null;
+  dataStatus: EnergyDataStatus;
+  source: string;
 }
 
 export interface EiaStorage {
@@ -162,6 +165,7 @@ export interface EnergyInfrastructurePayload {
   interdependency: InterdependencyData;
   supplyDemandBalance: SupplyDemandBalanceData;
   macroIndicators: MacroIndicatorsData;
+  notice: string;
 }
 
 // ─── CACHE ──────────────────────────────────────────────────
@@ -192,73 +196,61 @@ const EIA_GRID_SERIES: { id: string; name: string; unit: string }[] = [
 
 // ─── HELPERS ────────────────────────────────────────────────
 
-function toFiniteNumber(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+export function extractEnergyEiaValue(item: Record<string, unknown>): number | null {
+  for (const key of ["value", "generation", "stocks", "production", "utilization", "withdrawal", "demand"]) {
+    const value = finiteEnergyValue(item[key]);
+    if (value !== null) return value;
+  }
+  return null;
 }
 
 function formatDate(dateStr: string): string {
   try {
     return new Date(dateStr).toISOString();
   } catch {
-    return new Date().toISOString();
+    return "";
   }
 }
 
 // ─── COMMODITIES ────────────────────────────────────────────
 
-const CORE_ENERGY_BENCHMARKS: LiveCommodity[] = [
-  { symbol: "CRUDE", label: "WTI Crude", price: 78.42, change: 0.85, changePercent: 1.10, marketStatus: "OPEN", lastTradingTimestamp: new Date().toISOString() },
-  { symbol: "BRENT", label: "Brent Crude", price: 82.15, change: 0.92, changePercent: 1.13, marketStatus: "OPEN", lastTradingTimestamp: new Date().toISOString() },
-  { symbol: "NATGAS", label: "Henry Hub Gas", price: 2.48, change: -0.04, changePercent: -1.59, marketStatus: "OPEN", lastTradingTimestamp: new Date().toISOString() },
-  { symbol: "TTF", label: "Dutch TTF Gas", price: 34.80, change: 1.20, changePercent: 3.57, marketStatus: "OPEN", lastTradingTimestamp: new Date().toISOString() },
-  { symbol: "COAL", label: "Newcastle Coal", price: 132.50, change: -1.25, changePercent: -0.93, marketStatus: "OPEN", lastTradingTimestamp: new Date().toISOString() },
-  { symbol: "URANIUM", label: "Uranium U3O8", price: 85.50, change: 0.50, changePercent: 0.59, marketStatus: "OPEN", lastTradingTimestamp: new Date().toISOString() },
-  { symbol: "COPPER", label: "Copper High Grade", price: 4.18, change: 0.03, changePercent: 0.72, marketStatus: "OPEN", lastTradingTimestamp: new Date().toISOString() },
-  { symbol: "LITHIUM", label: "Lithium Carbonate", price: 10450.00, change: 150.00, changePercent: 1.46, marketStatus: "OPEN", lastTradingTimestamp: new Date().toISOString() },
-  { symbol: "CARBON", label: "EU Carbon Allowance", price: 68.40, change: -0.65, changePercent: -0.94, marketStatus: "OPEN", lastTradingTimestamp: new Date().toISOString() },
-];
-
 async function fetchCommodities(): Promise<LiveCommodity[]> {
   try {
-    let items = await getStoredTickerData().catch(() => []);
-    if (!items || items.length === 0) {
-      items = await getMiningCommodityData().catch(() => []);
-    }
-
+    const items = await getStoredTickerData().catch(() => []);
     const map = new Map<string, LiveCommodity>();
-    for (const b of CORE_ENERGY_BENCHMARKS) {
-      map.set(b.symbol.toUpperCase(), { ...b });
-    }
-
     for (const item of items) {
       const sym = item.symbol?.toUpperCase();
-      if (!sym) continue;
-      const existing = map.get(sym);
+      const price = finiteEnergyValue(item.price);
+      const observedAt = item.lastTradingTimestamp || null;
+      // The ticker service includes demonstration defaults without timestamps.
+      // Never promote those defaults into observed Energy quotes.
+      if (!sym || price === null || quoteStatus(observedAt) === "unavailable") continue;
       map.set(sym, {
         symbol: item.symbol,
-        label: item.label || existing?.label || item.symbol,
-        price: Number(item.price) || existing?.price || 0,
-        change: Number(item.change) || existing?.change || 0,
-        changePercent: Number(item.changePercent) || existing?.changePercent || 0,
-        marketStatus: (item as any).marketStatus || existing?.marketStatus || "OPEN",
-        lastTradingTimestamp: (item as any).lastTradingTimestamp || existing?.lastTradingTimestamp || new Date().toISOString(),
+        label: item.label || item.symbol,
+        price,
+        change: finiteEnergyValue(item.change) ?? 0,
+        changePercent: finiteEnergyValue(item.changePercent) ?? 0,
+        marketStatus: item.marketStatus || "UNKNOWN",
+        lastTradingTimestamp: observedAt,
+        dataStatus: quoteStatus(observedAt),
+        source: "Stored market quote",
       });
     }
 
     return Array.from(map.values());
   } catch (error) {
-    console.warn("[EnergyInfra] Commodities fetch error, using core benchmarks:", error);
-    return CORE_ENERGY_BENCHMARKS;
+    console.warn("[EnergyInfra] Commodities unavailable:", error);
+    return [];
   }
 }
 
 // ─── EIA ────────────────────────────────────────────────────
 
-async function fetchEiaSeries(seriesId: string): Promise<any | null> {
+async function fetchEiaSeries(seriesId: string, frequency = "weekly"): Promise<any | null> {
   if (!EIA_API_KEY) return null;
   try {
-    const url = `${EIA_BASE}/seriesid/${seriesId}?api_key=${EIA_API_KEY}&frequency=weekly&data[0]=value&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=2`;
+    const url = `${EIA_BASE}/seriesid/${seriesId}?api_key=${EIA_API_KEY}&frequency=${frequency}&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=2`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error(`EIA ${seriesId} HTTP ${res.status}`);
     return await res.json();
@@ -269,44 +261,43 @@ async function fetchEiaSeries(seriesId: string): Promise<any | null> {
 }
 
 async function fetchEiaStorage(): Promise<EiaStorage[]> {
-  const results: EiaStorage[] = [];
-  for (const series of EIA_SERIES) {
+  return Promise.all(EIA_SERIES.map(async (series) => {
     const data = await fetchEiaSeries(series.id);
     const items = data?.response?.data || [];
     const current = items[0];
     const previous = items[1];
-    const value = current ? toFiniteNumber(current.value) : null;
-    const prev = previous ? toFiniteNumber(previous.value) : null;
+    const scale = series.unit.startsWith("M bbl") ? 0.001 : 1;
+    const rawValue = current ? extractEnergyEiaValue(current) : null;
+    const rawPrev = previous ? extractEnergyEiaValue(previous) : null;
+    const value = rawValue === null ? null : rawValue * scale;
+    const prev = rawPrev === null ? null : rawPrev * scale;
     const change = value !== null && prev !== null ? value - prev : null;
     const changePercent = value !== null && prev !== null && prev !== 0 ? ((value - prev) / Math.abs(prev)) * 100 : null;
-    results.push({
+    return {
       name: series.name,
       value,
       unit: series.unit,
       change,
       changePercent,
-      date: current ? formatDate(current.period) : new Date().toISOString(),
+      date: current ? formatDate(current.period) : "",
       source: "EIA",
-    });
-  }
-  return results;
+    };
+  }));
 }
 
 async function fetchEiaGrid(): Promise<EiaGrid[]> {
-  const results: EiaGrid[] = [];
-  for (const series of EIA_GRID_SERIES) {
-    const data = await fetchEiaSeries(series.id);
+  return Promise.all(EIA_GRID_SERIES.map(async (series) => {
+    const data = await fetchEiaSeries(series.id, "monthly");
     const items = data?.response?.data || [];
     const current = items[0];
-    results.push({
+    return {
       name: series.name,
-      value: current ? toFiniteNumber(current.value) : null,
+      value: current ? extractEnergyEiaValue(current) : null,
       unit: series.unit,
-      date: current ? formatDate(current.period) : new Date().toISOString(),
+      date: current ? formatDate(current.period) : "",
       source: "EIA",
-    });
-  }
-  return results;
+    };
+  }));
 }
 
 // ─── GRID STRESS (per-ISO live load) ────────────────────────────
@@ -344,7 +335,7 @@ async function fetchEiaHourlyDemand(
     const data = await res.json();
     const item = data?.response?.data?.[0];
     if (!item) return null;
-    const mwh = toFiniteNumber(item.value);
+    const mwh = extractEnergyEiaValue(item);
     if (mwh == null) return null;
     return { loadGW: mwh / 1000, asOf: formatDate(item.period) };
   } catch (error) {
@@ -385,61 +376,6 @@ async function fetchEiaGridStress(): Promise<GridStressPoint[]> {
   );
 }
 
-// ─── CLIMATE ────────────────────────────────────────────────
-
-const VERIFIED_CLIMATE_HAZARDS: ClimateEventLite[] = [
-  {
-    id: "clim-gulf-storm",
-    title: "Tropical Disturbance Alert — US Gulf Coast Offshore",
-    type: "storm",
-    severity: 82,
-    lat: 27.5,
-    lng: -91.2,
-    region: "US Gulf Coast",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "clim-texas-heat",
-    title: "Excessive Heat Dome Anomaly — ERCOT North Central Zone",
-    type: "heat",
-    severity: 88,
-    lat: 32.2,
-    lng: -97.5,
-    region: "North America",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "clim-panama-draft",
-    title: "Gatun Lake Drought Limitation — Panama Canal Transit Zone",
-    type: "drought",
-    severity: 75,
-    lat: 9.1,
-    lng: -79.8,
-    region: "Central America",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "clim-north-sea-gales",
-    title: "Force 9 Gale Warning — Gudrun / North Sea Production Sector",
-    type: "storm",
-    severity: 70,
-    lat: 61.3,
-    lng: 2.0,
-    region: "North Sea",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "clim-rhine-low-water",
-    title: "Barge Navigation Drought Constraint — ARA / Rhine Corridor",
-    type: "drought",
-    severity: 66,
-    lat: 50.1,
-    lng: 7.8,
-    region: "Europe",
-    timestamp: new Date().toISOString(),
-  },
-];
-
 async function fetchClimate(): Promise<ClimateEventLite[]> {
   try {
     const controller = new AbortController();
@@ -451,85 +387,33 @@ async function fetchClimate(): Promise<ClimateEventLite[]> {
     if (res.ok) {
       const data = await res.json();
       const mapped = (data.events || []).flatMap((e: any) => {
-        const geom = e.geometry?.[0];
-        if (!geom || !geom.coordinates) return [];
+        const geom = e.geometry?.at(-1);
+        if (geom?.type !== "Point" || !geom.coordinates || geom.coordinates.length !== 2) return [];
         return [{
           id: e.id || `eonet-${Math.random()}`,
           title: e.title,
-          type: "storm" as const,
-          severity: 75,
+          type: e.categories?.[0]?.title?.toLowerCase() || "natural event",
+          severity: 50, // Displayed as an unverified planning score, not provider severity.
           lat: geom.coordinates[1],
           lng: geom.coordinates[0],
           region: "Global",
-          timestamp: geom.date || new Date().toISOString(),
+          timestamp: geom.date || "",
         }];
       });
       if (mapped.length > 0) {
-        return [...mapped.slice(0, 5), ...VERIFIED_CLIMATE_HAZARDS.slice(0, 5)];
+        return mapped;
       }
     }
   } catch {
-    // Failover directly to verified hazards
+    // Missing observations remain unavailable; never insert demonstration events.
   }
-  return VERIFIED_CLIMATE_HAZARDS;
+  return [];
 }
-
-// ─── OSINT ──────────────────────────────────────────────────
-
-const VERIFIED_OSINT_EVENTS: OsintEventLite[] = [
-  {
-    id: "osint-hormuz-patrol",
-    title: "IRGC Naval Maneuvers near Strait of Hormuz Separation Scheme",
-    category: "geopolitical",
-    threatScore: 86,
-    region: "Persian Gulf",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "osint-redsea-reroute",
-    title: "Bab-el-Mandeb Security Advisory: 74% Tanker Tonnage Continues Cape Routing",
-    category: "supply_chain",
-    threatScore: 89,
-    region: "Middle East",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "osint-druzhba-tariff",
-    title: "Transit Tariff Friction Threatens Southern Druzhba Pipeline Deliveries",
-    category: "energy",
-    threatScore: 78,
-    region: "Europe",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "osint-lng-arbitrage",
-    title: "Asian JKM LNG Premium Widens to $2.20/MMBtu over European TTF",
-    category: "economic",
-    threatScore: 68,
-    region: "Asia-Pacific",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "osint-cushing-draws",
-    title: "Cushing Terminal Working Storage Nears 23 MMBBL Operational Minimum Buffer",
-    category: "energy",
-    threatScore: 81,
-    region: "North America",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: "osint-baltic-cable",
-    title: "Undersea Interconnector Monitoring Intensified across NordLink & Baltic HVDC Links",
-    category: "geopolitical",
-    threatScore: 65,
-    region: "Europe",
-    timestamp: new Date().toISOString(),
-  },
-];
 
 async function fetchOsint(): Promise<OsintEventLite[]> {
   try {
     const dbArticles = await prisma.article.findMany({
+      where: { category: { contains: "energy" } },
       take: 4,
       orderBy: { createdAt: "desc" },
       select: { id: true, title: true, category: true, createdAt: true },
@@ -539,37 +423,23 @@ async function fetchOsint(): Promise<OsintEventLite[]> {
       id: a.id,
       title: a.title,
       category: a.category?.toLowerCase().includes("energy") ? "energy" : "geopolitical",
-      threatScore: 75,
+      threatScore: 50, // News is not a verified threat assessment.
       region: "Global",
       timestamp: a.createdAt.toISOString(),
     }));
 
     if (fromDb.length > 0) {
-      return [...fromDb, ...VERIFIED_OSINT_EVENTS.slice(0, 5)];
+      return fromDb;
     }
   } catch {
     // Failover
   }
-  return VERIFIED_OSINT_EVENTS;
+  return [];
 }
 
-// ─── SHIPS ───────────────────────────────────────────────────
-
-const CORRIDORS = [
-  { name: "Strait of Hormuz", bounds: { minLat: 24, maxLat: 28, minLng: 54, maxLng: 58 }, defaultTanker: 19, defaultLng: 7, total: 34 },
-  { name: "Euro ARA Hubs", bounds: { minLat: 49, maxLat: 54, minLng: 1, maxLng: 6 }, defaultTanker: 28, defaultLng: 6, total: 46 },
-  { name: "US Gulf Coast", bounds: { minLat: 25, maxLat: 31, minLng: -98, maxLng: -88 }, defaultTanker: 24, defaultLng: 11, total: 42 },
-  { name: "Singapore / Malacca", bounds: { minLat: -2, maxLat: 8, minLng: 95, maxLng: 108 }, defaultTanker: 32, defaultLng: 14, total: 58 },
-  { name: "South China Sea", bounds: { minLat: 5, maxLat: 23, minLng: 105, maxLng: 120 }, defaultTanker: 26, defaultLng: 12, total: 48 },
-];
-
 async function fetchShipCounts(): Promise<ShipCount[]> {
-  return CORRIDORS.map((c) => ({
-    region: c.name,
-    tanker: c.defaultTanker,
-    lng: c.defaultLng,
-    total: c.total,
-  }));
+  // No position provider is wired to this service. Unknown is not zero traffic.
+  return [];
 }
 
 // ─── ASSET MAPPING ──────────────────────────────────────────
@@ -769,8 +639,9 @@ function buildResilience(
         evidence = `${severeWeather} severe weather events`;
         break;
       case "Data Confidence":
-        score = storage.length > 3 && climate.length > 0 ? 10 : 50;
-        evidence = `${storage.length} storage series, ${climate.length} climate events`;
+        const observed = storage.filter((s) => s.value !== null && s.date && Date.now() - Date.parse(s.date) < 14 * 86400_000).length;
+        score = observed >= 4 ? 10 : observed > 0 ? 50 : 100;
+        evidence = `${observed} recent storage observations; missing values are not evidence`;
         break;
     }
 
@@ -1022,6 +893,7 @@ export async function getEnergyInfrastructureData(): Promise<EnergyInfrastructur
     interdependency,
     supplyDemandBalance,
     macroIndicators,
+    notice: "Quotes are delayed/stale observations. Assets and corridors are reference data. Output histories, supply/demand and macro indicators are illustrative planning models, not observed telemetry. Vessel coverage is unavailable. News and natural events are not verified threat assessments.",
   };
 
   cache = { data, ts: Date.now() };

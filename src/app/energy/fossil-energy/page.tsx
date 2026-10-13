@@ -277,10 +277,6 @@ export default function FossilEnergyPage() {
   const [activeOverlays, setActiveOverlays] = useState<
     (typeof OVERLAYS)[number][]
   >(["Gas Pipelines", "Export Terminals"]);
-  const [selectedPlantId, setSelectedPlantId] = useState<string>(
-    FOSSIL_PLANTS[0].id,
-  );
-
   const filteredPlants = useMemo(() => {
     return FOSSIL_PLANTS.filter((plant) => {
       if (technology !== "All" && plant.tech !== technology) return false;
@@ -289,11 +285,6 @@ export default function FossilEnergyPage() {
       return true;
     });
   }, [region, status, technology]);
-
-  const selectedPlant =
-    filteredPlants.find((plant) => plant.id === selectedPlantId) ??
-    filteredPlants[0] ??
-    FOSSIL_PLANTS[0];
 
   const filteredCorridors = useMemo(() => {
     return CORRIDORS.filter((corridor) => {
@@ -333,7 +324,7 @@ export default function FossilEnergyPage() {
       Permitting: ["announced", "pre-construction"],
     };
     return {
-      fuels: technology === "All" ? undefined : techMap[technology],
+      fuels: technology === "All" ? ["Coal", "Gas", "Oil"] as FuelType[] : techMap[technology],
       statuses: statusMap[status] ?? ["operating"],
       bbox: region === "Global" ? undefined : REGION_BBOX[region],
       minMW: 50,
@@ -418,7 +409,7 @@ export default function FossilEnergyPage() {
                         {operatingCount}
                       </div>
                       <div className="text-gray-500 text-xs mt-1">
-                        Live operations
+                        Example operating assets
                       </div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/30 p-3 col-span-2">
@@ -441,6 +432,7 @@ export default function FossilEnergyPage() {
                       <button
                         key={item}
                         onClick={() => setTechnology(item)}
+                        aria-pressed={technology === item}
                         className={`px-3 py-1.5 rounded-full border text-xs transition-colors ${technology === item ? "border-orange-300/40 bg-orange-300/15 text-orange-100" : "border-white/10 bg-white/5 text-gray-400 hover:text-white"}`}
                       >
                         {item}
@@ -458,6 +450,7 @@ export default function FossilEnergyPage() {
                       <button
                         key={item}
                         onClick={() => setRegion(item)}
+                        aria-pressed={region === item}
                         className={`w-full rounded-2xl border px-3 py-2 text-left text-sm transition-colors ${region === item ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100" : "border-white/10 bg-white/5 text-gray-400 hover:text-white"}`}
                       >
                         {item}
@@ -475,6 +468,7 @@ export default function FossilEnergyPage() {
                       <button
                         key={item}
                         onClick={() => setStatus(item)}
+                        aria-pressed={status === item}
                         className={`px-3 py-1.5 rounded-full border text-xs transition-colors ${status === item ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/5 text-gray-400 hover:text-white"}`}
                       >
                         {item}
@@ -485,13 +479,14 @@ export default function FossilEnergyPage() {
 
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">
-                    Overlays
+                    Watchlist categories (not map overlays)
                   </p>
                   <div className="space-y-2">
                     {OVERLAYS.map((overlay) => (
                       <button
                         key={overlay}
                         onClick={() => toggleOverlay(overlay)}
+                        aria-pressed={activeOverlays.includes(overlay)}
                         className={`w-full rounded-2xl border px-3 py-2 text-left text-sm transition-colors ${activeOverlays.includes(overlay) ? "border-orange-300/40 bg-orange-300/10 text-orange-100" : "border-white/10 bg-white/5 text-gray-400 hover:text-white"}`}
                       >
                         {overlay}
@@ -532,7 +527,7 @@ export default function FossilEnergyPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 text-sm">
               <div className="flex flex-wrap gap-2 text-gray-300">
                 <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-emerald-200">
-                  Live: WRI GPPD v1.3 · 34.9k plants
+                  Reference: WRI GPPD v1.3 · 34.9k plants
                 </span>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{region}</span>
               </div>
@@ -542,7 +537,10 @@ export default function FossilEnergyPage() {
                 </span>
               </div>
             </div>
-            <EnergyInfrastructureGlobe plants={plantQuery} height="560px" />
+            <p className="p-4 text-xs text-gray-300">Historical reference inventory, not current operating telemetry. All source records are classified operating; construction/permitting coverage is unavailable. LNG maps gas-fired plants, not LNG terminals. Watchlist and capacity figures use separate illustrative clusters.</p>
+            {status === "Operating" ? <EnergyInfrastructureGlobe plants={plantQuery} height="560px" /> : (
+              <div role="status" className="p-8 text-center text-gray-300">No {status.toLowerCase()} records in this reference dataset. This does not mean no projects exist.</div>
+            )}
           </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
@@ -587,7 +585,7 @@ export default function FossilEnergyPage() {
               Watchlist
             </h2>
             <span className="text-xs uppercase tracking-[0.2em] text-gray-500">
-              Enabled overlays only
+              Selected watchlist categories
             </span>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -653,23 +651,21 @@ export default function FossilEnergyPage() {
                 </tr>
               </thead>
               <tbody>
+                {filteredPlants.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-gray-300">No illustrative clusters match these filters. This is not evidence of absent real assets.</td></tr>}
                 {filteredPlants.map((plant) => (
                   <tr
                     key={plant.id}
                     className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.03]"
                   >
                     <td className="px-4 py-4">
-                      <button
-                        onClick={() => setSelectedPlantId(plant.id)}
-                        className="text-left"
-                      >
+                      <div className="text-left">
                         <div className="font-semibold text-white">
                           {plant.name}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
                           {plant.corridor}
                         </div>
-                      </button>
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-gray-300">{plant.tech}</td>
                     <td className="px-4 py-4 text-gray-300">{plant.region}</td>
@@ -691,7 +687,7 @@ export default function FossilEnergyPage() {
           <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr] lg:items-center">
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-orange-200/80 mb-2">
-                Route recovery
+                Dedicated coal tools
               </p>
               <h2 className="text-2xl font-bold text-white mb-3">
                 Coal is available both here and on its own page.

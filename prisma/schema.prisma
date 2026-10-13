@@ -81,26 +81,40 @@ model SiteSettings {
   updatedAt DateTime @updatedAt
 }
 
+// Batch-1 critical materials master record (43 materials).
+// materialKey is the permanent, display-name-independent identifier used by
+// watchlists, price history, events, alerts and URLs (e.g. "mat_gallium").
 model RareEarthMaterial {
-  id           String            @id @default(cuid())
-  name         String            @unique
-  symbol       String            @unique
-  category     String
-  price        Float?
-  unit         String?
-  description  String?           @db.Text
-  imageUrl     String?
-  supply       String?           @db.Text
-  demand       String?           @db.Text
-  countries    String?           @db.Text // JSON string of countries
-  applications String?           @db.Text // JSON string of applications
-  lastUpdated  DateTime          @default(now())
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  trackedBy    TrackedMaterial[]
+  id                     String                @id @default(cuid())
+  materialKey            String?               @unique // permanent key, e.g. mat_gallium
+  name                   String                @unique
+  symbol                 String                @unique // chemical element symbol (e.g. U, not U3O8)
+  category               String // visible card label (kept for now; see materialFamily/tags)
+  // Backend taxonomy (P0-15): category mixes chemical family with end-use.
+  // These fields carry the separated concepts without breaking the UI.
+  materialFamily         String? // e.g. "Light Rare Earth", "Battery Metal"
+  applicationTags        String?               @db.Text // JSON array of end-use tags
+  strategicTags          String?               @db.Text // JSON array of strategic/criticality tags
+  price                  Float? // legacy display price; benchmark layer is authoritative
+  unit                   String?
+  description            String?               @db.Text
+  imageUrl               String?
+  supply                 String?               @db.Text
+  demand                 String?               @db.Text
+  countries              String?               @db.Text // JSON string of countries (display layer)
+  applications           String?               @db.Text // JSON string of applications (display layer)
+  lastUpdated            DateTime              @default(now())
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  trackedBy              TrackedMaterial[]
+  structuredApplications MaterialApplication[]
+  countryRoles           MaterialCountryRole[]
+  sourceLinks            MaterialSourceLink[]
+  priceBenchmarks        PriceBenchmark[]
 
   @@index([name])
   @@index([category])
+  @@index([materialKey])
 }
 
 model Newsletter {
@@ -135,10 +149,129 @@ model TrackedMaterial {
   user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   material   RareEarthMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
   createdAt  DateTime          @default(now())
+  // Last time the user viewed this material's page. Drives the
+  // "Since You Last Checked" delta (C6). Never infer from newsletter delivery.
+  lastSeenAt DateTime?
 
   @@unique([userId, materialId])
   @@index([userId])
   @@index([materialId])
+}
+
+// ---------------------------------------------------------------------------
+// Critical Materials Intelligence — structured foundations (F2/F3/F4/F5)
+// The legacy prose/JSON display fields on RareEarthMaterial remain the
+// content layer; these models carry the machine-readable relationships used
+// by OSINT relevance scoring, watchlists, newsletters and simulations.
+// ---------------------------------------------------------------------------
+
+// Source provenance (F4). One record per publisher/document so data years,
+// URLs and verification dates are auditable instead of "USGS MCS 2025" prose.
+model Source {
+  id                String                @id @default(cuid())
+  publisher         String // e.g. "USGS"
+  document          String? // e.g. "Mineral Commodity Summaries 2026 — Gallium"
+  url               String?               @db.Text
+  publicationDate   DateTime?
+  dataYear          Int? // the year the DATA describes (may differ from pub year)
+  retrievedAt       DateTime              @default(now())
+  verifiedAt        DateTime?
+  notes             String?               @db.Text
+  countryRoles      MaterialCountryRole[]
+  materialLinks     MaterialSourceLink[]
+  priceBenchmarks   PriceBenchmark[]
+  priceObservations PriceObservation[]
+
+  @@index([publisher])
+}
+
+// Structured application relationship (F2). Broad sectors must never qualify
+// an article on their own; strength + qualifiesWithoutMention encode that.
+model MaterialApplication {
+  id                      String            @id @default(cuid())
+  materialId              String
+  material                RareEarthMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  name                    String // e.g. "Thulium-doped lasers"
+  aliases                 String?           @db.Text // JSON array of alternative terms
+  relationship            String            @default("direct_use") // direct_use, compound, downstream_technology, sector
+  strength                String            @default("moderate") // direct, strong, moderate, weak
+  qualifiesWithoutMention Boolean           @default(false) // can an article qualify without naming the material?
+  notes                   String?           @db.Text
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  @@index([materialId])
+  @@index([strength])
+}
+
+// Countries by supply-chain role (F3). Mining ≠ refining ≠ processing ≠
+// component manufacturing ≠ consuming market; one country may hold many roles.
+model MaterialCountryRole {
+  id         String            @id @default(cuid())
+  materialId String
+  material   RareEarthMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  country    String
+  stage      String // mining, refining, processing, manufacturing, consumption
+  sharePct   Float? // share of that stage, e.g. 91 for 91%
+  dataYear   Int?
+  sourceId   String?
+  source     Source?           @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([materialId, stage])
+  @@index([country])
+}
+
+// Join table: which sources back which material (and optionally which field).
+model MaterialSourceLink {
+  id         String            @id @default(cuid())
+  materialId String
+  material   RareEarthMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  sourceId   String
+  source     Source            @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  field      String? // e.g. "supply", "demand", "countries", "price"
+
+  @@unique([materialId, sourceId, field])
+  @@index([sourceId])
+}
+
+// Price benchmark definition (F5). A material can have several commercially
+// relevant products/benchmarks (U3O8 $/lb, battery-grade Li2CO3 $/tonne, ...).
+model PriceBenchmark {
+  id              String             @id @default(cuid())
+  materialId      String
+  material        RareEarthMaterial  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  productForm     String // e.g. "U3O8", "lithium carbonate", "dysprosium oxide"
+  grade           String? // e.g. "battery grade", "99.99% (4N)"
+  benchmarkName   String? // e.g. "UxC U3O8 Spot Price"
+  market          String? // geographic market, e.g. "China", "Europe", "Global"
+  currency        String             @default("USD")
+  unit            String // e.g. "lb", "tonne", "kg"
+  updateFrequency String? // daily, weekly, monthly
+  sourceId        String?
+  source          Source?            @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  observations    PriceObservation[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([materialId])
+}
+
+// Timestamped price history (F5). Never overwrite — the material page queries
+// the newest valid observation; history powers charts later.
+model PriceObservation {
+  id          String         @id @default(cuid())
+  benchmarkId String
+  benchmark   PriceBenchmark @relation(fields: [benchmarkId], references: [id], onDelete: Cascade)
+  price       Float
+  asOf        DateTime // the date the price is valid as of
+  sourceId    String?
+  source      Source?        @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+
+  @@unique([benchmarkId, asOf])
+  @@index([asOf])
 }
 
 model CommodityPrice {

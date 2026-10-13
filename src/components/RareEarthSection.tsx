@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
 interface RareEarthMaterial {
-  id: string
+  id: string | null
   name: string
   symbol: string
   category: string
@@ -26,18 +26,19 @@ export default function RareEarthSection() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-12 text-center">
           <h2 className="text-4xl font-bold tracking-tight">
-            Critical <span className="text-geo-gold">Rare Earth Materials</span>
+            Critical Materials <span className="text-geo-gold">Intelligence</span>
           </h2>
           <p className="mt-4 text-lg text-gray-400">
-            Essential elements powering modern technology and geopolitical dynamics
+            Supply chains, markets and geopolitical risk across the materials
+            underpinning energy, technology, defence and advanced industry
           </p>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {materials.map((material) => (
             <Link
-              key={material.id}
-              href={`/materials/${material.symbol}`}
+              key={material.id ?? material.symbol}
+              href={`/materials/${encodeURIComponent(material.symbol)}`}
               className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition-all hover:border-geo-gold/50 hover:bg-white/10 cursor-pointer"
             >
               <div className="absolute right-4 top-4 text-5xl font-bold text-geo-gold/10 group-hover:text-geo-gold/20 transition-colors">
@@ -61,7 +62,7 @@ export default function RareEarthSection() {
         {/* View All Link */}
         <div className="mt-10 text-center">
           <Link
-            href="/materials/La"
+            href="/materials"
             className="inline-flex items-center gap-2 px-6 py-3 bg-geo-gold/10 border border-geo-gold/30 rounded-lg text-geo-gold font-medium hover:bg-geo-gold/20 transition-all"
           >
             Explore All Materials
@@ -71,7 +72,7 @@ export default function RareEarthSection() {
 
         {materials.length === 0 && (
           <div className="rounded-xl border border-white/10 bg-white/5 p-12 text-center">
-            <p className="text-gray-400">Loading rare earth materials data...</p>
+            <p className="text-gray-400">Loading critical materials data...</p>
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
 import { Pause, Play, RotateCcw } from "lucide-react";
+import EnergyVisualizationBoundary from "@/components/EnergyVisualizationBoundary";
 import EarthSphere from "@/app/components/energy/GlobeLayers/EarthSphere";
 import BoundaryLines from "@/app/components/energy/GlobeLayers/BoundaryLines";
 import PlantsInstancedLayer from "@/app/components/energy/GlobeLayers/PlantsInstancedLayer";
@@ -88,6 +89,7 @@ export default function EnergyInfrastructureGlobe({
   updatedAt = null,
 }: EnergyInfrastructureGlobeProps) {
   const [ready, setReady] = useState(false);
+  const [plantStatus, setPlantStatus] = useState<string | null>(null);
   const [selected, setSelected] = useState<PlantClickInfo | null>(null);
   const [hoverTip, setHoverTip] = useState<{
     plant: PlantClickInfo;
@@ -202,6 +204,7 @@ export default function EnergyInfrastructureGlobe({
       : null;
 
   return (
+    <EnergyVisualizationBoundary>
     <div
       ref={containerRef}
       className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-[#04060c]"
@@ -229,6 +232,7 @@ export default function EnergyInfrastructureGlobe({
           {plantQuery && (
             <PlantsInstancedLayer
               query={plantQuery}
+              onStatus={setPlantStatus}
               onPlantClick={handlePlantClick}
               onPlantHover={(p, pos) => {
                 setMetaTip(null);
@@ -277,6 +281,7 @@ export default function EnergyInfrastructureGlobe({
           Loading globe…
         </div>
       )}
+      {plantStatus && plants !== false && <p role="status" className="absolute top-3 left-3 right-20 z-10 rounded-lg bg-black/80 p-2 text-xs text-amber-200">{plantStatus}</p>}
 
       {legend && (
         <LayerLegend
@@ -433,5 +438,6 @@ export default function EnergyInfrastructureGlobe({
         </div>
       )}
     </div>
+    </EnergyVisualizationBoundary>
   );
 }

@@ -55,7 +55,7 @@ export default function NewsAnalysis({ title, text, articleId, className }: News
      }
    }, [articleId]);
 
-  const analyzeContent = async () => {
+  const analyzeContent = async (forceRefresh = false) => {
     setLoading(true);
     setError('');
 
@@ -63,7 +63,7 @@ export default function NewsAnalysis({ title, text, articleId, className }: News
       const response = await fetch('/api/ai/bias', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, text, articleId }),
+        body: JSON.stringify({ title, text, articleId, forceRefresh }),
       });
 
       if (!response.ok) throw new Error('Failed to analyze content');
@@ -133,7 +133,7 @@ export default function NewsAnalysis({ title, text, articleId, className }: News
 
         {!result && !loading && !articleId && (
           <button
-            onClick={analyzeContent}
+            onClick={() => analyzeContent()}
             className="text-xs px-4 py-2 bg-geo-gold text-black font-bold rounded-lg hover:bg-yellow-500 transition-all flex items-center gap-2"
           >
             <Zap className="w-3 h-3" />
@@ -155,7 +155,7 @@ export default function NewsAnalysis({ title, text, articleId, className }: News
       {error && (
         <div className="p-4 bg-red-500/10 border-l-2 border-red-500 text-red-200 text-sm m-4">
           {error}
-          <button onClick={analyzeContent} className="ml-3 text-geo-gold hover:underline text-xs">Retry</button>
+          <button onClick={() => analyzeContent()} className="ml-3 text-geo-gold hover:underline text-xs">Retry</button>
         </div>
       )}
 
@@ -309,7 +309,7 @@ export default function NewsAnalysis({ title, text, articleId, className }: News
 
           <div className="p-2 flex justify-end">
             <button
-              onClick={analyzeContent}
+              onClick={() => analyzeContent(true)}
               className="text-[10px] text-gray-600 hover:text-gray-400 uppercase tracking-wider transition-colors"
             >
               Re-calibrate Intelligence
