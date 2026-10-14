@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
@@ -21,6 +20,13 @@ import {
     Atom,
 } from 'lucide-react'
 import MaterialPriceChart from '@/components/materials/MaterialPriceChart'
+import EarlyWarningBanner from '@/components/materials/EarlyWarningBanner'
+import RiskPulseCard from '@/components/materials/RiskPulseCard'
+import MaterialIntelFeed from '@/components/materials/MaterialIntelFeed'
+import CrossMaterialImpact from '@/components/materials/CrossMaterialImpact'
+import ShockSimulator from '@/components/materials/ShockSimulator'
+import SinceLastCheckedBanner from '@/components/materials/SinceLastCheckedBanner'
+import type { MaterialIntel } from '@/components/materials/intel-types'
 
 interface MaterialBenchmarkInfo {
     id: string | null
@@ -123,10 +129,10 @@ function ChangeChip({ pct }: { pct: number }) {
 export default function MaterialDetailPage() {
     const params = useParams()
     const symbol = decodeURIComponent(params.symbol as string)
-    const { data: session } = useSession()
     const [data, setData] = useState<MaterialDetailResponse | null>(null)
     const [loading, setLoading] = useState(true)
     const [notFound, setNotFound] = useState(false)
+    const [intel, setIntel] = useState<MaterialIntel | null>(null)
 
     useEffect(() => {
         setLoading(true)
@@ -148,16 +154,17 @@ export default function MaterialDetailPage() {
             .finally(() => setLoading(false))
     }, [symbol])
 
-    // Record "last seen" for the Since-You-Last-Checked delta when the
-    // signed-in user views a material they track (fire-and-forget).
+    // Fetch the intelligence aggregate (C1–C5) for this material. The
+    // "Since You Last Checked" banner (C6) owns lastSeenAt updates via its
+    // explicit "Mark as caught up" action — do NOT auto-PATCH here, or the
+    // delta would always be empty.
     useEffect(() => {
-        if (!session?.user || !data?.material.id) return
-        fetch('/api/user/tracked-materials', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ materialId: data.material.id }),
-        }).catch(() => {})
-    }, [session, data?.material.id])
+        setIntel(null)
+        fetch(`/api/materials/${encodeURIComponent(symbol)}/intel`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((payload: MaterialIntel | null) => setIntel(payload))
+            .catch(() => setIntel(null))
+    }, [symbol])
 
     if (loading) {
         return (
@@ -253,6 +260,18 @@ export default function MaterialDetailPage() {
                     </div>
                 </motion.div>
 
+                {/* C6 — Since You Last Checked (signed-in trackers only) */}
+                <div className="mb-6">
+                    <SinceLastCheckedBanner symbol={symbol} materialId={material.id} />
+                </div>
+
+                {/* C2 — Early-Warning status */}
+                {intel?.state && (
+                    <div className="mb-8">
+                        <EarlyWarningBanner state={intel.state} />
+                    </div>
+                )}
+
                 <div className="grid lg:grid-cols-3 gap-8">
                     {/* Main Content */}
                     <div className="lg:col-span-2 space-y-8">
@@ -266,6 +285,17 @@ export default function MaterialDetailPage() {
                             <h2 className="text-xl font-bold mb-4">Overview</h2>
                             <p className="text-gray-300 leading-relaxed">{material.description}</p>
                         </motion.section>
+
+                        {/* C4 — GeoMoney Risk Pulse */}
+                        {intel?.pulse && (
+                            <motion.section
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: 0.12 }}
+                            >
+                                <RiskPulseCard pulse={intel.pulse} history={intel.pulseHistory} />
+                            </motion.section>
+                        )}
 
                         {/* Applications */}
                         {material.applications.length > 0 && (
@@ -486,6 +516,37 @@ export default function MaterialDetailPage() {
                                 </div>
                             </motion.section>
                         )}
+
+                        {/* C1 + C3 — Latest intelligence with relevance + implications */}
+                        {intel && (
+                            <motion.section
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: 0.38 }}
+                            >
+                                <MaterialIntelFeed events={intel.events} />
+                            </motion.section>
+                        )}
+
+                        {/* C5 — Cross-Material Impact */}
+                        {intel && intel.crossMaterial.length > 0 && (
+                            <motion.section
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: 0.4 }}
+                            >
+                                <CrossMaterialImpact items={intel.crossMaterial} />
+                            </motion.section>
+                        )}
+
+                        {/* C7 — Shock Propagation Simulation */}
+                        <motion.section
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: 0.42 }}
+                        >
+                            <ShockSimulator symbol={symbol} materialName={material.name} />
+                        </motion.section>
                     </div>
 
 

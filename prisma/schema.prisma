@@ -56,6 +56,7 @@ model Article {
   author      User     @relation(fields: [authorId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  materialEvents MaterialEvent[]
 
   @@index([authorId])
   @@index([slug])
@@ -111,6 +112,10 @@ model RareEarthMaterial {
   countryRoles           MaterialCountryRole[]
   sourceLinks            MaterialSourceLink[]
   priceBenchmarks        PriceBenchmark[]
+  eventLinks             MaterialEventLink[]
+  riskPulses             MaterialRiskPulse[]
+  riskState              MaterialRiskState?
+  shockSimulations       ShockSimulation[]
 
   @@index([name])
   @@index([category])
@@ -381,4 +386,143 @@ model PortfolioAsset {
 
   @@unique([userId, symbol])
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Critical Materials Intelligence — the seven capability layer (C1–C7)
+// One canonical MaterialEvent feeds relevance scoring (C1), early-warning
+// (C2), implications (C3), risk pulse (C4), cross-material impact (C5),
+// since-you-last-checked (C6) and shock simulation (C7).
+// Severity and confidence are always separate fields.
+// ---------------------------------------------------------------------------
+
+// Canonical event record (C5): a multi-material event is stored ONCE and
+// linked to every affected material via MaterialEventLink — never duplicated
+// per material, so reports/newsletters can dedupe.
+model MaterialEvent {
+  id            String            @id @default(cuid())
+  eventKey      String            @unique // dedupe hash of normalized title + day
+  title         String
+  summary       String?           @db.Text
+  eventType     String            @default("other") // export_control, mine_outage, refinery_outage, project_delay, price_move, policy, demand_shift, capacity, sanctions, other
+  stage         String? // mining, refining, processing, component, downstream
+  occurredAt    DateTime          @default(now())
+  sourceName    String?
+  sourceUrl     String?           @db.Text
+  articleId     String? // originating Article, when ingested from the news pipeline
+  article       Article?          @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  severity      String            @default("moderate") // low, moderate, high, severe — magnitude IF true
+  confidence    String            @default("medium") // low, medium, high — evidence quality, kept separate from severity
+  countries     String?           @db.Text // JSON array of countries connected to the event
+  companies     String?           @db.Text // JSON array of companies connected to the event
+  status        String            @default("active") // active, expired, disproven
+  expiresAt     DateTime? // after this the event stops contributing to risk scores
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  materialLinks MaterialEventLink[]
+  implication   EventImplication?
+
+  @@index([eventType])
+  @@index([occurredAt])
+  @@index([status])
+}
+
+// Event ↔ material relevance edge (C1). An event may affect materials
+// directly, through a material family, through shared processing, or through
+// common downstream applications (C5).
+model MaterialEventLink {
+  id               String            @id @default(cuid())
+  eventId          String
+  event            MaterialEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  materialId       String
+  material         RareEarthMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  relevanceScore   Int // 0-100. 90-100 critical, 70-89 high, 50-69 moderate, <50 suppressed
+  relevanceLevel   Int               @default(1) // 1 = direct material event, 2 = strong downstream implication, 3 = generic sector context
+  relationshipType String            @default("direct") // direct, family, shared_processing, downstream_application
+  whyRelevant      String?           @db.Text // one-sentence machine + human readable explanation
+  severity         String? // per-material severity override (kept separate from confidence)
+  confidence       String? // per-material confidence override
+  createdAt        DateTime          @default(now())
+
+  @@unique([eventId, materialId])
+  @@index([materialId, relevanceScore])
+  @@index([relevanceLevel])
+}
+
+// Structured "so what" for a qualifying event (C3). Every field must be
+// traceable to the event, the material relationship and evidence; when
+// evidence is insufficient the value is "uncertain", never invented prose.
+model EventImplication {
+  id                   String        @id @default(cuid())
+  eventId              String        @unique
+  event                MaterialEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  whatHappened         String        @db.Text // concise factual summary
+  supplyImplication    String        @default("uncertain") // positive, negative, neutral, uncertain
+  supplySeverity       String? // low, moderate, high
+  demandImplication    String        @default("uncertain")
+  demandSeverity       String?
+  priceDirection       String        @default("unclear") // upward, downward, mixed, unclear
+  affectedApplications String?       @db.Text // JSON array of application names/ids potentially affected
+  timeHorizon          String        @default("uncertain") // immediate, 1-3_months, 6-12_months, uncertain
+  watchTriggers        String?       @db.Text // JSON array: three concrete "what to watch next" triggers
+  assessment           String?       @db.Text // GeoMoney assessment, tied to sources
+  confidence           String        @default("low") // low, medium, high
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+}
+
+// Append-only daily Risk Pulse history (C4). Scores are produced ONLY by the
+// deterministic scoring rules over structured data/events — never by an LLM.
+// contributions stores event-linked deltas, e.g. [{"label":"Export licensing","delta":5}].
+model MaterialRiskPulse {
+  id             String            @id @default(cuid())
+  materialId     String
+  material       RareEarthMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  asOf           DateTime // day the score is valid for (UTC midnight)
+  score          Int // 0-100 composite
+  supplyRisk     Int // 0-100 component: concentration + current disruptions
+  policyRisk     Int // export controls, sanctions, tariffs, intervention
+  demandPressure Int // application growth, procurement, demand shocks
+  marketStress   Int // price movement, availability, dislocation
+  supplyResponse Int // new capacity, restarts, substitution, recycling (higher = more response = lowers composite)
+  contributions  String?           @db.Text // JSON array of {label, delta, eventId?}
+  createdAt      DateTime          @default(now())
+
+  @@unique([materialId, asOf])
+  @@index([asOf])
+}
+
+// Current early-warning state per material (C2). Status changes accumulate
+// signals over rolling windows rather than reacting to one headline.
+model MaterialRiskState {
+  id          String            @id @default(cuid())
+  materialId  String            @unique
+  material    RareEarthMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  status      String            @default("NORMAL") // NORMAL, WATCH, ELEVATED, CRITICAL
+  statusSince DateTime          @default(now())
+  drivers     String?           @db.Text // JSON array: top 3-5 drivers behind the current status
+  delta24h    Int               @default(0) // pulse-score change over trailing 24h
+  delta7d     Int               @default(0)
+  delta30d    Int               @default(0)
+  signals24h  Int               @default(0) // qualifying event count, trailing 24h
+  signals7d   Int               @default(0)
+  updatedAt   DateTime          @updatedAt
+}
+
+// Saved shock-propagation scenario (C7). Output is constrained: ranges and
+// directional effects with per-component confidence, never false precision.
+model ShockSimulation {
+  id           String            @id @default(cuid())
+  materialId   String
+  material     RareEarthMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  userId       String? // nullable so anonymous simulations need no account
+  shockType    String // export_restriction, mine_outage, refinery_outage, sanctions, logistics_disruption, demand_surge, new_capacity
+  magnitudePct Int // 10, 25, 50, 75 or 100
+  geography    String? // country/entity responsible for the shock
+  durationDays Int               @default(90) // 30, 90, 365
+  note         String?           @db.Text // optional analyst note
+  result       String            @db.Text // JSON: stages, impacts, mitigation, pulseEffect, confidence, assumptions
+  createdAt    DateTime          @default(now())
+
+  @@index([materialId, createdAt])
 }

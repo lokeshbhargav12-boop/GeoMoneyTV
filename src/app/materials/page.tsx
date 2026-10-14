@@ -15,6 +15,8 @@ import {
   TrendingDown,
   ArrowUpDown,
 } from "lucide-react";
+import WhatMovedToday, { type MovedEvent } from "@/components/materials/WhatMovedToday";
+import MaterialsStatusBoard, { type BoardEntry } from "@/components/materials/MaterialsStatusBoard";
 
 interface RareEarthMaterial {
   id: string | null;
@@ -66,6 +68,24 @@ export default function MaterialsPage() {
   const [sort, setSort] = useState<SortKey>("name");
   const [trackedIds, setTrackedIds] = useState<Set<string>>(new Set());
   const [trackingInProgress, setTrackingInProgress] = useState<string | null>(null);
+  const [intelOverview, setIntelOverview] = useState<{ whatMoved: MovedEvent[]; board: BoardEntry[] } | null>(null);
+
+  // Intelligence overview: "What Moved Critical Materials Today?" (C5) and
+  // the early-warning status board (C2 + C4).
+  useEffect(() => {
+    fetch("/api/materials/intel/overview")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setIntelOverview({ whatMoved: data.whatMoved ?? [], board: data.board ?? [] });
+      })
+      .catch(() => {});
+  }, []);
+
+  const pulseBySymbol = useMemo(() => {
+    const map = new Map<string, BoardEntry>();
+    for (const entry of intelOverview?.board ?? []) map.set(entry.symbol, entry);
+    return map;
+  }, [intelOverview]);
 
   useEffect(() => {
     fetch("/api/rare-earth")
@@ -243,6 +263,11 @@ export default function MaterialsPage() {
           </div>
         </div>
 
+        {/* C5 — What Moved Critical Materials Today? */}
+        {intelOverview && <WhatMovedToday events={intelOverview.whatMoved} />}
+
+        {/* C2 + C4 — Early-warning status board */}
+        {intelOverview && <MaterialsStatusBoard board={intelOverview.board} />}
 
         {/* Market movers (only when benchmark history exists) */}
         {movers.length > 0 && (
@@ -389,7 +414,17 @@ export default function MaterialsPage() {
                   <p className="mt-3 text-sm text-gray-400 line-clamp-2">{material.description}</p>
 
                   <div className="mt-4 flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Critical Material</span>
+                    <span className="text-xs text-gray-500 flex items-center gap-2">
+                      Critical Material
+                      {pulseBySymbol.get(material.symbol)?.score != null && (
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-geo-gold/10 border border-geo-gold/30 text-geo-gold font-semibold"
+                          title={`GeoMoney Risk Pulse: ${pulseBySymbol.get(material.symbol)!.score}/100 · ${pulseBySymbol.get(material.symbol)!.status}`}
+                        >
+                          Pulse {pulseBySymbol.get(material.symbol)!.score}
+                        </span>
+                      )}
+                    </span>
                     <div className="flex items-center gap-2">
                       {session?.user && material.id && (
                         <button
