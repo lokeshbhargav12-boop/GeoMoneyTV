@@ -233,6 +233,7 @@ export interface MaterialBenchmarkInfo {
   updateFrequency: string | null
   isProxy: boolean
   isLive: boolean
+  feedSymbol: string | null
   latest: { price: number; asOf: string } | null
   change: number | null
   changePercent: number | null
@@ -309,6 +310,7 @@ function seedToDetail(seed: CriticalMaterialSeed): MaterialDetail {
     updateFrequency: b.updateFrequency ?? null,
     isProxy: b.isProxy ?? false,
     isLive: Boolean(b.feed),
+    feedSymbol: b.feed?.symbol ?? null,
     latest: null,
     change: null,
     changePercent: null,
@@ -381,8 +383,10 @@ async function loadDbMaterial(symbolOrKey: string) {
 }
 
 function dbToDetail(row: DbMaterialWithRelations): MaterialDetail {
-  const feedSeeds = new Set(
-    benchmarksForMaterial(row.materialKey ?? '').map((b) => `${b.productForm}::${b.unit}`),
+  const feedSeeds = new Map(
+    benchmarksForMaterial(row.materialKey ?? '')
+      .filter((b) => b.feed)
+      .map((b) => [`${b.productForm}::${b.unit}`, b.feed!.symbol]),
   )
 
   const benchmarks: MaterialBenchmarkInfo[] = row.priceBenchmarks.map((b) => {
@@ -391,6 +395,7 @@ function dbToDetail(row: DbMaterialWithRelations): MaterialDetail {
     const change = latest && previous ? latest.price - previous.price : null
     const changePercent =
       change != null && previous && previous.price !== 0 ? (change / previous.price) * 100 : null
+    const feedSymbol = feedSeeds.get(`${b.productForm}::${b.unit}`) ?? null
     return {
       id: b.id,
       productForm: b.productForm,
@@ -401,7 +406,8 @@ function dbToDetail(row: DbMaterialWithRelations): MaterialDetail {
       unit: b.unit,
       updateFrequency: b.updateFrequency,
       isProxy: /proxy/i.test(b.benchmarkName ?? ''),
-      isLive: feedSeeds.has(`${b.productForm}::${b.unit}`),
+      isLive: feedSymbol != null,
+      feedSymbol,
       latest: latest ? { price: latest.price, asOf: latest.asOf.toISOString() } : null,
       change,
       changePercent,
@@ -741,7 +747,7 @@ export interface MaterialPriceHistoryPoint {
 
 export interface MaterialPriceHistoryResponse {
   benchmark: {
-    id: string
+    id: string | null
     productForm: string
     grade: string | null
     benchmarkName: string | null

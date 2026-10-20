@@ -23,11 +23,13 @@ export interface ChartBenchmarkOption {
     currency: string
     isLive: boolean
     hasData: boolean
+    feedSymbol: string | null
+    isProxy: boolean
 }
 
 interface HistoryResponse {
     benchmark: {
-        id: string
+        id: string | null
         productForm: string
         grade: string | null
         benchmarkName: string | null
@@ -36,6 +38,9 @@ interface HistoryResponse {
         unit: string
     }
     points: { asOf: string; price: number }[]
+    source?: 'observations' | 'yahoo'
+    feedSymbol?: string | null
+    isProxy?: boolean
 }
 
 interface Props {
@@ -49,28 +54,86 @@ function formatAxisPrice(value: number): string {
     return value.toFixed(2)
 }
 
+const TIME_RANGES = [
+    { label: '1M', days: 30 },
+    { label: '3M', days: 90 },
+    { label: '1Y', days: 365 },
+    { label: '5Y', days: 1825 },
+] as const
+
+function benchmarkKey(option: ChartBenchmarkOption): string {
+    return option.id ?? `feed:${option.feedSymbol ?? `${option.productForm}::${option.unit}`}`
+}
+
+function formatAxisDate(value: string, rangeDays: number): string {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString(
+        'en-US',
+        rangeDays > 365
+            ? { month: 'short', year: '2-digit' }
+            : { month: 'short', day: 'numeric' },
+    )
+}
+
 export default function MaterialPriceChart({ symbol, benchmarks }: Props) {
-    const selectable = useMemo(() => benchmarks.filter((b) => b.id), [benchmarks])
-    const [selectedId, setSelectedId] = useState<string | null>(selectable[0]?.id ?? null)
+    const selectable = useMemo(
+        () => benchmarks.filter((b) => Boolean((b.id && b.hasData) || b.feedSymbol)),
+        [benchmarks],
+    )
+    const [selectedKey, setSelectedKey] = useState<string | null>(
+        selectable[0] ? benchmarkKey(selectable[0]) : null,
+    )
+    const [rangeDays, setRangeDays] = useState<number>(365)
     const [history, setHistory] = useState<HistoryResponse | null>(null)
     const [loading, setLoading] = useState(false)
 
     useEffect(() => {
-        if (!selectedId) return
+        const firstKey = selectable[0] ? benchmarkKey(selectable[0]) : null
+        const selectedExists = selectedKey != null && selectable.some((b) => benchmarkKey(b) === selectedKey)
+        if (!selectedExists && firstKey !== selectedKey) setSelectedKey(firstKey)
+    }, [selectable, selectedKey])
+
+    const selectedOption = useMemo(
+        () => selectable.find((b) => benchmarkKey(b) === selectedKey) ?? null,
+        [selectable, selectedKey],
+    )
+
+    useEffect(() => {
+        if (!selectedOption) {
+            setHistory(null)
+            return
+        }
+
+        const controller = new AbortController()
+        const params = new URLSearchParams({ days: String(rangeDays) })
+        if (selectedOption.id) params.set('benchmark', selectedOption.id)
+        if (selectedOption.feedSymbol) params.set('feed', selectedOption.feedSymbol)
+
         setLoading(true)
-        fetch(`/api/rare-earth/${encodeURIComponent(symbol)}/history?benchmark=${encodeURIComponent(selectedId)}`)
+        setHistory(null)
+        fetch(`/api/rare-earth/${encodeURIComponent(symbol)}/history?${params.toString()}`, {
+            signal: controller.signal,
+        })
             .then((res) => (res.ok ? res.json() : null))
-            .then((payload: HistoryResponse | null) => setHistory(payload))
-            .catch(() => setHistory(null))
-            .finally(() => setLoading(false))
-    }, [symbol, selectedId])
+            .then((payload: HistoryResponse | null) => {
+                if (!controller.signal.aborted) setHistory(payload)
+            })
+            .catch((error) => {
+                if (error instanceof DOMException && error.name === 'AbortError') return
+                if (!controller.signal.aborted) setHistory(null)
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false)
+            })
+
+        return () => controller.abort()
+    }, [symbol, selectedOption, rangeDays])
 
     const chartData = useMemo(() => {
         if (!history || history.points.length === 0) return null
         return {
-            labels: history.points.map((p) =>
-                new Date(p.asOf).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            ),
+            labels: history.points.map((p) => formatAxisDate(p.asOf, rangeDays)),
             datasets: [
                 {
                     data: history.points.map((p) => p.price),
@@ -85,7 +148,7 @@ export default function MaterialPriceChart({ symbol, benchmarks }: Props) {
                 },
             ],
         }
-    }, [history])
+    }, [history, rangeDays])
 
 
     const options = useMemo(
@@ -134,23 +197,48 @@ export default function MaterialPriceChart({ symbol, benchmarks }: Props) {
 
     return (
         <div>
-            {selectable.length > 1 && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                    {selectable.map((b) => (
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                {selectable.length > 1 ? (
+                    <div className="flex flex-wrap gap-2">
+                        {selectable.map((b) => {
+                            const key = benchmarkKey(b)
+                            return (
+                                <button
+                                    key={key}
+                                    onClick={() => setSelectedKey(key)}
+                                    aria-pressed={selectedKey === key}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                                        selectedKey === key
+                                            ? 'bg-geo-gold/20 border-geo-gold/50 text-geo-gold'
+                                            : 'bg-black/30 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                                    }`}
+                                >
+                                    {b.benchmarkName ?? b.productForm}
+                                </button>
+                            )
+                        })}
+                    </div>
+                ) : (
+                    <div />
+                )}
+
+                <div className="flex gap-1 rounded-lg bg-black/30 border border-white/10 p-1">
+                    {TIME_RANGES.map((range) => (
                         <button
-                            key={b.id}
-                            onClick={() => setSelectedId(b.id)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                                selectedId === b.id
-                                    ? 'bg-geo-gold/20 border-geo-gold/50 text-geo-gold'
-                                    : 'bg-black/30 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                            key={range.days}
+                            onClick={() => setRangeDays(range.days)}
+                            aria-pressed={rangeDays === range.days}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                                rangeDays === range.days
+                                    ? 'bg-geo-gold/20 text-geo-gold'
+                                    : 'text-gray-500 hover:text-white'
                             }`}
                         >
-                            {b.benchmarkName ?? b.productForm}
+                            {range.label}
                         </button>
                     ))}
                 </div>
-            )}
+            </div>
 
             <div className="h-64 w-full">
                 {loading ? (
@@ -161,10 +249,14 @@ export default function MaterialPriceChart({ symbol, benchmarks }: Props) {
                     <div className="h-full w-full flex flex-col items-center justify-center text-center bg-black/20 rounded-lg border border-white/5">
                         <LineChart className="w-8 h-8 text-gray-600 mb-2" />
                         <p className="text-sm text-gray-500">
-                            No observations collected yet for this benchmark.
+                            {selectedOption?.feedSymbol
+                                ? 'Historical market data is temporarily unavailable for this benchmark.'
+                                : 'No observations collected yet for this benchmark.'}
                         </p>
                         <p className="text-xs text-gray-600 mt-1">
-                            History builds automatically as the price scraper runs.
+                            {selectedOption?.feedSymbol
+                                ? 'Please try again later. The configured market feed may be rate-limited.'
+                                : 'History builds automatically as the price scraper runs.'}
                         </p>
                     </div>
                 )}
@@ -177,7 +269,10 @@ export default function MaterialPriceChart({ symbol, benchmarks }: Props) {
                         {history.benchmark.market ? ` · ${history.benchmark.market}` : ''}
                     </span>
                     <span>
-                        {history.points.length} observation{history.points.length === 1 ? '' : 's'} ·{' '}
+                        {history.source === 'yahoo'
+                            ? `${history.isProxy ? 'Proxy market' : 'Market'} history via Yahoo Finance`
+                            : `${history.points.length} recorded observation${history.points.length === 1 ? '' : 's'}`}
+                        {' · '}
                         {history.benchmark.currency}/{history.benchmark.unit}
                     </span>
                 </div>

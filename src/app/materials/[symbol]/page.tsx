@@ -39,6 +39,7 @@ interface MaterialBenchmarkInfo {
     updateFrequency: string | null
     isProxy: boolean
     isLive: boolean
+    feedSymbol: string | null
     latest: { price: number; asOf: string } | null
     change: number | null
     changePercent: number | null
@@ -451,8 +452,8 @@ export default function MaterialDetailPage() {
                         )}
 
 
-                        {/* Price History (F5 observations) */}
-                        {material.benchmarks.some((b) => b.id) && (
+                        {/* Price History (recorded observations or configured market feed) */}
+                        {material.benchmarks.some((b) => (b.id && b.latest) || b.feedSymbol) && (
                             <motion.section
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -473,6 +474,8 @@ export default function MaterialDetailPage() {
                                         currency: b.currency,
                                         isLive: b.isLive,
                                         hasData: b.latest != null,
+                                        feedSymbol: b.feedSymbol,
+                                        isProxy: b.isProxy,
                                     }))}
                                 />
                             </motion.section>
