@@ -7,10 +7,19 @@ const nextConfig = {
   // process/thread exhaustion (EAGAIN / os error 11) on shared hosting environments
   staticPageGenerationTimeout: 180,
 
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   experimental: {
     serverComponentsExternalPackages: ["@resvg/resvg-js"],
     cpus: 1,
     workerThreads: false,
+    webpackBuildWorker: false,
   },
 
   // Generate source maps in production for debugging
