@@ -3,8 +3,14 @@ const nextConfig = {
   // Ensure assets are properly referenced
   assetPrefix: process.env.ASSET_PREFIX || "",
 
+  // Limit static page generation concurrency & increase timeout to prevent
+  // process/thread exhaustion (EAGAIN / os error 11) on shared hosting environments
+  staticPageGenerationTimeout: 180,
+
   experimental: {
     serverComponentsExternalPackages: ["@resvg/resvg-js"],
+    cpus: 1,
+    workerThreads: false,
   },
 
   // Generate source maps in production for debugging

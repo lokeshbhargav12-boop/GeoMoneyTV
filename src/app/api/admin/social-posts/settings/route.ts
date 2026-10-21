@@ -11,6 +11,8 @@ import {
     saveSocialPostGeneratorSettings,
 } from '@/lib/social-post-service'
 
+export const dynamic = 'force-dynamic'
+
 async function requireAdmin() {
     const session = await getServerSession(authOptions)
     if ((session?.user as any)?.role !== 'admin') {

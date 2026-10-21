@@ -44,6 +44,9 @@ export const metadata: Metadata = {
 
 const getLogoUrl = unstable_cache(
   async () => {
+    if (process.env.NEXT_PHASE === "phase-production-build") {
+      return null;
+    }
     try {
       const logoSetting = await prisma.siteSettings.findUnique({
         where: { key: "logo_url" },

@@ -3,6 +3,8 @@
 // pipeline is unavailable.  Returns [{date, close}, …] sorted ascending.
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const COAL_YAHOO_SYMBOLS: Record<string, string> = {
   NEWCASTLE: "MTF=F",
   API2: "ATW=F",

@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth'
 import path from 'path'
 import fs from 'fs'
 
+export const dynamic = 'force-dynamic'
+
 const KEY = 'hero_carousel'
 const MIN_VIDEO_DURATION_SECONDS = 1
 const MAX_VIDEO_DURATION_SECONDS = 45

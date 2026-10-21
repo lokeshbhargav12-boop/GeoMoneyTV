@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth'
 import path from 'path'
 import fs from 'fs'
 
+export const dynamic = 'force-dynamic'
+
 const LOGO_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
 const MAX_LOGO_SIZE = 5 * 1024 * 1024
 

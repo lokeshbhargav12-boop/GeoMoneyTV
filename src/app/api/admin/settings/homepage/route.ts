@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const keys = ['hero_title', 'hero_subtitle', 'newsletter_title', 'newsletter_subtitle', 'partner_logos', 'footer_text']

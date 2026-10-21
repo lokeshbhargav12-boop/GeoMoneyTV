@@ -28,6 +28,8 @@ import {
   getStreetViewEmbedUrl,
 } from "@/lib/world-monitor-geo";
 
+export const dynamic = "force-dynamic";
+
 type ReportKind = "event" | "aircraft" | "ship";
 
 interface ReportSearchParams {

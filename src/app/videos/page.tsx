@@ -3,6 +3,8 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { Play, Film, Clapperboard, ArrowLeft } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Videos - GeoMoney TV",
   description:

@@ -9,6 +9,8 @@ import {
     type SocialPostGeneratorSettings,
 } from '@/lib/social-post-service'
 
+export const dynamic = 'force-dynamic'
+
 // GET — List all social posts
 export async function GET(req: Request) {
     try {

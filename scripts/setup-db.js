@@ -102,13 +102,22 @@ async function setupDatabase() {
     process.exit(1);
   }
   
+  // Constrain Rust/Tokio/Rayon threads to avoid EAGAIN on shared hosting
+  const prismaEnv = {
+    ...process.env,
+    TOKIO_WORKER_THREADS: process.env.TOKIO_WORKER_THREADS || '1',
+    RAYON_NUM_THREADS: process.env.RAYON_NUM_THREADS || '1',
+    UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE || '2',
+  };
+
   // Step 1: Generate Prisma Client
   logSection('STEP 1: GENERATING PRISMA CLIENT');
   try {
     log('Running: prisma generate...', 'yellow');
     const output = execSync('npx prisma generate', { 
       encoding: 'utf8',
-      stdio: 'pipe'
+      stdio: 'pipe',
+      env: prismaEnv,
     });
     log('✓ Prisma client generated successfully', 'green');
     log(`Output: ${output.substring(0, 500)}...`, 'blue');
@@ -123,10 +132,11 @@ async function setupDatabase() {
     log('Running: prisma db push...', 'yellow');
     log('This will create/update database tables based on schema.prisma', 'blue');
     
-    const output = execSync('npx prisma db push --accept-data-loss', { 
+    const output = execSync('npx prisma db push --accept-data-loss --skip-generate', { 
       encoding: 'utf8',
       stdio: 'pipe',
-      timeout: 120000 // 2 minute timeout
+      timeout: 120000, // 2 minute timeout
+      env: prismaEnv,
     });
     
     log('✓ Database schema pushed successfully', 'green');
@@ -140,7 +150,8 @@ async function setupDatabase() {
       const migrateOutput = execSync('npx prisma migrate deploy', { 
         encoding: 'utf8',
         stdio: 'pipe',
-        timeout: 120000
+        timeout: 120000,
+        env: prismaEnv,
       });
       log('✓ Database migrations deployed successfully', 'green');
       log(`Output:\n${migrateOutput}`, 'blue');
@@ -156,7 +167,8 @@ async function setupDatabase() {
     log('Testing database connection...', 'yellow');
     const testOutput = execSync('node scripts/verify-db.js', { 
       encoding: 'utf8',
-      stdio: 'pipe'
+      stdio: 'pipe',
+      env: prismaEnv,
     });
     log(testOutput, 'green');
   } catch (error) {
@@ -172,7 +184,8 @@ async function setupDatabase() {
       log('Creating default admin account...', 'yellow');
       const output = execSync('node scripts/create-default-admin.js', { 
         encoding: 'utf8',
-        stdio: 'pipe'
+        stdio: 'pipe',
+        env: prismaEnv,
       });
       log(output, 'green');
     } catch (error) {
@@ -191,7 +204,8 @@ async function setupDatabase() {
       log('Running init-settings.js...', 'yellow');
       const output = execSync('node scripts/init-settings.js', { 
         encoding: 'utf8',
-        stdio: 'pipe'
+        stdio: 'pipe',
+        env: prismaEnv,
       });
       log('✓ Default settings initialized', 'green');
       log(`Output: ${output}`, 'blue');

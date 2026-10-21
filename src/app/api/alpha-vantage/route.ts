@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getOrRefreshStoredHistory } from '@/lib/ticker-service';
 
+export const dynamic = 'force-dynamic';
+
 type SupportedInterval = '1min' | '5min' | '15min' | '60min' | 'D' | 'W' | 'M';
 
 export async function GET(request: Request) {

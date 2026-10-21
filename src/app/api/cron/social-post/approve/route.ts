@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { publishToSocialMedia } from '@/lib/social-post-service'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
     return NextResponse.json({
         ok: true,
