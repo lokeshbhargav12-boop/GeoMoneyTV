@@ -18,7 +18,9 @@
 // - Every surfaced event explains in one sentence why it is being shown.
 
 import { prisma } from '@/lib/prisma'
-import { parseJsonArray, stripSourceSuffix } from '@/lib/material-intel-service'
+import { CRITICAL_MATERIALS_DATA, type CriticalMaterialSeed } from '@/data/critical-materials'
+import { PILOT_APPLICATIONS } from '@/data/pilot-applications'
+import { parseJsonArray, stripSourceSuffix, toMaterialKey } from '@/lib/material-intel-service'
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -853,8 +855,159 @@ export async function recomputeAllMaterialRisk(): Promise<{ pulses: number; stat
 
 
 // ---------------------------------------------------------------------------
-// Read APIs (detail page + overview page)
+// Read APIs (detail page + overview page) + Seed Fallbacks
 // ---------------------------------------------------------------------------
+
+function findMaterialSeed(symbolOrKey: string): CriticalMaterialSeed | null {
+  const key = decodeURIComponent(symbolOrKey).trim().toLowerCase()
+  if (!key) return null
+  return (
+    CRITICAL_MATERIALS_DATA.find(
+      (m) =>
+        m.symbol.toLowerCase() === key ||
+        m.name.toLowerCase() === key ||
+        toMaterialKey(m.name) === key,
+    ) ?? null
+  )
+}
+
+function deriveSeedBaselinePulse(seed: CriticalMaterialSeed): {
+  score: number
+  supplyRisk: number
+  policyRisk: number
+  demandPressure: number
+  marketStress: number
+  supplyResponse: number
+  asOf: string
+  contributions: PulseContribution[]
+  status: WarningStatus
+  drivers: { label: string; delta: number }[]
+} {
+  const supplyText = (seed.supply ?? '').toLowerCase()
+  const demandText = (seed.demand ?? '').toLowerCase()
+  const countries = seed.countries ?? []
+
+  // Supply Risk: based on country count and concentration keywords in seed
+  let supplyRisk = countries.length <= 2 ? 52 : countries.length === 3 ? 42 : 34
+  if (/concentrat|fragil|extremely limited|very low|tight|byproduct/i.test(supplyText)) {
+    supplyRisk += 10
+  }
+  supplyRisk = clamp(supplyRisk, 15, 85)
+
+  // Policy Risk: export controls, geopolitical sensitivity, conflict
+  let policyRisk = 22
+  if (/export.?control|geopolit|conflict|sanction|strategic/i.test(`${supplyText} ${demandText}`)) {
+    policyRisk += 20
+  }
+  if (countries[0] === 'China' || countries[0] === 'Russia' || countries[0] === 'DR Congo') {
+    policyRisk += 14
+  }
+  policyRisk = clamp(policyRisk, 12, 85)
+
+  // Demand Pressure: high-growth, electrification, EV, defense
+  let demandPressure = 28
+  if (/rapid|high.?growth|strong|rising|electrification|defense|ev|nuclear/i.test(demandText)) {
+    demandPressure += 18
+  }
+  demandPressure = clamp(demandPressure, 15, 80)
+
+  // Market Stress: tight market / low inventory buffers
+  let marketStress = 24
+  if (/tight|bottleneck|constrain|low inventory|volatile/i.test(supplyText)) {
+    marketStress += 16
+  }
+  marketStress = clamp(marketStress, 15, 75)
+
+  // Supply Response (mitigating: higher lowers composite score)
+  let supplyResponse = countries.length >= 4 ? 42 : countries.length === 3 ? 32 : 22
+  if (/expand|broad|flexib|growing/i.test(supplyText)) {
+    supplyResponse += 12
+  }
+  supplyResponse = clamp(supplyResponse, 15, 75)
+
+  const score = clamp(
+    0.3 * supplyRisk +
+      0.25 * policyRisk +
+      0.15 * demandPressure +
+      0.2 * marketStress +
+      0.1 * (100 - supplyResponse),
+  )
+
+  const contributions: PulseContribution[] = [
+    {
+      label: `Baseline concentration (${countries.slice(0, 3).join(', ') || 'global'})`,
+      delta: Math.round(supplyRisk * 0.3),
+      component: 'supplyRisk',
+    },
+    {
+      label: `Policy & jurisdiction exposure (${countries[0] ?? 'primary producer'})`,
+      delta: Math.round(policyRisk * 0.25),
+      component: 'policyRisk',
+    },
+    {
+      label: `Structural demand pressure (${seed.category})`,
+      delta: Math.round(demandPressure * 0.15),
+      component: 'demandPressure',
+    },
+  ]
+
+  let status: WarningStatus = 'NORMAL'
+  if (score >= 75) status = 'CRITICAL'
+  else if (score >= 52) status = 'ELEVATED'
+  else if (score >= 40) status = 'WATCH'
+
+  return {
+    score,
+    supplyRisk,
+    policyRisk,
+    demandPressure,
+    marketStress,
+    supplyResponse,
+    asOf: new Date().toISOString(),
+    contributions,
+    status,
+    drivers: contributions.map((c) => ({ label: c.label, delta: c.delta })),
+  }
+}
+
+function buildSeedIntelFallback(seed: CriticalMaterialSeed): MaterialIntelResponse {
+  const baseline = deriveSeedBaselinePulse(seed)
+  const now = Date.now()
+  const dayMs = 24 * 60 * 60 * 1000
+  const pulseHistory = Array.from({ length: 14 }, (_, idx) => {
+    const daysAgo = 13 - idx
+    return {
+      asOf: new Date(now - daysAgo * dayMs).toISOString(),
+      score: baseline.score,
+    }
+  })
+
+  return {
+    state: {
+      status: baseline.status,
+      statusSince: new Date(now - 7 * dayMs).toISOString(),
+      drivers: baseline.drivers,
+      delta24h: 0,
+      delta7d: 0,
+      delta30d: 0,
+      signals24h: 0,
+      signals7d: 0,
+    },
+    pulse: {
+      score: baseline.score,
+      supplyRisk: baseline.supplyRisk,
+      policyRisk: baseline.policyRisk,
+      demandPressure: baseline.demandPressure,
+      marketStress: baseline.marketStress,
+      supplyResponse: baseline.supplyResponse,
+      asOf: baseline.asOf,
+      contributions: baseline.contributions,
+    },
+    pulseHistory,
+    events: [],
+    crossMaterial: [],
+  }
+}
 
 async function findMaterialBySymbolOrKey(symbolOrKey: string) {
   const key = decodeURIComponent(symbolOrKey).trim()
@@ -929,9 +1082,12 @@ export interface MaterialIntelResponse {
 
 /** Aggregate everything the material detail page needs for C1–C5. */
 export async function getMaterialIntel(symbolOrKey: string): Promise<MaterialIntelResponse | null> {
+  const seed = findMaterialSeed(symbolOrKey)
   try {
     const material = await findMaterialBySymbolOrKey(symbolOrKey)
-    if (!material) return null
+    if (!material) {
+      return seed ? buildSeedIntelFallback(seed) : null
+    }
 
     const [stateRow, latestPulse, historyRows, linkRows] = await Promise.all([
       prisma.materialRiskState.findUnique({ where: { materialId: material.id } }),
@@ -1009,6 +1165,8 @@ export async function getMaterialIntel(symbolOrKey: string): Promise<MaterialInt
       crossByEvent.set(row.eventId, entry)
     }
 
+    const seedFallback = seed ? buildSeedIntelFallback(seed) : null
+
     return {
       state: stateRow
         ? {
@@ -1021,7 +1179,7 @@ export async function getMaterialIntel(symbolOrKey: string): Promise<MaterialInt
             signals24h: stateRow.signals24h,
             signals7d: stateRow.signals7d,
           }
-        : null,
+        : seedFallback?.state ?? null,
       pulse: latestPulse
         ? {
             score: latestPulse.score,
@@ -1033,16 +1191,17 @@ export async function getMaterialIntel(symbolOrKey: string): Promise<MaterialInt
             asOf: latestPulse.asOf.toISOString(),
             contributions: (parseJsonArray(latestPulse.contributions) as unknown as PulseContribution[]) ?? [],
           }
-        : null,
-      pulseHistory: historyRows
-        .map((row) => ({ asOf: row.asOf.toISOString(), score: row.score }))
-        .reverse(),
+        : seedFallback?.pulse ?? null,
+      pulseHistory:
+        historyRows.length > 0
+          ? historyRows.map((row) => ({ asOf: row.asOf.toISOString(), score: row.score })).reverse()
+          : seedFallback?.pulseHistory ?? [],
       events,
       crossMaterial: Array.from(crossByEvent.values()),
     }
   } catch (error) {
-    console.error('getMaterialIntel: query failed:', error)
-    return null
+    console.error('getMaterialIntel: query failed, using seed fallback:', error)
+    return seed ? buildSeedIntelFallback(seed) : null
   }
 }
 
@@ -1072,9 +1231,29 @@ export interface IntelOverviewResponse {
   }[]
 }
 
+function buildSeedBoardFallback(): IntelOverviewResponse['board'] {
+  return CRITICAL_MATERIALS_DATA.map((seed) => {
+    const baseline = deriveSeedBaselinePulse(seed)
+    return {
+      name: seed.name,
+      symbol: seed.symbol,
+      category: seed.category,
+      status: baseline.status,
+      score: baseline.score,
+      delta7d: 0,
+      signals7d: 0,
+    }
+  }).sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
+}
+
 /** "What Moved Critical Materials Today?" + the early-warning status board. */
 export async function getIntelOverview(): Promise<IntelOverviewResponse> {
-  const empty: IntelOverviewResponse = { generatedAt: new Date().toISOString(), whatMoved: [], board: [] }
+  const fallbackBoard = buildSeedBoardFallback()
+  const empty: IntelOverviewResponse = {
+    generatedAt: new Date().toISOString(),
+    whatMoved: [],
+    board: fallbackBoard,
+  }
   try {
     const since72h = new Date(Date.now() - 72 * 60 * 60 * 1000)
     let recentEvents = await prisma.materialEvent.findMany({
@@ -1147,20 +1326,26 @@ export async function getIntelOverview(): Promise<IntelOverviewResponse> {
     const pulseByMaterial = new Map(pulses.map((p) => [p.materialId, p.score]))
     const stateByMaterial = new Map(states.map((s) => [s.materialId, s]))
 
-    const board = materials
-      .map((material) => {
-        const state = stateByMaterial.get(material.id)
-        return {
-          name: material.name,
-          symbol: material.symbol,
-          category: material.category,
-          status: (state?.status ?? 'NORMAL') as WarningStatus,
-          score: pulseByMaterial.get(material.id) ?? null,
-          delta7d: state?.delta7d ?? 0,
-          signals7d: state?.signals7d ?? 0,
-        }
-      })
-      .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
+    const board =
+      materials.length === 0
+        ? fallbackBoard
+        : materials
+            .map((material) => {
+              const state = stateByMaterial.get(material.id)
+              const dbScore = pulseByMaterial.get(material.id)
+              const seed = findMaterialSeed(material.symbol) ?? findMaterialSeed(material.name)
+              const seedBaseline = seed ? deriveSeedBaselinePulse(seed) : null
+              return {
+                name: material.name,
+                symbol: material.symbol,
+                category: material.category,
+                status: ((state?.status ?? seedBaseline?.status ?? 'NORMAL') as WarningStatus),
+                score: dbScore ?? seedBaseline?.score ?? null,
+                delta7d: state?.delta7d ?? 0,
+                signals7d: state?.signals7d ?? 0,
+              }
+            })
+            .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
 
     return { generatedAt: new Date().toISOString(), whatMoved, board }
   } catch (error) {
@@ -1326,21 +1511,61 @@ export async function runShockSimulation(input: ShockSimulationInput, userId?: s
   if (![10, 25, 50, 75, 100].includes(input.magnitudePct)) return { error: 'Magnitude must be one of 10, 25, 50, 75, 100.' }
   if (![30, 90, 365].includes(input.durationDays)) return { error: 'Duration must be one of 30, 90, 365 days.' }
 
-  const material = await prisma.rareEarthMaterial.findFirst({
-    where: {
-      OR: [
-        { symbol: input.symbolOrKey },
-        { materialKey: input.symbolOrKey },
-        { name: input.symbolOrKey },
-      ],
-    },
+  let dbMaterial: Awaited<ReturnType<typeof prisma.rareEarthMaterial.findFirst<{
     include: {
-      countryRoles: { orderBy: { sharePct: 'desc' } },
-      structuredApplications: true,
-      riskPulses: { orderBy: { asOf: 'desc' }, take: 1 },
-    },
-  })
-  if (!material) return { error: 'Material not found.' }
+      countryRoles: { orderBy: { sharePct: 'desc' } }
+      structuredApplications: true
+      riskPulses: { orderBy: { asOf: 'desc' }; take: 1 }
+    }
+  }>>> = null
+
+  try {
+    dbMaterial = await prisma.rareEarthMaterial.findFirst({
+      where: {
+        OR: [
+          { symbol: input.symbolOrKey },
+          { materialKey: input.symbolOrKey },
+          { name: input.symbolOrKey },
+        ],
+      },
+      include: {
+        countryRoles: { orderBy: { sharePct: 'desc' } },
+        structuredApplications: true,
+        riskPulses: { orderBy: { asOf: 'desc' }, take: 1 },
+      },
+    })
+  } catch (error) {
+    console.error('runShockSimulation: DB lookup failed, falling back to seed dataset:', error)
+  }
+
+  const seed = findMaterialSeed(input.symbolOrKey) ?? (dbMaterial ? findMaterialSeed(dbMaterial.symbol) : null)
+  if (!dbMaterial && !seed) return { error: 'Material not found.' }
+
+  const materialKey = dbMaterial?.materialKey ?? (seed ? toMaterialKey(seed.name) : '')
+  const seedCountries = seed?.countries ?? (dbMaterial ? parseJsonArray(dbMaterial.countries) : [])
+  const fallbackCountryRoles = seedCountries.map((country, idx) => ({
+    country,
+    stage: idx === 0 ? def.stage : 'mining',
+    sharePct: idx === 0 ? (seedCountries.length <= 2 ? 75 : seedCountries.length === 3 ? 55 : 42) : null,
+  }))
+  const pilotApps = PILOT_APPLICATIONS[materialKey] ?? []
+  const fallbackStructuredApps = pilotApps.map((a) => ({
+    name: a.name,
+    strength: a.strength,
+  }))
+
+  const material = {
+    id: dbMaterial?.id ?? null,
+    name: dbMaterial?.name ?? seed!.name,
+    symbol: dbMaterial?.symbol ?? seed!.symbol,
+    applications: dbMaterial?.applications ?? JSON.stringify(seed?.applications ?? []),
+    countryRoles:
+      dbMaterial && dbMaterial.countryRoles.length > 0 ? dbMaterial.countryRoles : fallbackCountryRoles,
+    structuredApplications:
+      dbMaterial && dbMaterial.structuredApplications.length > 0
+        ? dbMaterial.structuredApplications
+        : fallbackStructuredApps,
+  }
 
   const geography = input.geography?.trim() || null
 
@@ -1468,24 +1693,26 @@ export async function runShockSimulation(input: ShockSimulationInput, userId?: s
     assumptions,
   }
 
-  // Persist the scenario for auditability (anonymous allowed).
-  try {
-    const saved = await prisma.shockSimulation.create({
-      data: {
-        materialId: material.id,
-        userId: userId ?? null,
-        shockType: input.shockType,
-        magnitudePct: input.magnitudePct,
-        geography,
-        durationDays: input.durationDays,
-        note: input.note ?? null,
-        result: JSON.stringify(result),
-      },
-      select: { id: true },
-    })
-    result.id = saved.id
-  } catch (error) {
-    console.error('runShockSimulation: failed to persist scenario:', error)
+  // Persist the scenario for auditability (anonymous allowed) when DB row exists.
+  if (material.id) {
+    try {
+      const saved = await prisma.shockSimulation.create({
+        data: {
+          materialId: material.id,
+          userId: userId ?? null,
+          shockType: input.shockType,
+          magnitudePct: input.magnitudePct,
+          geography,
+          durationDays: input.durationDays,
+          note: input.note ?? null,
+          result: JSON.stringify(result),
+        },
+        select: { id: true },
+      })
+      result.id = saved.id
+    } catch (error) {
+      console.error('runShockSimulation: failed to persist scenario:', error)
+    }
   }
 
   return result

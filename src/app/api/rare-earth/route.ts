@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { listMaterialsWithPrices, seedMaterialIntelligence } from '@/lib/material-intel-service'
+import { ingestArticlesAsEvents, recomputeAllMaterialRisk, seedPilotApplications } from '@/lib/material-events-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,10 +22,14 @@ export async function GET() {
 
 // POST /api/rare-earth — full idempotent seed: materials (matched by
 // materialKey -> symbol -> name, updated in place), provenance Sources +
-// MaterialSourceLink rows, and PriceBenchmark definitions (F4/F5).
+// MaterialSourceLink rows, PriceBenchmark definitions (F4/F5), pilot
+// structured applications, and initial Risk Pulse / Early-Warning states.
 export async function POST() {
   try {
     const { materials, sources, benchmarks } = await seedMaterialIntelligence()
+    const pilot = await seedPilotApplications()
+    const ingestion = await ingestArticlesAsEvents({ sinceDays: 14, limit: 100 })
+    const risk = await recomputeAllMaterialRisk()
 
     return NextResponse.json({
       message: 'Critical materials seeded successfully',
@@ -34,6 +39,10 @@ export async function POST() {
       sourcesCreated: sources.sources,
       sourceLinks: sources.links,
       benchmarksCreated: benchmarks.benchmarks,
+      pilotApplications: pilot.created + pilot.updated,
+      eventsCreated: ingestion.created,
+      pulsesComputed: risk.pulses,
+      statesComputed: risk.states,
     })
   } catch (error) {
     console.error('Error seeding critical materials:', error)

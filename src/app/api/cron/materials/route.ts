@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { seedMaterialIntelligence, syncMaterialPrices } from '@/lib/material-intel-service'
+import { ingestArticlesAsEvents, recomputeAllMaterialRisk, seedPilotApplications } from '@/lib/material-events-service'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 // GET /api/cron/materials — seeds the critical materials intelligence layer
-// (materials, provenance sources, price benchmarks) and runs the price
-// scraper for all feed-backed benchmarks. Protected by CRON_SECRET like the
-// other scheduled jobs.
+// (materials, provenance sources, price benchmarks), runs the price scraper,
+// and executes the C1-C5 intelligence pipeline (pilot applications, event
+// ingestion, Risk Pulse + Early-Warning recompute). Protected by CRON_SECRET.
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -27,6 +28,14 @@ export async function GET(req: Request) {
     const prices = await syncMaterialPrices()
     console.log(`Material prices synced: ${prices.updated} updated, ${prices.failed.length} failed.`)
 
+    const pilot = await seedPilotApplications()
+    const ingestion = await ingestArticlesAsEvents({ sinceDays: 14, limit: 150 })
+    const risk = await recomputeAllMaterialRisk()
+    console.log(
+      `Material intelligence updated: pilot=${pilot.created + pilot.updated}, ` +
+        `events=${ingestion.created}, pulses=${risk.pulses}, states=${risk.states}.`,
+    )
+
     return NextResponse.json({
       success: true,
       seed,
@@ -35,6 +44,11 @@ export async function GET(req: Request) {
         failed: prices.failed,
         skipped: prices.skipped,
         details: prices.details,
+      },
+      intelligence: {
+        pilot,
+        ingestion,
+        risk,
       },
       timestamp: new Date().toISOString(),
     })

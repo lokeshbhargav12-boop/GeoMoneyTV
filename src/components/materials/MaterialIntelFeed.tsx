@@ -67,6 +67,7 @@ export default function MaterialIntelFeed({ events }: { events: IntelEvent[] }) 
       </div>
     </div>
   )
+}
 
 function ImplicationPanel({ event }: { event: IntelEvent }) {
   const imp = event.implication
@@ -134,4 +135,3 @@ function ImplicationChip({ label, value, severity }: { label: string; value: str
   )
 }
 
-}
