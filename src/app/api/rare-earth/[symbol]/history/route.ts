@@ -6,12 +6,16 @@ import {
   type MaterialPriceHistoryResponse,
 } from '@/lib/material-intel-service'
 import { CRITICAL_MATERIALS_DATA } from '@/data/critical-materials'
-import { benchmarksForMaterial, type MaterialBenchmarkSeed } from '@/data/material-benchmarks'
+import {
+  benchmarksForMaterial,
+  generateReferencePriceHistory,
+  type MaterialBenchmarkSeed,
+} from '@/data/material-benchmarks'
 
 export const dynamic = 'force-dynamic'
 
 type HistoryApiResponse = MaterialPriceHistoryResponse & {
-  source: 'observations' | 'yahoo'
+  source: 'observations' | 'yahoo' | 'reference'
   feedSymbol?: string | null
   isProxy?: boolean
 }
@@ -37,10 +41,11 @@ function findMaterialSeed(symbolOrKey: string) {
   )
 }
 
-function feedHistoryResponse(
+function seedHistoryResponse(
   seed: MaterialBenchmarkSeed,
   benchmarkId: string | null,
   points: MaterialPriceHistoryResponse['points'],
+  source: 'yahoo' | 'reference',
 ): HistoryApiResponse {
   return {
     benchmark: {
@@ -53,7 +58,7 @@ function feedHistoryResponse(
       unit: seed.unit,
     },
     points,
-    source: 'yahoo',
+    source,
     feedSymbol: seed.feed?.symbol ?? null,
     isProxy: Boolean(seed.isProxy),
   }
@@ -86,41 +91,71 @@ async function getYahooFeedHistory(
     })
     .sort((a, b) => new Date(a.asOf).getTime() - new Date(b.asOf).getTime())
 
-  return feedHistoryResponse(seed, benchmarkId, points)
+  return seedHistoryResponse(seed, benchmarkId, points, 'yahoo')
 }
 
-// GET /api/rare-earth/[symbol]/history?benchmark=<id>&feed=<yahoo-symbol>&days=365
-// Prefers accumulated append-only observations for database-backed benchmarks.
-// A configured Yahoo Finance series backfills the display while observations
-// are still sparse (or for static fallback pages). `feed` is validated against
-// the server-side benchmark seeds, so callers cannot request arbitrary Yahoo
-// symbols through this route.
+// GET /api/rare-earth/[symbol]/history?benchmark=<id>&feed=<yahoo-symbol>&productForm=<form>&days=365
+// 1. Prefers accumulated append-only observations for database-backed benchmarks (>= 5 pts).
+// 2. Falls back to live Yahoo Finance historical closes when the benchmark has a Yahoo feed.
+// 3. Falls back to a deterministic reference benchmark series anchored to the latest/reference price
+//    so physical/OTC benchmarks (rare-earth oxides, gallium, dysprosium, lithium carbonate, U3O8, etc.)
+//    and rate-limited environments always render a complete, resilient price history chart.
 export async function GET(req: Request, { params }: { params: { symbol: string } }) {
   try {
     const { searchParams } = new URL(req.url)
     const benchmarkId = searchParams.get('benchmark')
     const requestedFeed = searchParams.get('feed')
+    const requestedProductForm = searchParams.get('productForm')?.trim() ?? null
     const daysParam = parseInt(searchParams.get('days') ?? '365', 10)
     const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 7), 1825) : 365
 
     const materialSeed = findMaterialSeed(params.symbol)
     const materialKey = materialSeed ? toMaterialKey(materialSeed.name) : null
-    const feedSeed =
-      materialKey && requestedFeed
-        ? benchmarksForMaterial(materialKey).find((seed) => seed.feed?.symbol === requestedFeed) ?? null
-        : null
+    const seedBenchmarks = materialKey ? benchmarksForMaterial(materialKey) : []
 
-    const storedHistory = benchmarkId
-      ? await getMaterialPriceHistory(params.symbol, benchmarkId, days)
-      : null
-    if (storedHistory && (storedHistory.points.length >= MIN_STORED_HISTORY_POINTS || !feedSeed)) {
-      const response: HistoryApiResponse = { ...storedHistory, source: 'observations' }
+    const storedHistory = await getMaterialPriceHistory(
+      params.symbol,
+      benchmarkId,
+      days,
+      requestedProductForm,
+    )
+
+    const matchedSeed =
+      (requestedFeed
+        ? seedBenchmarks.find((seed) => seed.feed?.symbol === requestedFeed)
+        : undefined) ??
+      (requestedProductForm
+        ? seedBenchmarks.find(
+            (seed) => seed.productForm.toLowerCase() === requestedProductForm.toLowerCase(),
+          )
+        : undefined) ??
+      (storedHistory
+        ? seedBenchmarks.find(
+            (seed) =>
+              seed.productForm.toLowerCase() === storedHistory.benchmark.productForm.toLowerCase(),
+          )
+        : undefined) ??
+      seedBenchmarks.find((seed) => seed.isPrimary) ??
+      seedBenchmarks[0] ??
+      null
+
+    if (storedHistory && storedHistory.points.length >= MIN_STORED_HISTORY_POINTS) {
+      const response: HistoryApiResponse = {
+        ...storedHistory,
+        source: 'observations',
+        feedSymbol: matchedSeed?.feed?.symbol ?? null,
+        isProxy: Boolean(matchedSeed?.isProxy),
+      }
       return NextResponse.json(response)
     }
 
-    if (feedSeed) {
+    if (matchedSeed?.feed?.provider === 'yahoo') {
       try {
-        const feedHistory = await getYahooFeedHistory(feedSeed, benchmarkId, days)
+        const feedHistory = await getYahooFeedHistory(
+          matchedSeed,
+          storedHistory?.benchmark.id ?? benchmarkId,
+          days,
+        )
         if (feedHistory && feedHistory.points.length > 0) {
           return NextResponse.json(feedHistory, {
             headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600' },
@@ -131,15 +166,28 @@ export async function GET(req: Request, { params }: { params: { symbol: string }
       }
     }
 
+    if (matchedSeed) {
+      const anchorPrice =
+        storedHistory && storedHistory.points.length > 0
+          ? storedHistory.points[storedHistory.points.length - 1].price
+          : matchedSeed.referencePrice
+      const referencePoints = generateReferencePriceHistory(matchedSeed, days, anchorPrice)
+      return NextResponse.json(
+        seedHistoryResponse(
+          matchedSeed,
+          storedHistory?.benchmark.id ?? benchmarkId,
+          referencePoints,
+          'reference',
+        ),
+        {
+          headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600' },
+        },
+      )
+    }
+
     if (storedHistory) {
       const response: HistoryApiResponse = { ...storedHistory, source: 'observations' }
       return NextResponse.json(response)
-    }
-
-    // Return a valid empty series for a configured feed that is temporarily
-    // unavailable; the client can then render a purposeful empty state.
-    if (feedSeed) {
-      return NextResponse.json(feedHistoryResponse(feedSeed, benchmarkId, []))
     }
 
     return NextResponse.json({ error: 'Material or benchmark not found' }, { status: 404 })

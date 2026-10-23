@@ -452,8 +452,8 @@ export default function MaterialDetailPage() {
                         )}
 
 
-                        {/* Price History (recorded observations or configured market feed) */}
-                        {material.benchmarks.some((b) => (b.id && b.latest) || b.feedSymbol) && (
+                        {/* Price History (recorded observations, market feed, or reference benchmark series) */}
+                        {material.benchmarks.length > 0 && (
                             <motion.section
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}

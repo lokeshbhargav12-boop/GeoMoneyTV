@@ -13,7 +13,12 @@
 import YahooFinance from 'yahoo-finance2'
 import { prisma } from '@/lib/prisma'
 import { CRITICAL_MATERIALS_DATA, type CriticalMaterialSeed } from '@/data/critical-materials'
-import { MATERIAL_BENCHMARKS, benchmarksForMaterial, type MaterialBenchmarkSeed } from '@/data/material-benchmarks'
+import {
+  MATERIAL_BENCHMARKS,
+  benchmarksForMaterial,
+  getReferenceBenchmarkQuote,
+  type MaterialBenchmarkSeed,
+} from '@/data/material-benchmarks'
 
 // Permanent display-name-independent key, e.g. "Gallium" -> "mat_gallium",
 // "Natural Graphite" -> "mat_natural_graphite" (P0-16).
@@ -297,9 +302,9 @@ export interface MaterialListItem {
   lastUpdated: string | null
 }
 
-function seedToDetail(seed: CriticalMaterialSeed): MaterialDetail {
-  const materialKey = toMaterialKey(seed.name)
-  const benchmarks: MaterialBenchmarkInfo[] = benchmarksForMaterial(materialKey).map((b) => ({
+function seedBenchmarkToInfo(b: MaterialBenchmarkSeed): MaterialBenchmarkInfo {
+  const quote = getReferenceBenchmarkQuote(b)
+  return {
     id: null,
     productForm: b.productForm,
     grade: b.grade ?? null,
@@ -311,11 +316,50 @@ function seedToDetail(seed: CriticalMaterialSeed): MaterialDetail {
     isProxy: b.isProxy ?? false,
     isLive: Boolean(b.feed),
     feedSymbol: b.feed?.symbol ?? null,
-    latest: null,
-    change: null,
-    changePercent: null,
+    latest: { price: quote.price, asOf: quote.asOf },
+    change: quote.change,
+    changePercent: quote.changePercent,
     source: b.sourcePublisher ? { publisher: b.sourcePublisher, url: null } : null,
-  }))
+  }
+}
+
+function seedToDetail(seed: CriticalMaterialSeed): MaterialDetail {
+  const materialKey = toMaterialKey(seed.name)
+  const seedBenchmarks = benchmarksForMaterial(materialKey)
+  const benchmarks: MaterialBenchmarkInfo[] = seedBenchmarks.map(seedBenchmarkToInfo)
+  const primarySeed = seedBenchmarks.find((b) => b.isPrimary) ?? seedBenchmarks[0]
+  const primaryInfo =
+    benchmarks.find(
+      (b) => primarySeed && b.productForm === primarySeed.productForm && b.unit === primarySeed.unit && b.latest,
+    ) ??
+    benchmarks.find((b) => b.latest) ??
+    null
+
+  const effectivePrice = primaryInfo?.latest
+    ? {
+        price: primaryInfo.latest.price,
+        unit: primaryInfo.unit,
+        currency: primaryInfo.currency,
+        asOf: primaryInfo.latest.asOf,
+        label: primaryInfo.benchmarkName ?? primaryInfo.productForm,
+        isLive: primaryInfo.isLive,
+        isProxy: primaryInfo.isProxy,
+        change: primaryInfo.change,
+        changePercent: primaryInfo.changePercent,
+      }
+    : seed.price != null
+      ? {
+          price: seed.price,
+          unit: seed.unit ?? 'kg',
+          currency: 'USD',
+          asOf: null,
+          label: `${seed.name} reference price`,
+          isLive: false,
+          isProxy: false,
+          change: null,
+          changePercent: null,
+        }
+      : null
 
   return {
     id: null,
@@ -329,9 +373,9 @@ function seedToDetail(seed: CriticalMaterialSeed): MaterialDetail {
     demand: seed.demand ?? null,
     applications: seed.applications,
     countries: seed.countries,
-    price: seed.price ?? null,
-    unit: seed.unit ?? 'kg',
-    lastUpdated: null,
+    price: seed.price ?? primaryInfo?.latest?.price ?? null,
+    unit: primaryInfo?.unit ?? seed.unit ?? 'kg',
+    lastUpdated: primaryInfo?.latest?.asOf ?? null,
     benchmarks,
     sources: parseSourceEntries(seed.source).map((s) => ({
       publisher: s.publisher,
@@ -340,20 +384,7 @@ function seedToDetail(seed: CriticalMaterialSeed): MaterialDetail {
       dataYear: s.dataYear,
     })),
     countryRoles: [],
-    effectivePrice:
-      seed.price != null
-        ? {
-            price: seed.price,
-            unit: seed.unit ?? 'kg',
-            currency: 'USD',
-            asOf: null,
-            label: `${seed.name} reference price`,
-            isLive: false,
-            isProxy: false,
-            change: null,
-            changePercent: null,
-          }
-        : null,
+    effectivePrice,
   }
 }
 
@@ -383,41 +414,65 @@ async function loadDbMaterial(symbolOrKey: string) {
 }
 
 function dbToDetail(row: DbMaterialWithRelations): MaterialDetail {
-  const feedSeeds = new Map(
-    benchmarksForMaterial(row.materialKey ?? '')
-      .filter((b) => b.feed)
-      .map((b) => [`${b.productForm}::${b.unit}`, b.feed!.symbol]),
+  const materialKey = row.materialKey || toMaterialKey(row.name)
+  const seedBenchmarks = benchmarksForMaterial(materialKey)
+  const seedByKey = new Map(
+    seedBenchmarks.map((b) => [`${b.productForm}::${b.unit}`, b]),
   )
 
+  const seenSeedKeys = new Set<string>()
   const benchmarks: MaterialBenchmarkInfo[] = row.priceBenchmarks.map((b) => {
-    const latest = b.observations[0] ?? null
-    const previous = b.observations[1] ?? null
-    const change = latest && previous ? latest.price - previous.price : null
-    const changePercent =
-      change != null && previous && previous.price !== 0 ? (change / previous.price) * 100 : null
-    const feedSymbol = feedSeeds.get(`${b.productForm}::${b.unit}`) ?? null
+    const compositeKey = `${b.productForm}::${b.unit}`
+    seenSeedKeys.add(compositeKey)
+    const matchedSeed = seedByKey.get(compositeKey)
+    const refQuote = matchedSeed ? getReferenceBenchmarkQuote(matchedSeed) : null
+    const latestObs = b.observations[0] ?? null
+    const previousObs = b.observations[1] ?? null
+    const obsChange = latestObs && previousObs ? latestObs.price - previousObs.price : null
+    const obsChangePercent =
+      obsChange != null && previousObs && previousObs.price !== 0
+        ? (obsChange / previousObs.price) * 100
+        : null
+    const feedSymbol = matchedSeed?.feed?.symbol ?? null
     return {
       id: b.id,
       productForm: b.productForm,
       grade: b.grade,
-      benchmarkName: b.benchmarkName,
-      market: b.market,
-      currency: b.currency,
+      benchmarkName: b.benchmarkName ?? matchedSeed?.benchmarkName ?? null,
+      market: b.market ?? matchedSeed?.market ?? null,
+      currency: b.currency || matchedSeed?.currency || 'USD',
       unit: b.unit,
-      updateFrequency: b.updateFrequency,
-      isProxy: /proxy/i.test(b.benchmarkName ?? ''),
+      updateFrequency: b.updateFrequency ?? matchedSeed?.updateFrequency ?? null,
+      isProxy: Boolean(matchedSeed?.isProxy || /proxy/i.test(b.benchmarkName ?? '')),
       isLive: feedSymbol != null,
       feedSymbol,
-      latest: latest ? { price: latest.price, asOf: latest.asOf.toISOString() } : null,
-      change,
-      changePercent,
-      source: b.source ? { publisher: b.source.publisher, url: b.source.url } : null,
+      latest: latestObs
+        ? { price: latestObs.price, asOf: latestObs.asOf.toISOString() }
+        : refQuote
+          ? { price: refQuote.price, asOf: refQuote.asOf }
+          : null,
+      change: obsChange ?? refQuote?.change ?? null,
+      changePercent: obsChangePercent ?? refQuote?.changePercent ?? null,
+      source: b.source
+        ? { publisher: b.source.publisher, url: b.source.url }
+        : matchedSeed?.sourcePublisher
+          ? { publisher: matchedSeed.sourcePublisher, url: null }
+          : null,
     }
   })
 
+  // Ensure any benchmark definitions in the seed dataset that have not been
+  // persisted to PriceBenchmark yet are still available for display/charting.
+  for (const seedBench of seedBenchmarks) {
+    const compositeKey = `${seedBench.productForm}::${seedBench.unit}`
+    if (!seenSeedKeys.has(compositeKey)) {
+      benchmarks.push(seedBenchmarkToInfo(seedBench))
+    }
+  }
+
   // Headline price: primary benchmark with an observation, otherwise any
   // observation, otherwise the legacy display price.
-  const primarySeed = benchmarksForMaterial(row.materialKey ?? '').find((b) => b.isPrimary)
+  const primarySeed = seedBenchmarks.find((b) => b.isPrimary) ?? seedBenchmarks[0]
   const primaryInfo =
     benchmarks.find(
       (b) => primarySeed && b.productForm === primarySeed.productForm && b.unit === primarySeed.unit && b.latest,
@@ -568,23 +623,28 @@ function dbRowToListItem(row: {
 }
 
 function seedToListItem(seed: CriticalMaterialSeed): MaterialListItem {
+  const materialKey = toMaterialKey(seed.name)
+  const seedBenchmarks = benchmarksForMaterial(materialKey)
+  const primarySeed = seedBenchmarks.find((b) => b.isPrimary) ?? seedBenchmarks[0]
+  const quote = primarySeed ? getReferenceBenchmarkQuote(primarySeed) : null
+
   return {
     id: null,
-    materialKey: toMaterialKey(seed.name),
+    materialKey,
     name: seed.name,
     symbol: seed.symbol,
     category: seed.category,
     description: seed.description,
-    price: seed.price ?? null,
-    unit: seed.unit ?? 'kg',
-    effectivePrice: seed.price ?? null,
-    effectiveUnit: seed.unit ?? 'kg',
-    priceAsOf: null,
-    priceIsLive: false,
-    priceChange: null,
-    priceChangePercent: null,
-    benchmarkLabel: null,
-    lastUpdated: null,
+    price: seed.price ?? quote?.price ?? null,
+    unit: primarySeed?.unit ?? seed.unit ?? 'kg',
+    effectivePrice: seed.price ?? quote?.price ?? null,
+    effectiveUnit: primarySeed?.unit ?? seed.unit ?? 'kg',
+    priceAsOf: quote?.asOf ?? null,
+    priceIsLive: seedBenchmarks.some((b) => Boolean(b.feed)),
+    priceChange: quote?.change ?? null,
+    priceChangePercent: quote?.changePercent ?? null,
+    benchmarkLabel: primarySeed ? (primarySeed.benchmarkName ?? primarySeed.productForm) : null,
+    lastUpdated: quote?.asOf ?? null,
   }
 }
 
@@ -604,7 +664,8 @@ export async function listMaterialsWithPrices(): Promise<MaterialListItem[]> {
 
     return rows.map((row) => {
       const item = dbRowToListItem(row)
-      const primarySeed = benchmarksForMaterial(item.materialKey).find((b) => b.isPrimary)
+      const seedBenchmarks = benchmarksForMaterial(item.materialKey)
+      const primarySeed = seedBenchmarks.find((b) => b.isPrimary) ?? seedBenchmarks[0]
       const primary =
         row.priceBenchmarks.find(
           (b) => primarySeed && b.productForm === primarySeed.productForm && b.unit === primarySeed.unit && b.observations.length > 0,
@@ -616,13 +677,22 @@ export async function listMaterialsWithPrices(): Promise<MaterialListItem[]> {
         item.effectiveUnit = primary.unit
         item.priceAsOf = latest.asOf.toISOString()
         item.benchmarkLabel = primary.benchmarkName ?? primary.productForm
-        item.priceIsLive = benchmarksForMaterial(item.materialKey).some(
+        item.priceIsLive = seedBenchmarks.some(
           (b) => b.feed && b.productForm === primary.productForm && b.unit === primary.unit,
         )
         if (previous && previous.price !== 0) {
           item.priceChange = latest.price - previous.price
           item.priceChangePercent = ((latest.price - previous.price) / previous.price) * 100
         }
+      } else if (primarySeed) {
+        const quote = getReferenceBenchmarkQuote(primarySeed)
+        item.effectivePrice = item.effectivePrice ?? quote.price
+        item.effectiveUnit = primarySeed.unit
+        item.priceAsOf = item.priceAsOf ?? quote.asOf
+        item.benchmarkLabel = primarySeed.benchmarkName ?? primarySeed.productForm
+        item.priceIsLive = seedBenchmarks.some((b) => Boolean(b.feed))
+        item.priceChange = quote.change
+        item.priceChangePercent = quote.changePercent
       }
       return item
     })
@@ -765,6 +835,7 @@ export async function getMaterialPriceHistory(
   symbolOrKey: string,
   benchmarkId?: string | null,
   days = 365,
+  productForm?: string | null,
 ): Promise<MaterialPriceHistoryResponse | null> {
   try {
     const key = decodeURIComponent(symbolOrKey).trim()
@@ -776,9 +847,14 @@ export async function getMaterialPriceHistory(
     })
     if (!material || material.priceBenchmarks.length === 0) return null
 
-    const primarySeed = benchmarksForMaterial(material.materialKey ?? '').find((b) => b.isPrimary)
+    const materialKey = material.materialKey || toMaterialKey(material.name)
+    const primarySeed = benchmarksForMaterial(materialKey).find((b) => b.isPrimary)
+    const normalizedForm = productForm?.trim().toLowerCase()
     const benchmark =
       (benchmarkId ? material.priceBenchmarks.find((b) => b.id === benchmarkId) : undefined) ??
+      (normalizedForm
+        ? material.priceBenchmarks.find((b) => b.productForm.toLowerCase() === normalizedForm)
+        : undefined) ??
       material.priceBenchmarks.find(
         (b) => primarySeed && b.productForm === primarySeed.productForm && b.unit === primarySeed.unit,
       ) ??

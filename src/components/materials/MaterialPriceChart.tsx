@@ -38,7 +38,7 @@ interface HistoryResponse {
         unit: string
     }
     points: { asOf: string; price: number }[]
-    source?: 'observations' | 'yahoo'
+    source?: 'observations' | 'yahoo' | 'reference'
     feedSymbol?: string | null
     isProxy?: boolean
 }
@@ -78,7 +78,7 @@ function formatAxisDate(value: string, rangeDays: number): string {
 
 export default function MaterialPriceChart({ symbol, benchmarks }: Props) {
     const selectable = useMemo(
-        () => benchmarks.filter((b) => Boolean((b.id && b.hasData) || b.feedSymbol)),
+        () => benchmarks.filter((b) => Boolean(b.productForm)),
         [benchmarks],
     )
     const [selectedKey, setSelectedKey] = useState<string | null>(
@@ -109,6 +109,7 @@ export default function MaterialPriceChart({ symbol, benchmarks }: Props) {
         const params = new URLSearchParams({ days: String(rangeDays) })
         if (selectedOption.id) params.set('benchmark', selectedOption.id)
         if (selectedOption.feedSymbol) params.set('feed', selectedOption.feedSymbol)
+        if (selectedOption.productForm) params.set('productForm', selectedOption.productForm)
 
         setLoading(true)
         setHistory(null)
@@ -271,7 +272,9 @@ export default function MaterialPriceChart({ symbol, benchmarks }: Props) {
                     <span>
                         {history.source === 'yahoo'
                             ? `${history.isProxy ? 'Proxy market' : 'Market'} history via Yahoo Finance`
-                            : `${history.points.length} recorded observation${history.points.length === 1 ? '' : 's'}`}
+                            : history.source === 'reference'
+                              ? `Benchmark reference series (${history.points.length} pts)`
+                              : `${history.points.length} recorded observation${history.points.length === 1 ? '' : 's'}`}
                         {' · '}
                         {history.benchmark.currency}/{history.benchmark.unit}
                     </span>
