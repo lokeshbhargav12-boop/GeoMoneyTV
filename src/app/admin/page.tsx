@@ -14,6 +14,7 @@ import {
   Home,
   Sparkles,
   Share2,
+  Crown,
 } from "lucide-react";
 
 interface Stats {
@@ -22,9 +23,16 @@ interface Stats {
   rareEarth: number;
   users: number;
   videos: number;
+  waitlist?: number;
 }
 
 const QUICK_ACTIONS = [
+  {
+    href: "/admin/waitlist",
+    label: "Pro Waitlist",
+    icon: Crown,
+    color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  },
   {
     href: "/admin/articles/new",
     label: "Create Article",
@@ -123,6 +131,12 @@ export default function AdminDashboard() {
       icon: Users,
       color: "text-yellow-400",
     },
+    {
+      label: "Pro Waitlist",
+      value: stats?.waitlist ?? 0,
+      icon: Crown,
+      color: "text-amber-400",
+    },
   ];
 
   return (
@@ -144,7 +158,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5 mb-10">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-6 mb-10">
         {statCards.map((stat) => (
           <div
             key={stat.label}

@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { CheckCircle, Crown, ArrowRight, Shield, Zap, Globe, BarChart3, Lock, Sparkles, Mail } from "lucide-react";
+import { CheckCircle, Crown, Shield, Zap, Globe, BarChart3, Lock, Sparkles } from "lucide-react";
+import JoinWaitlistButton from "@/components/JoinWaitlistButton";
+import { WAITLIST_LAUNCH_MESSAGE } from "@/lib/waitlist";
 
 export const metadata = {
   title: "Pricing | GeoMoney",
@@ -91,6 +93,9 @@ export default function PricingPage() {
             <Sparkles className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
             <div>
               <h2 className="font-bold text-amber-400 mb-1">Pre-Launch Notice</h2>
+              <p className="text-sm text-white font-medium leading-relaxed mb-1">
+                {WAITLIST_LAUNCH_MESSAGE}
+              </p>
               <p className="text-sm text-gray-300 leading-relaxed">
                 GeoMoney is currently in pre-launch development. Subscription checkout is not yet available.
                 Plan names, pricing, and included features shown on this page are planned and may be updated before launch.
@@ -174,17 +179,15 @@ export default function PricingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href="/about/contact"
+                <JoinWaitlistButton
+                  label={plan.cta}
+                  source={`pricing_${plan.name.toLowerCase()}`}
                   className={`flex items-center justify-center gap-2 w-full rounded-lg px-6 py-3 font-bold transition-colors ${
                     plan.highlighted
                       ? "bg-blue-600 hover:bg-blue-700 text-white"
                       : "bg-white/10 hover:bg-white/20 text-white"
                   }`}
-                >
-                  {plan.cta}
-                  <Mail className="w-4 h-4" />
-                </Link>
+                />
               </div>
             ))}
           </div>

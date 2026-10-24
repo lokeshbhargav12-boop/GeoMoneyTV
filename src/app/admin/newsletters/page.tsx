@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import {
   Mail,
   Send,
@@ -28,7 +29,9 @@ import {
   Code,
   Database,
   Bot,
+  Crown,
 } from "lucide-react";
+import { isWaitlistRecord, parseWaitlistMetadata } from "@/lib/waitlist";
 
 // Safe JSON parse -- handles HTML error pages from timeouts/crashes
 async function safeJson(res: Response): Promise<any> {
@@ -764,14 +767,23 @@ export default function NewslettersPage() {
             <p className="text-sm text-gray-400">
               {activeCount} active / {subscribers.length} total
             </p>
-            {subscribers.length > 0 && (
-              <button
-                onClick={exportToCSV}
-                className="rounded-md border border-white/20 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+            <div className="flex items-center gap-3">
+              <Link
+                href="/admin/waitlist"
+                className="inline-flex items-center gap-2 rounded-md border border-geo-gold/30 bg-geo-gold/10 px-4 py-2 text-sm font-medium text-geo-gold hover:bg-geo-gold/20 transition-colors"
               >
-                Export CSV
-              </button>
-            )}
+                <Crown className="w-4 h-4" />
+                Manage Pro Waitlist
+              </Link>
+              {subscribers.length > 0 && (
+                <button
+                  onClick={exportToCSV}
+                  className="rounded-md border border-white/20 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+                >
+                  Export CSV
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Table */}
@@ -790,7 +802,13 @@ export default function NewslettersPage() {
                 <thead className="bg-white/5">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
                       Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
+                      Type
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
                       Status
@@ -804,39 +822,58 @@ export default function NewslettersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10 bg-white/5">
-                  {subscribers.map((sub) => (
-                    <tr
-                      key={sub.id}
-                      className="hover:bg-white/10 transition-colors"
-                    >
-                      <td className="px-6 py-4 text-sm text-white">
-                        {sub.email}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-medium ${sub.active ? "bg-green-500/20 text-green-500" : "bg-gray-500/20 text-gray-500"}`}
-                        >
-                          {sub.active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-400">
-                        {new Date(sub.createdAt).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleRemove(sub.id, sub.email)}
-                          className="p-1.5 text-gray-600 hover:text-red-400 transition-colors rounded"
-                          title="Remove subscriber"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {subscribers.map((sub) => {
+                    const onWaitlist = isWaitlistRecord(sub.materialPreferences);
+                    const meta = parseWaitlistMetadata(sub.materialPreferences);
+                    return (
+                      <tr
+                        key={sub.id}
+                        className="hover:bg-white/10 transition-colors"
+                      >
+                        <td className="px-6 py-4 text-sm text-gray-300">
+                          {meta.name || "—"}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-white">
+                          {sub.email}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          {onWaitlist ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-geo-gold/15 border border-geo-gold/30 px-2.5 py-0.5 text-xs font-medium text-geo-gold">
+                              <Crown className="w-3 h-3" />
+                              Pro Waitlist
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">
+                              Newsletter
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <span
+                            className={`rounded-full px-2 py-1 text-xs font-medium ${sub.active ? "bg-green-500/20 text-green-500" : "bg-gray-500/20 text-gray-500"}`}
+                          >
+                            {sub.active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-400">
+                          {new Date(sub.createdAt).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => handleRemove(sub.id, sub.email)}
+                            className="p-1.5 text-gray-600 hover:text-red-400 transition-colors rounded"
+                            title="Remove subscriber"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

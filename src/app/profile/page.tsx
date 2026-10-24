@@ -12,8 +12,12 @@ import {
   Loader2,
   ExternalLink,
   Briefcase,
+  Crown,
+  Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import PortfolioManager from "@/components/PortfolioManager";
+import { WAITLIST_LAUNCH_MESSAGE } from "@/lib/waitlist";
 
 interface TrackedMaterialItem {
   id: string;
@@ -35,6 +39,9 @@ export default function ProfilePage() {
   const [tracked, setTracked] = useState<TrackedMaterialItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [untrackingId, setUntrackingId] = useState<string | null>(null);
+  const [onWaitlist, setOnWaitlist] = useState(false);
+  const [joiningWaitlist, setJoiningWaitlist] = useState(false);
+  const [waitlistMsg, setWaitlistMsg] = useState("");
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -60,10 +67,46 @@ export default function ProfilePage() {
   useEffect(() => {
     if (session?.user) {
       fetchTracked();
+      if (session.user.email) {
+        fetch(`/api/waitlist?email=${encodeURIComponent(session.user.email)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data?.joined) setOnWaitlist(true);
+          })
+          .catch(() => {});
+      }
     } else if (status !== "loading") {
       setLoading(false);
     }
   }, [session, status, fetchTracked]);
+
+  const handleJoinWaitlist = async () => {
+    if (!session?.user?.email) return;
+    setJoiningWaitlist(true);
+    setWaitlistMsg("");
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: session.user.name || session.user.email.split("@")[0],
+          email: session.user.email,
+          source: "user_profile",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOnWaitlist(true);
+        setWaitlistMsg("Priority access reserved on the GeoMoney Pro Waitlist!");
+      } else {
+        setWaitlistMsg(data.error || "Failed to join waitlist");
+      }
+    } catch {
+      setWaitlistMsg("Something went wrong. Please try again.");
+    } finally {
+      setJoiningWaitlist(false);
+    }
+  };
 
   const handleUntrack = useCallback(async (materialId: string) => {
     setUntrackingId(materialId);
@@ -118,6 +161,44 @@ export default function ProfilePage() {
                 My <span className="text-geo-gold">Profile</span>
               </h1>
               <p className="mt-1 text-gray-400">{session.user.email}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* GeoMoney Pro Pre-Launch Waitlist Card */}
+        <div className="rounded-2xl border border-geo-gold/30 bg-gradient-to-br from-amber-500/10 via-geo-gold/5 to-transparent p-6 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 rounded-full bg-geo-gold/15 border border-geo-gold/30 px-3 py-1 text-xs font-semibold text-geo-gold">
+                <Crown className="w-3.5 h-3.5" />
+                GeoMoney Pro Priority Access
+              </div>
+              <div className="flex items-start gap-2.5">
+                <Sparkles className="w-4 h-4 text-geo-gold shrink-0 mt-1" />
+                <p className="text-sm text-gray-200 leading-relaxed">
+                  {WAITLIST_LAUNCH_MESSAGE}
+                </p>
+              </div>
+              {waitlistMsg && (
+                <p className="text-xs text-green-400 font-medium">{waitlistMsg}</p>
+              )}
+            </div>
+            <div className="shrink-0">
+              {onWaitlist ? (
+                <div className="inline-flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/15 px-4 py-2.5 text-xs font-semibold text-green-400">
+                  <CheckCircle2 className="w-4 h-4" />
+                  On GeoMoney Pro Waitlist
+                </div>
+              ) : (
+                <button
+                  onClick={handleJoinWaitlist}
+                  disabled={joiningWaitlist}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-geo-gold to-yellow-500 px-5 py-3 text-sm font-bold text-black hover:brightness-110 transition-all disabled:opacity-50"
+                >
+                  <Crown className="w-4 h-4" />
+                  {joiningWaitlist ? "Joining..." : "Join the Waitlist"}
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -18,10 +18,12 @@ import {
   Users,
   Settings,
   Share2,
+  Crown,
 } from "lucide-react";
 
 const NAV_LINKS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/admin/waitlist", label: "Waitlist", icon: Crown },
   { href: "/admin/articles", label: "Articles", icon: FileText },
   { href: "/admin/videos", label: "Videos", icon: Video },
   { href: "/admin/rare-earth", label: "Rare Earth", icon: Gem },

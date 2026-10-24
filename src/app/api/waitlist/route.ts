@@ -1,37 +1,96 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import nodemailer from 'nodemailer';
+import {
+    WAITLIST_LAUNCH_MESSAGE,
+    buildWaitlistPreferences,
+    isWaitlistRecord,
+    parseWaitlistMetadata,
+} from '@/lib/waitlist';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: Request) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const emailParam = searchParams.get('email');
+
+        if (!emailParam) {
+            return NextResponse.json({ joined: false });
+        }
+
+        const email = emailParam.trim().toLowerCase();
+        const record = await prisma.newsletter.findUnique({
+            where: { email },
+        });
+
+        if (!record || !record.active || !isWaitlistRecord(record.materialPreferences)) {
+            return NextResponse.json({ joined: false });
+        }
+
+        const meta = parseWaitlistMetadata(record.materialPreferences);
+        return NextResponse.json({
+            joined: true,
+            name: meta.name,
+            email: record.email,
+            joinedAt: meta.joinedAt || record.createdAt.toISOString(),
+        });
+    } catch (error) {
+        console.error('Waitlist GET error:', error);
+        return NextResponse.json({ joined: false });
+    }
+}
 
 export async function POST(req: Request) {
     try {
-        const { name, email } = await req.json();
+        const body = await req.json();
+        const rawEmail = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+        const rawName = typeof body?.name === 'string' ? body.name.trim() : '';
+        const source = typeof body?.source === 'string' ? body.source.trim() : 'waitlist';
 
-        if (!email || !email.includes('@') || !name) {
+        if (!rawEmail || !rawEmail.includes('@')) {
             return NextResponse.json(
-                { error: 'Valid name and email are required' },
+                { error: 'Valid email address is required' },
                 { status: 400 }
             );
         }
 
+        let finalName = rawName;
+        if (!finalName) {
+            const existingUser = await prisma.user.findUnique({
+                where: { email: rawEmail },
+                select: { name: true },
+            });
+            finalName = existingUser?.name?.trim() || rawEmail.split('@')[0];
+        }
+
         // Save to newsletter with waitlist info
         const existing = await prisma.newsletter.findUnique({
-            where: { email },
+            where: { email: rawEmail },
         });
 
         if (!existing) {
             await prisma.newsletter.create({
                 data: {
-                    email,
-                    materialPreferences: JSON.stringify({ waitlist: true, name }),
+                    email: rawEmail,
+                    active: true,
+                    materialPreferences: buildWaitlistPreferences(null, {
+                        name: finalName,
+                        source,
+                    }),
                 },
             });
         } else {
             await prisma.newsletter.update({
-                where: { email },
+                where: { email: rawEmail },
                 data: {
-                    materialPreferences: JSON.stringify({ waitlist: true, name, previous: existing.materialPreferences }),
-                }
-            })
+                    active: true,
+                    materialPreferences: buildWaitlistPreferences(existing.materialPreferences, {
+                        name: finalName,
+                        source,
+                    }),
+                },
+            });
         }
 
         try {
@@ -65,8 +124,8 @@ export async function POST(req: Request) {
 
                 await transporter.sendMail({
                     from: fromAddress,
-                    to: email,
-                    subject: 'GeoMoney Pro Waitlist Confirmation',
+                    to: rawEmail,
+                    subject: 'GeoMoney Pro Waitlist Confirmation — Priority Access Reserved',
                     html: `
 <!DOCTYPE html>
 <html lang="en">
@@ -78,13 +137,16 @@ export async function POST(req: Request) {
   </div>
 
   <div style="text-align:center;margin-bottom:32px;">
-    <h2 style="color:#ffffff;margin:0 0 8px;font-size:22px;">Hi ${name}, you're on the Waitlist!</h2>
-    <p style="color:#aaa;margin:0;font-size:15px;">Your early access spot for GeoMoney Pro has been reserved.</p>
+    <h2 style="color:#ffffff;margin:0 0 8px;font-size:22px;">Hi ${finalName}, you're on the GeoMoney Pro Waitlist!</h2>
+    <p style="color:#aaa;margin:0;font-size:15px;">Your priority access spot for GeoMoney Pro has been reserved.</p>
   </div>
 
   <div style="background:#111;border:1px solid #222;border-radius:12px;padding:24px;margin-bottom:24px;">
-    <p style="color:#ccc;font-size:14px;line-height:1.7;margin:0 0 16px;">
-      Thank you for your interest in GeoMoney Pro. We'll notify you as soon as your spot opens up to access our premium analytics, exclusive intelligence reports, and professional tools.
+    <p style="color:#D4AF37;font-size:14px;font-weight:600;line-height:1.6;margin:0 0 12px;">
+      ${WAITLIST_LAUNCH_MESSAGE}
+    </p>
+    <p style="color:#ccc;font-size:14px;line-height:1.7;margin:0;">
+      Thank you for joining the GeoMoney Pro Waitlist. You will receive priority access upon launch to our premium analytics, exclusive intelligence reports, and professional geopolitical & critical materials tools.
     </p>
   </div>
 </div>
@@ -92,13 +154,16 @@ export async function POST(req: Request) {
 </html>`,
                 });
 
-                console.log(`Waitlist email sent to ${email}`);
+                console.log(`Waitlist email sent to ${rawEmail}`);
             }
         } catch (emailError) {
             console.error('Failed to send waitlist email (non-fatal):', emailError);
         }
 
-        return NextResponse.json({ message: 'Successfully joined the waitlist!' });
+        return NextResponse.json({
+            message: 'Successfully joined the waitlist!',
+            launchMessage: WAITLIST_LAUNCH_MESSAGE,
+        });
     } catch (error) {
         console.error('Waitlist error:', error);
         return NextResponse.json(

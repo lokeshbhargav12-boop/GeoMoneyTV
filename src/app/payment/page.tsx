@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, CheckCircle, AlertCircle, Mail } from "lucide-react";
+import { ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
+import JoinWaitlistButton from "@/components/JoinWaitlistButton";
+import { WAITLIST_LAUNCH_MESSAGE } from "@/lib/waitlist";
 
 export default function PaymentPage() {
   return (
@@ -56,20 +58,15 @@ export default function PaymentPage() {
           </div>
 
           <div className="mb-6 flex items-start gap-3 rounded-lg bg-amber-500/10 border border-amber-500/20 p-4 text-amber-200 text-sm">
-            <AlertCircle className="w-5 h-5 shrink-0" />
-            <span>
-              Checkout is temporarily disabled while we prepare for launch. Join the
-              waitlist and we'll notify you as soon as subscriptions are available.
-            </span>
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+            <span>{WAITLIST_LAUNCH_MESSAGE}</span>
           </div>
 
-          <Link
-            href="/about/contact"
+          <JoinWaitlistButton
+            label="Join the Waitlist"
+            source="payment_page"
             className="w-full rounded-lg bg-blue-600 px-6 py-4 font-bold text-white transition-colors hover:bg-blue-700 flex items-center justify-center gap-2"
-          >
-            <Mail className="w-5 h-5" />
-            Join the Waitlist
-          </Link>
+          />
 
           <p className="mt-4 text-center text-xs text-gray-500">
             Secure checkout powered by Paddle. Cancel anytime.

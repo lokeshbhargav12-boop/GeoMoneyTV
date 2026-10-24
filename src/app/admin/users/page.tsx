@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Crown } from 'lucide-react'
 
 interface User {
   id: string
@@ -9,6 +10,7 @@ interface User {
   email: string
   role: string
   createdAt: string
+  onWaitlist?: boolean
 }
 
 export default function UsersPage() {
@@ -103,6 +105,13 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Users Management</h1>
+        <Link
+          href="/admin/waitlist"
+          className="inline-flex items-center gap-2 rounded-lg border border-geo-gold/30 bg-geo-gold/10 px-4 py-2 text-sm font-medium text-geo-gold hover:bg-geo-gold/20 transition-colors"
+        >
+          <Crown className="w-4 h-4" />
+          View GeoMoney Pro Waitlist
+        </Link>
       </div>
 
       {error && <div className="rounded-md bg-red-500/10 p-4 text-red-500">{error}</div>}
@@ -114,6 +123,7 @@ export default function UsersPage() {
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Email</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Role</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Pro Waitlist</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Joined</th>
               <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-400">Actions</th>
             </tr>
@@ -129,6 +139,16 @@ export default function UsersPage() {
                   }`}>
                     {user.role}
                   </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  {user.onWaitlist ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-geo-gold/15 border border-geo-gold/30 px-2.5 py-0.5 text-xs font-medium text-geo-gold">
+                      <Crown className="w-3 h-3" />
+                      On Waitlist
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-500">—</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                   {new Date(user.createdAt).toLocaleDateString()}
