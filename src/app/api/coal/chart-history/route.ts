@@ -2,6 +2,7 @@
 // (no Prisma DB dependency) so the chart renders even when the DB/ticker
 // pipeline is unavailable.  Returns [{date, close}, …] sorted ascending.
 import { NextResponse } from "next/server";
+import { getReferenceCoalHistory } from "@/data/coal/reference-market";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +31,28 @@ export async function GET(request: Request) {
   const intervalParam = searchParams.get("interval") ?? "D";
   const interval = INTERVAL_CONFIG[intervalParam] ? intervalParam : "D";
 
-  const yahooSymbol = COAL_YAHOO_SYMBOLS[rawSymbol.toUpperCase()];
-  if (!yahooSymbol) {
+  const normalizedSymbol = rawSymbol.toUpperCase();
+  const yahooSymbol = COAL_YAHOO_SYMBOLS[normalizedSymbol];
+  const fallbackData = getReferenceCoalHistory(
+    normalizedSymbol,
+    interval as "D" | "W" | "M",
+  );
+
+  if (!yahooSymbol && fallbackData.length === 0) {
     return NextResponse.json(
       { error: `No Yahoo Finance symbol for "${rawSymbol}"` },
       { status: 404 },
+    );
+  }
+
+  if (!yahooSymbol) {
+    return NextResponse.json(
+      { symbol: rawSymbol, data: fallbackData, source: "reference" },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
+        },
+      },
     );
   }
 
@@ -64,7 +82,11 @@ export async function GET(request: Request) {
       .slice(-200);
 
     return NextResponse.json(
-      { symbol: rawSymbol, data },
+      {
+        symbol: rawSymbol,
+        data: data.length > 0 ? data : fallbackData,
+        source: data.length > 0 ? "yahoo" : "reference",
+      },
       {
         headers: {
           "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
@@ -72,10 +94,14 @@ export async function GET(request: Request) {
       },
     );
   } catch (error) {
-    console.error("[coal/chart-history] Yahoo Finance fetch failed:", error);
+    console.error("[coal/chart-history] Yahoo Finance fetch failed, using reference series:", error);
     return NextResponse.json(
-      { symbol: rawSymbol, data: [], error: "Failed to fetch chart data" },
-      { status: 200 },
+      { symbol: rawSymbol, data: fallbackData, source: "reference" },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
+        },
+      },
     );
   }
 }

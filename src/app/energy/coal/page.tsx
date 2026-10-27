@@ -257,12 +257,16 @@ export default function CoalPage() {
             {data?.benchmarks.map((benchmark) => (
               <div
                 key={benchmark.label}
-                className={`rounded-2xl border p-5 ${benchmark.live ? "border-amber-300/15 bg-amber-300/5" : "border-white/10 bg-white/[0.04]"}`}
+                className={`rounded-2xl border p-5 ${benchmark.price !== null ? "border-amber-300/15 bg-amber-300/5" : "border-white/10 bg-white/[0.04]"}`}
               >
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">
-                      {benchmark.price === null ? "Unavailable" : "Provider quote (may be delayed)"}
+                      {benchmark.price === null
+                        ? "Unavailable"
+                        : benchmark.live
+                          ? "Provider quote (may be delayed)"
+                          : "Benchmark reference"}
                     </p>
                     <h2 className="text-lg font-bold text-white">{benchmark.label}</h2>
                   </div>

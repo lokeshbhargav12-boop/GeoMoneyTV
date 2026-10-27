@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getCoalMarketData,
+  enrichCoalMarketData,
   generateCoalCommentary,
 } from "@/lib/coal-market-service";
 
@@ -8,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const marketData = await getCoalMarketData(new URL(req.url).origin);
+    const rawData = await getCoalMarketData(new URL(req.url).origin);
+    const marketData = enrichCoalMarketData(rawData);
     const commentary = await generateCoalCommentary(marketData);
     return NextResponse.json(
       { ...commentary, timestamp: marketData.timestamp },
