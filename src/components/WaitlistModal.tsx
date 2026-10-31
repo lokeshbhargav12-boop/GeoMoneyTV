@@ -65,7 +65,7 @@ export default function WaitlistModal({
       if (response.ok) {
         setStatus("success");
         setMessage(
-          "Successfully joined the GeoMoney Pro Waitlist! Priority access has been reserved."
+          "Successfully joined the GeoMoney Basic waitlist! Priority access has been reserved."
         );
         if (onSuccess) onSuccess();
         setTimeout(() => {
@@ -117,10 +117,10 @@ export default function WaitlistModal({
         <div className="text-center mb-6">
           <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full bg-geo-gold/10 border border-geo-gold/30 px-3.5 py-1 text-xs font-semibold text-geo-gold">
             <Crown className="w-3.5 h-3.5" />
-            GeoMoney Pro Priority Access
+            GeoMoney Basic Priority Access
           </div>
           <h2 className="text-2xl font-bold text-white mb-3">
-            Join GeoMoney Pro Waitlist
+            Join GeoMoney Basic Waitlist
           </h2>
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-left mb-2">
             <div className="flex items-start gap-2.5">

@@ -19,18 +19,18 @@ export default function PaymentPage() {
 
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            GeoMoney Pro
+            GeoMoney Basic
           </h1>
           <p className="text-gray-400 max-w-xl mx-auto">
             Subscription checkout is coming soon. Join the waitlist to be notified when
-            GeoMoney Pro becomes available.
+            GeoMoney Basic becomes available.
           </p>
         </div>
 
         <div className="bg-white/5 rounded-2xl border border-white/10 p-8 md:p-10">
           <div className="flex items-center gap-3 mb-6">
             <CheckCircle className="w-6 h-6 text-geo-gold" />
-            <h2 className="text-2xl font-bold">Pro Membership</h2>
+            <h2 className="text-2xl font-bold">Basic Membership</h2>
           </div>
 
           <ul className="space-y-4 mb-8 text-gray-300">
@@ -53,7 +53,7 @@ export default function PaymentPage() {
           </ul>
 
           <div className="flex items-baseline gap-2 mb-8">
-            <span className="text-4xl font-bold text-white">$29</span>
+            <span className="text-4xl font-bold text-white">US$39</span>
             <span className="text-gray-400">/ month</span>
           </div>
 
@@ -69,7 +69,7 @@ export default function PaymentPage() {
           />
 
           <p className="mt-4 text-center text-xs text-gray-500">
-            Secure checkout powered by Paddle. Cancel anytime.
+            Secure checkout powered by Stripe. Cancel anytime.
           </p>
         </div>
 

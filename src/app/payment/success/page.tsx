@@ -2,8 +2,8 @@ import Link from "next/link";
 import { CheckCircle } from "lucide-react";
 
 export const metadata = {
-  title: "Payment Successful — GeoMoney Pro",
-  description: "Thank you for subscribing to GeoMoney Pro.",
+  title: "Payment Successful — GeoMoney Basic",
+  description: "Thank you for subscribing to GeoMoney Basic.",
 };
 
 export default function PaymentSuccessPage() {
@@ -11,9 +11,9 @@ export default function PaymentSuccessPage() {
     <main className="min-h-screen bg-gradient-to-br from-geo-dark to-black text-white pt-32 pb-24">
       <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8 text-center">
         <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
-        <h1 className="text-4xl font-bold mb-4">Welcome to GeoMoney Pro</h1>
+        <h1 className="text-4xl font-bold mb-4">Welcome to GeoMoney Basic</h1>
         <p className="text-gray-400 mb-8">
-          Thank you for your payment. Your Pro membership is being activated.
+          Thank you for your payment. Your Basic membership is being activated.
           You will receive a confirmation email shortly.
         </p>
         <Link

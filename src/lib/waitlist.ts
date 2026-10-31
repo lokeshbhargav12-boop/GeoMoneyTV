@@ -1,5 +1,5 @@
 export const WAITLIST_LAUNCH_MESSAGE =
-  "GeoMoney Intelligence Platform will be launching soon. Please join the Waitlist to join GeoMoney Pro to get priority access upon launch";
+  "GeoMoney Intelligence Platform will be launching soon. Join the Basic waitlist to receive priority access when subscriptions open.";
 
 export interface WaitlistMetadata {
   waitlist: boolean;

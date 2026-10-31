@@ -97,7 +97,7 @@ export default function ProfilePage() {
       const data = await res.json();
       if (res.ok) {
         setOnWaitlist(true);
-        setWaitlistMsg("Priority access reserved on the GeoMoney Pro Waitlist!");
+        setWaitlistMsg("Priority access reserved on the GeoMoney Basic waitlist!");
       } else {
         setWaitlistMsg(data.error || "Failed to join waitlist");
       }
@@ -165,13 +165,13 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* GeoMoney Pro Pre-Launch Waitlist Card */}
+        {/* GeoMoney Basic Pre-Launch Waitlist Card */}
         <div className="rounded-2xl border border-geo-gold/30 bg-gradient-to-br from-amber-500/10 via-geo-gold/5 to-transparent p-6 mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full bg-geo-gold/15 border border-geo-gold/30 px-3 py-1 text-xs font-semibold text-geo-gold">
                 <Crown className="w-3.5 h-3.5" />
-                GeoMoney Pro Priority Access
+                GeoMoney Basic Priority Access
               </div>
               <div className="flex items-start gap-2.5">
                 <Sparkles className="w-4 h-4 text-geo-gold shrink-0 mt-1" />
@@ -187,7 +187,7 @@ export default function ProfilePage() {
               {onWaitlist ? (
                 <div className="inline-flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/15 px-4 py-2.5 text-xs font-semibold text-green-400">
                   <CheckCircle2 className="w-4 h-4" />
-                  On GeoMoney Pro Waitlist
+                  On GeoMoney Basic Waitlist
                 </div>
               ) : (
                 <button

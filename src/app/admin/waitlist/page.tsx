@@ -122,7 +122,7 @@ export default function AdminWaitlistPage() {
   };
 
   const handleRemove = async (id: string, email: string) => {
-    if (!confirm(`Remove ${email} from the GeoMoney Pro Waitlist?`)) return;
+    if (!confirm(`Remove ${email} from the GeoMoney Basic waitlist?`)) return;
 
     try {
       const res = await fetch("/api/admin/waitlist", {
@@ -162,7 +162,7 @@ export default function AdminWaitlistPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `geomoney-pro-waitlist-${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `geomoney-basic-waitlist-${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -192,7 +192,7 @@ export default function AdminWaitlistPage() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3 text-white">
             <Crown className="w-8 h-8 text-geo-gold" />
-            GeoMoney Pro Waitlist
+            GeoMoney Basic Waitlist
           </h1>
           <p className="mt-1 text-gray-400 text-sm">
             Manage users who joined the waitlist for priority access upon launch
@@ -265,7 +265,7 @@ export default function AdminWaitlistPage() {
       <div className="rounded-xl border border-white/10 bg-white/5 p-5">
         <h2 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
           <Plus className="w-4 h-4 text-geo-gold" />
-          Add Person to GeoMoney Pro Waitlist
+          Add Person to GeoMoney Basic Waitlist
         </h2>
         <form
           onSubmit={handleAddMember}
@@ -463,7 +463,7 @@ export default function AdminWaitlistPage() {
             No waitlist members found.
           </p>
           <p className="text-sm text-gray-500 mt-1">
-            Users who join the GeoMoney Pro Waitlist will appear here.
+            Users who join the GeoMoney Basic waitlist will appear here.
           </p>
         </div>
       )}

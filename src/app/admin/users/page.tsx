@@ -110,7 +110,7 @@ export default function UsersPage() {
           className="inline-flex items-center gap-2 rounded-lg border border-geo-gold/30 bg-geo-gold/10 px-4 py-2 text-sm font-medium text-geo-gold hover:bg-geo-gold/20 transition-colors"
         >
           <Crown className="w-4 h-4" />
-          View GeoMoney Pro Waitlist
+          View GeoMoney Basic Waitlist
         </Link>
       </div>
 
@@ -123,7 +123,7 @@ export default function UsersPage() {
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Email</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Pro Waitlist</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Basic Waitlist</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">Joined</th>
               <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-400">Actions</th>
             </tr>

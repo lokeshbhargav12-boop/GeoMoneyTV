@@ -1,235 +1,219 @@
 import Link from "next/link";
-import { CheckCircle, Crown, Shield, Zap, Globe, BarChart3, Lock, Sparkles } from "lucide-react";
-import JoinWaitlistButton from "@/components/JoinWaitlistButton";
-import { WAITLIST_LAUNCH_MESSAGE } from "@/lib/waitlist";
+import { ArrowRight, CheckCircle, Sparkles } from "lucide-react";
 
 export const metadata = {
-  title: "Pricing | GeoMoney",
+  title: "Pricing & Access | GeoMoney",
   description:
-    "GeoMoney subscription plans and pricing. Pre-launch access — join the waitlist.",
+    "GeoMoney Intelligence Platform pricing, access tiers, and early access details.",
 };
 
-const FEATURES = [
+const AVAILABLE_PLANS = [
   {
-    icon: BarChart3,
-    title: "Advanced Analytics",
-    description:
-      "Access global macro dashboards, commodity trackers, and market intelligence tools.",
+    name: "Free",
+    price: "US$0",
+    description: "Explore GeoMoney’s public research and media.",
+    features: [
+      "Public articles and selected research previews",
+      "Open-access energy and critical-materials content",
+      "GeoMoney TV videos and editorial updates",
+      "Optional newsletter updates",
+    ],
+    cta: {
+      label: "Explore Free Content",
+      href: "/news",
+    },
   },
   {
-    icon: Globe,
-    title: "Geopolitical Briefings",
-    description:
-      "Receive in-depth analysis on energy flows, supply chains, and international policy shifts.",
-  },
-  {
-    icon: Zap,
-    title: "Exclusive Reports",
-    description:
-      "Unlock The GeoMoney Intelligence Report and members-only weekly briefings.",
-  },
-  {
-    icon: Lock,
-    title: "Ad-Free Experience",
-    description:
-      "Enjoy uninterrupted access to all content without advertisements or paywalls.",
-  },
-  {
-    icon: Shield,
-    title: "Priority Support",
-    description:
-      "Get faster responses from our team and early access to new features and tools.",
-  },
-  {
-    icon: Crown,
-    title: "Member Perks",
-    description:
-      "Participate in exclusive webinars, Q&A sessions, and community discussions.",
+    name: "Basic",
+    price: "US$39 / month",
+    description: "Subscriber research and intelligence.",
+    features: [
+      "Subscriber-only geopolitical and economic briefings",
+      "Research on energy systems, critical materials and supply chains",
+      "Member reports and analysis included in Basic",
+      "Access to Basic content while subscribed",
+    ],
+    cta: {
+      label: "Join the Basic Waitlist",
+      href: "/pricing#waitlist",
+    },
+    highlight: true,
   },
 ];
 
-const PLANS = [
+const UPCOMING_PLANS = [
   {
-    name: "Monthly",
-    price: "$29",
-    period: "/ month",
-    billing: "Billed monthly",
-    description: "Flexible monthly access to all Pro features.",
+    name: "Advanced",
+    subtitle: "Coming Soon",
+    description: "Expanded analytical capabilities.",
     features: [
-      "Full analytics dashboard",
-      "Weekly intelligence reports",
-      "Energy & materials data",
-      "Priority support",
-      "Cancel anytime",
+      "Advanced analytics and comparative tools planned",
+      "Features and pricing to be announced",
     ],
-    cta: "Join Waitlist",
-    highlighted: true,
+    status: "Not currently available",
   },
   {
-    name: "Annual",
-    price: "$290",
-    period: "/ year",
-    billing: "Billed annually",
-    description: "Save two months with annual billing.",
+    name: "Pro",
+    subtitle: "Coming Soon",
+    description: "A future professional intelligence tier.",
     features: [
-      "Everything in Monthly",
-      "Exclusive annual member briefings",
-      "Early access to new features",
-      "Dedicated support channel",
-      "Best value",
+      "Additional research, monitoring and professional tools planned",
+      "Features and pricing to be announced",
     ],
-    cta: "Join Waitlist",
-    highlighted: false,
+    status: "Not currently available",
   },
 ];
 
 export default function PricingPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-geo-dark via-black to-geo-dark text-white pt-32 pb-24">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Pre-launch Notice */}
-        <div className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
-          <div className="flex items-start gap-3">
-            <Sparkles className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <h2 className="font-bold text-amber-400 mb-1">Pre-Launch Notice</h2>
-              <p className="text-sm text-white font-medium leading-relaxed mb-1">
-                {WAITLIST_LAUNCH_MESSAGE}
-              </p>
-              <p className="text-sm text-gray-300 leading-relaxed">
-                GeoMoney is currently in pre-launch development. Subscription checkout is not yet available.
-                Plan names, pricing, and included features shown on this page are planned and may be updated before launch.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Hero */}
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 rounded-full bg-geo-gold/10 border border-geo-gold/20 px-4 py-1.5 text-sm font-medium text-geo-gold mb-6">
-            <Crown className="w-4 h-4" />
-            GeoMoney Pro Membership
-          </div>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-            Unlock{" "}
-            <span className="bg-gradient-to-r from-geo-gold to-yellow-600 bg-clip-text text-transparent">
-              Premium Intelligence
-            </span>
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <p className="text-sm tracking-[0.3em] text-geo-gold/80 font-semibold">
+            GEOMONEY INTELLIGENCE PLATFORM
+          </p>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mt-4">
+            Pricing & Access
           </h1>
-          <p className="text-lg text-gray-400 leading-relaxed">
-            A subscription-based geopolitical, energy, industrial, and critical-materials
-            SaaS platform. Upgrade to GeoMoney Pro for advanced analysis, exclusive reports,
-            and professional tools designed for analysts, researchers, and global affairs professionals.
+          <p className="mt-4 text-base text-gray-400 leading-relaxed">
+            Choose how you explore geopolitics, energy systems, critical materials and the
+            forces shaping global markets.
           </p>
         </div>
 
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
-          {FEATURES.map((feature) => (
-            <div
-              key={feature.title}
-              className="group rounded-2xl border border-white/10 bg-white/5 p-6 transition-all hover:border-geo-gold/30 hover:bg-white/[0.07]"
-            >
-              <div className="mb-4 inline-flex items-center justify-center rounded-xl bg-geo-gold/10 p-3 border border-geo-gold/20">
-                <feature.icon className="w-6 h-6 text-geo-gold" />
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2">{feature.title}</h3>
-              <p className="text-gray-400 leading-relaxed text-sm">
-                {feature.description}
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 mb-12">
+          <div className="flex items-start gap-3">
+            <Sparkles className="w-5 h-5 text-amber-400 mt-0.5" />
+            <div>
+              <h2 className="text-lg font-semibold text-amber-300">
+                Phase 1 — Early Access
+              </h2>
+              <p className="text-sm text-gray-200 leading-relaxed mt-2">
+                GeoMoney is preparing to open paid subscriptions. Joining the Basic waitlist
+                is free; it does not create a subscription, collect payment or reserve a price.
               </p>
             </div>
-          ))}
+          </div>
         </div>
 
-        {/* Pricing */}
-        <div className="max-w-4xl mx-auto mb-20">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-10">
-            Choose Your Plan
-          </h2>
+        <section className="mb-16">
+          <h2 className="text-xl font-semibold text-white mb-6">Available & Planned Access</h2>
           <div className="grid md:grid-cols-2 gap-6">
-            {PLANS.map((plan) => (
+            {AVAILABLE_PLANS.map((plan) => (
               <div
                 key={plan.name}
-                className={`relative rounded-2xl border p-8 transition-all ${
-                  plan.highlighted
-                    ? "border-geo-gold/40 bg-geo-gold/5"
-                    : "border-white/10 bg-white/5 hover:border-white/20"
+                className={`rounded-2xl border p-6 bg-white/5 ${
+                  plan.highlight
+                    ? "border-geo-gold/40 shadow-[0_0_30px_rgba(212,175,55,0.15)]"
+                    : "border-white/10"
                 }`}
               >
-                {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-geo-gold px-3 py-1 text-xs font-bold text-black">
-                    Most Popular
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
+                      {plan.name}
+                    </p>
+                    <p className="text-3xl font-bold text-white mt-2">{plan.price}</p>
                   </div>
-                )}
-                <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
-                <div className="flex items-baseline gap-2 mb-2">
-                  <span className="text-4xl font-bold text-white">{plan.price}</span>
-                  <span className="text-gray-400">{plan.period}</span>
+                  {plan.highlight && (
+                    <span className="rounded-full border border-geo-gold/40 bg-geo-gold/10 px-3 py-1 text-xs font-semibold text-geo-gold">
+                      Basic waitlist
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs text-gray-500 mb-4">{plan.billing}</p>
-                <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
-                <ul className="space-y-3 mb-8">
-                  {plan.features.map((item) => (
-                    <li
-                      key={item}
-                      className="flex items-start gap-3 text-sm text-gray-300"
-                    >
-                      <CheckCircle className="w-5 h-5 text-geo-gold shrink-0" />
-                      <span>{item}</span>
+                <p className="mt-4 text-sm text-gray-300 leading-relaxed">{plan.description}</p>
+                <ul className="mt-4 space-y-3 text-sm text-gray-300">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 text-geo-gold mt-0.5" />
+                      <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
-                <JoinWaitlistButton
-                  label={plan.cta}
-                  source={`pricing_${plan.name.toLowerCase()}`}
-                  className={`flex items-center justify-center gap-2 w-full rounded-lg px-6 py-3 font-bold transition-colors ${
-                    plan.highlighted
-                      ? "bg-blue-600 hover:bg-blue-700 text-white"
-                      : "bg-white/10 hover:bg-white/20 text-white"
+                <Link
+                  href={plan.cta.href}
+                  className={`mt-6 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
+                    plan.highlight
+                      ? "bg-geo-gold text-black hover:bg-yellow-500"
+                      : "border border-white/20 text-white hover:border-geo-gold/40 hover:text-geo-gold"
                   }`}
-                />
+                >
+                  {plan.cta.label}
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Trust / FAQ teaser */}
-        <div className="max-w-3xl mx-auto text-center">
-          <p className="text-gray-500 text-sm leading-relaxed mb-6">
-            All memberships will include flexible cancellation options once checkout is live.
-            For questions, review our{" "}
-            <Link href="/about/refund-policy" className="text-geo-gold hover:underline">
-              Refund Policy
-            </Link>{" "}
-            or{" "}
-            <Link href="/about/contact" className="text-geo-gold hover:underline">
-              contact us
-            </Link>.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-400">
-            <span className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-geo-gold" />
-              Secure checkout via Paddle
-            </span>
-            <span className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-geo-gold" />
-              Instant access at launch
-            </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-geo-gold" />
-              Cancel anytime
-            </span>
+        <section className="mb-16">
+          <h2 className="text-xl font-semibold text-white mb-6">Upcoming Plans</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            {UPCOMING_PLANS.map((plan) => (
+              <div
+                key={plan.name}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
+                      {plan.name}
+                    </p>
+                    <p className="text-sm text-geo-gold mt-2 font-semibold">
+                      {plan.subtitle}
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-500">{plan.status}</span>
+                </div>
+                <p className="mt-4 text-sm text-gray-300 leading-relaxed">{plan.description}</p>
+                <ul className="mt-4 space-y-3 text-sm text-gray-300">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 text-gray-500 mt-0.5" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-4 text-xs text-gray-500">{plan.status}</p>
+              </div>
+            ))}
           </div>
-        </div>
+        </section>
 
-        {/* Global Disclaimer */}
-        <div className="mt-20 border-t border-white/10 pt-8">
-          <p className="text-gray-500 text-sm leading-relaxed max-w-3xl mx-auto text-center">
-            GeoMoney provides geopolitical, energy, commodity, industrial, and macroeconomic
-            intelligence for informational and research purposes only. It does NOT provide
-            financial, investment, legal, or tax advice.
+        <section className="rounded-2xl border border-white/10 bg-black/40 p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">
+            Billing & Subscription Information
+          </h2>
+          <p className="text-sm text-gray-300 leading-relaxed">
+            Basic: US$39/month, billed monthly in USD when checkout opens. Renews automatically
+            until cancelled. Applicable taxes may be added at checkout.
           </p>
-        </div>
+          <p className="mt-3 text-sm text-gray-300 leading-relaxed">
+            Cancel before your next renewal. The final subscription price and terms will be
+            displayed before purchase.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3 text-xs text-gray-400">
+            <Link href="/about/terms" className="hover:text-geo-gold">
+              Terms & Conditions
+            </Link>
+            <span>·</span>
+            <Link href="/about/privacy" className="hover:text-geo-gold">
+              Privacy Policy
+            </Link>
+            <span>·</span>
+            <Link href="/about/refund-policy" className="hover:text-geo-gold">
+              Refund Policy
+            </Link>
+          </div>
+          <p className="mt-6 text-xs text-gray-500 leading-relaxed">
+            GeoMoney provides research and analytical information, not personalized investment,
+            financial, legal or tax advice.
+          </p>
+          <p className="mt-4 text-xs text-gray-500">
+            © 2026 Vidyata Hub Inc. All rights reserved. GeoMoney Intelligence Platform and
+            GeoMoney TV are operated by Vidyata Hub Inc.
+          </p>
+        </section>
       </div>
     </main>
   );

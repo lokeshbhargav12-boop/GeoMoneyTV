@@ -1377,7 +1377,7 @@ export default function EnergyPage() {
             <div className="text-center">
               <Zap className="w-12 h-12 text-purple-400/50 mx-auto mb-4" />
               <h3 className="text-lg font-bold text-white mb-2">
-                Energy Storage Analytics Coming Soon
+                Energy Storage Overview
               </h3>
               <p className="text-gray-400 text-sm max-w-md mx-auto">
                 Track battery energy storage systems, utility-scale storage

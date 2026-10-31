@@ -91,14 +91,14 @@ export default function SignIn() {
           {logoUrl ? (
             <img
               src={logoUrl}
-              alt="GeoMoney TV"
+              alt="GeoMoney"
               className="mx-auto h-20 w-auto object-contain"
             />
           ) : (
             <div className="mx-auto h-12 w-12 rounded-full bg-gradient-to-br from-geo-gold to-yellow-600" />
           )}
           <h2 className="mt-6 text-3xl font-bold tracking-tight text-white">
-            Sign in to GeoMoney TV
+            Sign in to GeoMoney
           </h2>
           <p className="mt-2 text-sm text-gray-400">Access your account</p>
         </div>
@@ -118,7 +118,7 @@ export default function SignIn() {
             {waitlistJoined ? (
               <div className="inline-flex items-center gap-1.5 rounded-full bg-green-500/15 border border-green-500/30 px-3 py-1 text-xs font-medium text-green-400">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                You're on the GeoMoney Pro Waitlist
+                You're on the GeoMoney Basic waitlist
               </div>
             ) : (
               <button
@@ -127,7 +127,7 @@ export default function SignIn() {
                 className="inline-flex items-center gap-2 rounded-lg bg-geo-gold px-4 py-2 text-xs font-bold text-black hover:bg-yellow-500 transition-colors"
               >
                 <Crown className="w-3.5 h-3.5" />
-                Join GeoMoney Pro Waitlist
+                Join GeoMoney Basic Waitlist
               </button>
             )}
           </div>

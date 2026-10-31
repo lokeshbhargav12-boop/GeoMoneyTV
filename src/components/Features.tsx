@@ -18,7 +18,7 @@ const features = [
   },
   {
     title: "The GeoMoney Brief",
-    subtitle: "3x Weekly Intelligence",
+    subtitle: "Weekly Intelligence",
     icon: "mail",
     href: "/features/newsletter",
   },

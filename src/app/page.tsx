@@ -260,7 +260,6 @@ export default async function Home({
             className="cursor-pointer hover:text-geo-gold transition-colors flex flex-col items-center min-w-max"
           >
             <span>THE GEOMONEY BRIEF</span>
-            <span className="text-[9px] text-gray-500 mt-0.5">COMING SOON</span>
           </Link>
           <Link
             href="/features/analytics"
@@ -274,7 +273,6 @@ export default async function Home({
             className="cursor-pointer hover:text-geo-gold transition-colors flex flex-col items-center min-w-max"
           >
             <span>INTELLIGENCE REPORT</span>
-            <span className="text-[9px] text-gray-500 mt-0.5">COMING SOON</span>
           </Link>
           <Link
             href="/features/app"

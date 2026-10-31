@@ -77,7 +77,7 @@ export default function Register() {
 
       if (response.ok) {
         setWaitlistStatus('joined')
-        setWaitlistMessage('You are now on the GeoMoney Pro Waitlist! Priority access upon launch has been reserved.')
+        setWaitlistMessage('You are now on the GeoMoney Basic waitlist! Priority access upon launch has been reserved.')
       } else {
         setWaitlistStatus('error')
         setWaitlistMessage(data.error || 'Failed to join waitlist')
@@ -158,7 +158,7 @@ export default function Register() {
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-geo-gold to-yellow-500 px-6 py-3.5 text-sm font-bold text-black hover:brightness-110 transition-all disabled:opacity-50"
               >
                 <Crown className="w-4 h-4" />
-                {waitlistStatus === 'loading' ? 'Joining GeoMoney Pro Waitlist...' : 'Join the Waitlist for GeoMoney Pro'}
+                {waitlistStatus === 'loading' ? 'Joining GeoMoney Basic Waitlist...' : 'Join the Waitlist for GeoMoney Basic'}
               </button>
             </form>
           ) : (
@@ -201,7 +201,7 @@ export default function Register() {
             Create your account
           </h2>
           <p className="mt-2 text-sm text-gray-400">
-            Join GeoMoney TV
+            Join GeoMoney
           </p>
         </div>
 

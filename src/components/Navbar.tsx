@@ -29,8 +29,7 @@ const NAV_LINKS = [
     ],
   },
   { href: "/materials", label: "Critical Materials" },
-  // Analytics hidden from navigation per product request
-  // { href: "/features/analytics", label: "Analytics" },
+  { href: "/features/analytics", label: "Analytics" },
   { href: "/tools", label: "Tools" },
   {
     href: "/about",
@@ -92,7 +91,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             {logoUrl && !logoLoadFailed ? (
               <img
                 src={logoUrl}
-                alt="GeoMoney TV"
+                alt="GeoMoney"
                 className="h-10 w-10 object-contain rounded-full"
                 onError={() => setLogoLoadFailed(true)}
               />
