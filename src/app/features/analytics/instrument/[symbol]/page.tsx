@@ -26,7 +26,8 @@ export default function AnalyticsInstrumentComingSoonPage() {
           </h1>
           <p className="mt-3 text-xl text-geo-gold font-semibold">Coming Soon</p>
           <p className="mt-4 text-sm sm:text-base text-gray-400 leading-relaxed">
-            Advanced Analytics will be introduced in a future platform release.
+            Advanced Analytics will be introduced in a future platform release. Access is
+            planned as part of the Basic plan at US$39/month.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
