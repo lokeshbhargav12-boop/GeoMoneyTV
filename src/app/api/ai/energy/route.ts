@@ -1,9 +1,91 @@
 import { NextResponse } from 'next/server';
 import { callOpenRouterJson, getAiFailure } from '@/lib/openrouter';
 
+const PREFERRED_MODEL = process.env.OPENROUTER_AI_MODEL || 'moonshotai/kimi-k3.1-pro';
+
+type EnergyAnalysis = {
+  summary: string;
+  strategic_implications: string[];
+  affected_markets: { market: string; impact: string; direction: string }[];
+  key_players: { name: string; role: string }[];
+  outlook: { short_term: string; long_term: string };
+  confidence: string;
+  fallback?: boolean;
+};
+
+function normalizeArray(values: unknown, fallback: string[]): string[] {
+  return Array.isArray(values)
+    ? values.map((item) => String(item ?? '').trim()).filter(Boolean).slice(0, 6)
+    : fallback;
+}
+
+function normalizeEnergyAnalysis(candidate: any, fallback: EnergyAnalysis): EnergyAnalysis {
+  return {
+    summary: typeof candidate?.summary === 'string' && candidate.summary.trim()
+      ? candidate.summary.trim()
+      : fallback.summary,
+    strategic_implications: normalizeArray(candidate?.strategic_implications, fallback.strategic_implications),
+    affected_markets: Array.isArray(candidate?.affected_markets)
+      ? candidate.affected_markets
+          .filter((item: any) => item && typeof item === 'object')
+          .map((item: any) => ({
+            market: String(item.market ?? '').trim() || 'Unknown',
+            impact: String(item.impact ?? '').trim() || 'Impact not specified',
+            direction: String(item.direction ?? 'Neutral').trim(),
+          }))
+          .slice(0, 6)
+      : fallback.affected_markets,
+    key_players: Array.isArray(candidate?.key_players)
+      ? candidate.key_players
+          .filter((item: any) => item && typeof item === 'object')
+          .map((item: any) => ({
+            name: String(item.name ?? '').trim() || 'Unknown',
+            role: String(item.role ?? '').trim() || 'Role not specified',
+          }))
+          .slice(0, 6)
+      : fallback.key_players,
+    outlook: {
+      short_term: String(candidate?.outlook?.short_term ?? '').trim() || fallback.outlook.short_term,
+      long_term: String(candidate?.outlook?.long_term ?? '').trim() || fallback.outlook.long_term,
+    },
+    confidence: String(candidate?.confidence ?? '').trim() || fallback.confidence,
+  };
+}
+
+function buildFallback(query: string, reason: string): EnergyAnalysis {
+  return {
+    summary: `Fallback analysis (AI provider unavailable). Request: "${query}". Reason: ${reason}`,
+    strategic_implications: [
+      'Supply chain resilience and export controls remain the dominant variables for energy-security decisions.',
+      'Policy timing and subsidy design can shift capital flows faster than underlying fuel market fundamentals.',
+      'Regional infrastructure bottlenecks and grid constraints will shape price volatility more than headline demand growth.',
+    ],
+    affected_markets: [
+      {
+        market: 'Energy & Critical Minerals',
+        impact: 'Likely near-term volatility while policy signals and industrial demand stay uncertain.',
+        direction: 'Neutral',
+      },
+    ],
+    key_players: [
+      { name: 'United States', role: 'Policy incentives, strategic reserves, LNG exports' },
+      { name: 'China', role: 'Manufacturing scale, critical mineral processing' },
+      { name: 'OPEC+', role: 'Supply management and price stability' },
+    ],
+    outlook: {
+      short_term: 'Expect policy-driven volatility; validate with current market data before action.',
+      long_term: 'Structural shift toward electrification and critical minerals persists; monitor capex and trade policy.',
+    },
+    confidence: 'Limited',
+    fallback: true,
+  };
+}
+
 export async function POST(req: Request) {
+    let query = "";
     try {
-        const { query } = await req.json();
+        const body = await req.json();
+        query = typeof body?.query === 'string' ? body.query : "";
 
         if (typeof query !== 'string' || !query.trim() || query.length > 2000) {
             return NextResponse.json({ error: 'Enter an energy question of 1–2000 characters.' }, { status: 400 });
@@ -47,15 +129,18 @@ INSTRUCTIONS:
 - No live observations or external sources were supplied. State that this is general analysis, not current market intelligence. Never invent current prices, events or citations.
 `;
 
+        const fallback = buildFallback(query, 'AI provider returned incomplete output.');
         const { data: analysisJson } = await callOpenRouterJson(prompt, {
             temperature: 0.3,
-            maxTokens: 800,
+            maxTokens: 900,
             caller: 'energy',
             signal: req.signal,
-            validate: (data: any) => {
-                if (typeof data?.summary !== 'string' || !Array.isArray(data.strategic_implications) || !data.strategic_implications.every((v: unknown) => typeof v === 'string') || !Array.isArray(data.affected_markets) || !data.affected_markets.every((v: any) => typeof v?.market === 'string' && typeof v?.impact === 'string' && typeof v?.direction === 'string') || !Array.isArray(data.key_players) || !data.key_players.every((v: any) => typeof v?.name === 'string' && typeof v?.role === 'string') || typeof data.outlook?.short_term !== 'string' || typeof data.outlook?.long_term !== 'string' || typeof data.confidence !== 'string') throw new Error('Invalid energy analysis structure');
-                return data;
-            },
+            preferredModels: [PREFERRED_MODEL],
+            allowFallback: true,
+            timeoutMs: 90_000,
+            modelTimeoutMs: 45_000,
+            maxAttempts: 3,
+            validate: (data: any) => normalizeEnergyAnalysis(data, fallback),
         });
 
         return NextResponse.json(analysisJson);
@@ -63,7 +148,8 @@ INSTRUCTIONS:
     } catch (error) {
         console.error('AI Energy Analysis Error:', error);
         const failure = getAiFailure(error);
-        return NextResponse.json(failure, { status: failure.status });
+        const fallback = buildFallback(query || "Energy analysis request", failure.error);
+        return NextResponse.json({ ...fallback, notice: failure.error, retryable: failure.retryable });
     }
 }
 

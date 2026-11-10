@@ -9,6 +9,7 @@ import {
   X,
   LogOut,
   LayoutDashboard,
+  TerminalSquare,
   FileText,
   Video,
   Gem,
@@ -23,6 +24,7 @@ import {
 
 const NAV_LINKS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/admin/dev", label: "Dev Panel", icon: TerminalSquare },
   { href: "/admin/waitlist", label: "Waitlist", icon: Crown },
   { href: "/admin/articles", label: "Articles", icon: FileText },
   { href: "/admin/videos", label: "Videos", icon: Video },

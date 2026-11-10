@@ -26,6 +26,19 @@ interface Stats {
   waitlist?: number;
 }
 
+interface DevStatus {
+  ok: boolean;
+  latencyMs?: number;
+  counts?: {
+    users: number;
+    articles: number;
+    materials: number;
+    videos: number;
+    newsletters: number;
+  };
+  error?: string;
+}
+
 const QUICK_ACTIONS = [
   {
     href: "/admin/waitlist",
@@ -79,10 +92,13 @@ const QUICK_ACTIONS = [
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [devStatus, setDevStatus] = useState<DevStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [devLoading, setDevLoading] = useState(true);
 
   useEffect(() => {
     fetchStats();
+    fetchDevStatus();
   }, []);
 
   const fetchStats = async () => {
@@ -97,6 +113,20 @@ export default function AdminDashboard() {
       console.error("Failed to fetch stats:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDevStatus = async () => {
+    setDevLoading(true);
+    try {
+      const res = await fetch("/api/admin/dev-status");
+      const data = await res.json();
+      setDevStatus(data);
+    } catch (error) {
+      console.error("Failed to fetch dev status:", error);
+      setDevStatus({ ok: false, error: "Failed to reach dev status" });
+    } finally {
+      setDevLoading(false);
     }
   };
 
@@ -173,6 +203,83 @@ export default function AdminDashboard() {
             <div className="text-sm text-gray-400">{stat.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* Developer DB Status */}
+      <div className="mb-10 rounded-xl border border-white/10 bg-white/5 p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white">Developer DB Status</h2>
+            <p className="text-sm text-gray-400">
+              Live connectivity check to your MySQL instance
+            </p>
+          </div>
+          <button
+            onClick={fetchDevStatus}
+            disabled={devLoading}
+            className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-gray-300 hover:text-white hover:bg-white/10 transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${devLoading ? "animate-spin" : ""}`} />
+            Check DB
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+            <div className="text-sm text-gray-400">Connection</div>
+            <div className="mt-1 text-lg font-semibold">
+              {devLoading
+                ? "Checking..."
+                : devStatus?.ok
+                ? "Connected"
+                : "Disconnected"}
+            </div>
+            {!devLoading && !devStatus?.ok && devStatus?.error ? (
+              <div className="mt-2 text-xs text-red-400">{devStatus.error}</div>
+            ) : null}
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+            <div className="text-sm text-gray-400">Latency</div>
+            <div className="mt-1 text-lg font-semibold">
+              {devLoading ? "..." : `${devStatus?.latencyMs ?? 0} ms`}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+            <div className="text-sm text-gray-400">Total Users</div>
+            <div className="mt-1 text-lg font-semibold">
+              {devLoading ? "..." : devStatus?.counts?.users?.toLocaleString() ?? 0}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-4">
+          <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+            <div className="text-xs text-gray-400">Articles</div>
+            <div className="mt-1 text-lg font-semibold">
+              {devLoading ? "..." : devStatus?.counts?.articles?.toLocaleString() ?? 0}
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+            <div className="text-xs text-gray-400">Materials</div>
+            <div className="mt-1 text-lg font-semibold">
+              {devLoading ? "..." : devStatus?.counts?.materials?.toLocaleString() ?? 0}
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+            <div className="text-xs text-gray-400">Videos</div>
+            <div className="mt-1 text-lg font-semibold">
+              {devLoading ? "..." : devStatus?.counts?.videos?.toLocaleString() ?? 0}
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+            <div className="text-xs text-gray-400">Newsletters</div>
+            <div className="mt-1 text-lg font-semibold">
+              {devLoading ? "..." : devStatus?.counts?.newsletters?.toLocaleString() ?? 0}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Quick Actions */}

@@ -177,6 +177,19 @@ const CACHE_TTL = 120_000; // 2 minutes
 
 const EIA_API_KEY = process.env.EIA_API_KEY || "";
 const EIA_BASE = "https://api.eia.gov/v2";
+const EIA_LOG_TTL = 30 * 60_000;
+const eiaFailureCache = new Map<string, number>();
+
+function logEiaFailure(label: string, status: number | undefined, error?: unknown) {
+  if (status && [401, 403, 429].includes(status)) {
+    const last = eiaFailureCache.get(label) ?? 0;
+    if (Date.now() - last < EIA_LOG_TTL) return;
+    eiaFailureCache.set(label, Date.now());
+    console.warn(`[EnergyInfra] EIA ${label} HTTP ${status} (suppressed for ${Math.round(EIA_LOG_TTL / 60000)}m)`);
+    return;
+  }
+  console.warn(`[EnergyInfra] EIA ${label} failed:`, error ?? 'Unknown error');
+}
 
 const EIA_SERIES: { id: string; name: string; unit: string }[] = [
   { id: "PET.WCESTUS1.W", name: "US Crude Oil Stocks", unit: "M bbl" },
@@ -252,10 +265,13 @@ async function fetchEiaSeries(seriesId: string, frequency = "weekly"): Promise<a
   try {
     const url = `${EIA_BASE}/seriesid/${seriesId}?api_key=${EIA_API_KEY}&frequency=${frequency}&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=2`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) throw new Error(`EIA ${seriesId} HTTP ${res.status}`);
+    if (!res.ok) {
+      logEiaFailure(seriesId, res.status);
+      return null;
+    }
     return await res.json();
   } catch (error) {
-    console.warn(`[EnergyInfra] EIA ${seriesId} failed:`, error);
+    logEiaFailure(seriesId, undefined, error);
     return null;
   }
 }
@@ -331,7 +347,10 @@ async function fetchEiaHourlyDemand(
   try {
     const url = `${EIA_BASE}/seriesid/EBA.EBA-${ba}-ALL.D.H?api_key=${EIA_API_KEY}&frequency=hourly&data[0]=value&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=1`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) throw new Error(`EIA EBA ${ba} HTTP ${res.status}`);
+    if (!res.ok) {
+      logEiaFailure(`EBA ${ba}`, res.status);
+      return null;
+    }
     const data = await res.json();
     const item = data?.response?.data?.[0];
     if (!item) return null;
@@ -339,7 +358,7 @@ async function fetchEiaHourlyDemand(
     if (mwh == null) return null;
     return { loadGW: mwh / 1000, asOf: formatDate(item.period) };
   } catch (error) {
-    console.warn(`[EnergyInfra] EIA EBA ${ba} failed:`, error);
+    logEiaFailure(`EBA ${ba}`, undefined, error);
     return null;
   }
 }
