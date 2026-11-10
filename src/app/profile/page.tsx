@@ -17,6 +17,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import PortfolioManager from "@/components/PortfolioManager";
+import BillingCenter from "@/components/BillingCenter";
 import { WAITLIST_LAUNCH_MESSAGE } from "@/lib/waitlist";
 
 interface TrackedMaterialItem {
@@ -202,6 +203,9 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Plans, subscription billing, invoices, and payment methods */}
+        <BillingCenter />
 
         {/* Portfolio Manager Section */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden mb-8">

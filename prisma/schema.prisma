@@ -18,10 +18,12 @@ model User {
   password         String
   image            String?
   role             String            @default("user") // user, admin
+  stripeCustomerId String?           @unique
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   articles         Article[]
   sessions         Session[]
+  subscriptions    Subscription[]
   trackedMaterials TrackedMaterial[]
   portfolioAssets  PortfolioAsset[]
 }
@@ -36,6 +38,33 @@ model Session {
   updatedAt    DateTime @updatedAt
 
   @@index([userId])
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeSubscriptionId String    @unique
+  stripePriceId        String
+  planKey              String    @default("basic")
+  status               String
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  canceledAt           DateTime?
+  endedAt              DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([userId, status])
+}
+
+// Records verified Stripe webhook IDs so retries are safe and idempotent.
+model StripeBillingEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  type        String
+  processedAt DateTime @default(now())
 }
 
 model Article {

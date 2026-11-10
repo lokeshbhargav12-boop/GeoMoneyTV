@@ -1,86 +1,70 @@
-"use client";
-
 import Link from "next/link";
-import { ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
-import JoinWaitlistButton from "@/components/JoinWaitlistButton";
-import { WAITLIST_LAUNCH_MESSAGE } from "@/lib/waitlist";
+import { ArrowLeft, CheckCircle, ShieldCheck } from "lucide-react";
+import StripeCheckoutButton from "@/components/StripeCheckoutButton";
+
+export const metadata = {
+  title: "Subscribe to GeoMoney Basic",
+  description: "Secure Stripe checkout for the GeoMoney Basic monthly membership.",
+};
+
+const FEATURES = [
+  "Global macro analytics dashboard",
+  "Exclusive weekly intelligence reports",
+  "Advanced energy & critical materials data",
+  "Priority support and new feature previews",
+];
 
 export default function PaymentPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-geo-dark to-black text-white pt-32 pb-24">
+    <main className="min-h-screen bg-gradient-to-br from-geo-dark to-black pt-32 pb-24 text-white">
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-        <Link
-          href="/pricing"
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-geo-gold transition-colors mb-8"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Pricing
+        <Link href="/pricing" className="mb-8 inline-flex items-center gap-2 text-gray-400 transition-colors hover:text-geo-gold">
+          <ArrowLeft className="h-4 w-4" /> Back to Pricing
         </Link>
 
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            GeoMoney Basic
-          </h1>
-          <p className="text-gray-400 max-w-xl mx-auto">
-            Subscription checkout is coming soon. Join the waitlist to be notified when
-            GeoMoney Basic becomes available.
+        <div className="mb-12 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-geo-gold">GeoMoney membership</p>
+          <h1 className="mt-3 text-4xl font-bold md:text-5xl">GeoMoney Basic</h1>
+          <p className="mx-auto mt-4 max-w-xl text-gray-400">
+            Subscribe through Stripe's hosted checkout, then manage your membership from your profile.
           </p>
         </div>
 
-        <div className="bg-white/5 rounded-2xl border border-white/10 p-8 md:p-10">
-          <div className="flex items-center gap-3 mb-6">
-            <CheckCircle className="w-6 h-6 text-geo-gold" />
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-8 md:p-10">
+          <div className="mb-6 flex items-center gap-3">
+            <CheckCircle className="h-6 w-6 text-geo-gold" />
             <h2 className="text-2xl font-bold">Basic Membership</h2>
           </div>
 
-          <ul className="space-y-4 mb-8 text-gray-300">
-            <li className="flex items-start gap-3">
-              <span className="text-geo-gold mt-1">•</span>
-              <span>Global macro analytics dashboard</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <span className="text-geo-gold mt-1">•</span>
-              <span>Exclusive weekly intelligence reports</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <span className="text-geo-gold mt-1">•</span>
-              <span>Advanced energy & critical materials data</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <span className="text-geo-gold mt-1">•</span>
-              <span>Priority support and new feature previews</span>
-            </li>
+          <ul className="mb-8 space-y-4 text-gray-300">
+            {FEATURES.map((feature) => (
+              <li key={feature} className="flex items-start gap-3">
+                <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-geo-gold" />
+                <span>{feature}</span>
+              </li>
+            ))}
           </ul>
 
-          <div className="flex items-baseline gap-2 mb-8">
+          <div className="mb-8 flex items-baseline gap-2">
             <span className="text-4xl font-bold text-white">US$39</span>
             <span className="text-gray-400">/ month</span>
           </div>
 
-          <div className="mb-6 flex items-start gap-3 rounded-lg bg-amber-500/10 border border-amber-500/20 p-4 text-amber-200 text-sm">
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-            <span>{WAITLIST_LAUNCH_MESSAGE}</span>
-          </div>
+          <StripeCheckoutButton />
 
-          <JoinWaitlistButton
-            label="Join the Waitlist"
-            source="payment_page"
-            className="w-full rounded-lg bg-blue-600 px-6 py-4 font-bold text-white transition-colors hover:bg-blue-700 flex items-center justify-center gap-2"
-          />
-
-          <p className="mt-4 text-center text-xs text-gray-500">
-            Secure checkout powered by Stripe. Cancel anytime.
+          <p className="mt-5 flex items-center justify-center gap-2 text-center text-xs text-gray-500">
+            <ShieldCheck className="h-4 w-4" /> Secure checkout powered by Stripe. Cancel anytime.
+          </p>
+          <p className="mt-3 text-center text-xs leading-relaxed text-gray-500">
+            Renews monthly until cancelled. Applicable taxes and the final amount are shown before payment.
+            By subscribing, you agree to our <Link href="/about/terms" className="text-gray-400 underline">Terms</Link> and <Link href="/about/refund-policy" className="text-gray-400 underline">Refund Policy</Link>.
           </p>
         </div>
 
-        {/* Global Disclaimer */}
-        <div className="mt-12 text-center">
-          <p className="text-xs text-gray-600 leading-relaxed max-w-2xl mx-auto">
-            GeoMoney provides geopolitical, energy, commodity, industrial, and
-            macroeconomic intelligence for informational and research purposes only. It
-            does NOT provide financial, investment, legal, or tax advice.
-          </p>
-        </div>
+        <p className="mx-auto mt-12 max-w-2xl text-center text-xs leading-relaxed text-gray-600">
+          GeoMoney provides geopolitical, energy, commodity, industrial, and macroeconomic intelligence
+          for informational and research purposes only. It does not provide financial, investment, legal, or tax advice.
+        </p>
       </div>
     </main>
   );

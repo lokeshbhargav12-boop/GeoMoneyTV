@@ -34,8 +34,8 @@ const AVAILABLE_PLANS = [
       "Access to Basic content while subscribed",
     ],
     cta: {
-      label: "Join the Basic Waitlist",
-      href: "/pricing#waitlist",
+      label: "Choose Basic",
+      href: "/payment",
     },
     highlight: true,
   },
@@ -86,11 +86,11 @@ export default function PricingPage() {
             <Sparkles className="w-5 h-5 text-amber-400 mt-0.5" />
             <div>
               <h2 className="text-lg font-semibold text-amber-300">
-                Phase 1 — Early Access
+                Secure Membership Checkout
               </h2>
               <p className="text-sm text-gray-200 leading-relaxed mt-2">
-                GeoMoney is preparing to open paid subscriptions. Joining the Basic waitlist
-                is free; it does not create a subscription, collect payment or reserve a price.
+                Basic subscriptions use Stripe's secure hosted checkout. Review the final price
+                and applicable taxes before payment, then manage billing from your profile.
               </p>
             </div>
           </div>
@@ -117,7 +117,7 @@ export default function PricingPage() {
                   </div>
                   {plan.highlight && (
                     <span className="rounded-full border border-geo-gold/40 bg-geo-gold/10 px-3 py-1 text-xs font-semibold text-geo-gold">
-                      Basic waitlist
+                      Monthly subscription
                     </span>
                   )}
                 </div>
@@ -185,8 +185,8 @@ export default function PricingPage() {
             Billing & Subscription Information
           </h2>
           <p className="text-sm text-gray-300 leading-relaxed">
-            Basic: US$39/month, billed monthly in USD when checkout opens. Renews automatically
-            until cancelled. Applicable taxes may be added at checkout.
+            Basic: US$39/month, billed monthly in USD. Renews automatically until cancelled.
+            Applicable taxes may be added at checkout.
           </p>
           <p className="mt-3 text-sm text-gray-300 leading-relaxed">
             Cancel before your next renewal. The final subscription price and terms will be
