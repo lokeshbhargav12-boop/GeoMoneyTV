@@ -3,12 +3,13 @@ import { hash } from 'bcryptjs'
 import nodemailer from 'nodemailer'
 import prisma from '@/lib/prisma'
 import { WAITLIST_LAUNCH_MESSAGE, buildWaitlistPreferences } from '@/lib/waitlist'
+import { parseProfileDetails } from '@/lib/profile-details'
 
 export async function POST(req: Request) {
   try {
-    const { email, password, name, joinWaitlist } = await req.json()
+    const body = await req.json()
+    const { email, password, joinWaitlist } = body
     const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
-    const trimmedName = typeof name === 'string' ? name.trim() : ''
 
     if (!normalizedEmail || !password) {
       return NextResponse.json(
@@ -16,6 +17,12 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+
+    const parsedProfile = parseProfileDetails(body)
+    if ('error' in parsedProfile) {
+      return NextResponse.json({ error: parsedProfile.error }, { status: 400 })
+    }
+    const { name: trimmedName, phone: trimmedPhone } = parsedProfile.data
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -36,7 +43,8 @@ export async function POST(req: Request) {
     const user = await prisma.user.create({
       data: {
         email: normalizedEmail,
-        name: trimmedName || null,
+        name: trimmedName,
+        phone: trimmedPhone,
         password: hashedPassword,
       },
     })
@@ -158,6 +166,7 @@ export async function POST(req: Request) {
         id: user.id,
         email: user.email,
         name: user.name,
+        phone: user.phone,
       },
       message: WAITLIST_LAUNCH_MESSAGE,
     })

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import PortfolioManager from "@/components/PortfolioManager";
 import BillingCenter from "@/components/BillingCenter";
+import ProfileDetails from "@/components/ProfileDetails";
 import { WAITLIST_LAUNCH_MESSAGE } from "@/lib/waitlist";
 
 interface TrackedMaterialItem {
@@ -165,6 +166,9 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Personal contact details */}
+        <ProfileDetails />
 
         {/* GeoMoney Basic Pre-Launch Waitlist Card */}
         <div className="rounded-2xl border border-geo-gold/30 bg-gradient-to-br from-amber-500/10 via-geo-gold/5 to-transparent p-6 mb-8">
