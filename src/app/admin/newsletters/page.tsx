@@ -55,6 +55,8 @@ async function safeJson(res: Response): Promise<any> {
 // Types
 interface Subscriber {
   id: string;
+  name: string | null;
+  phone: string | null;
   email: string;
   active: boolean;
   createdAt: string;
@@ -166,6 +168,8 @@ export default function NewslettersPage() {
   const [loading, setLoading] = useState(true);
 
   // Add subscriber
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [addingEmail, setAddingEmail] = useState(false);
   const [addResult, setAddResult] = useState<{
@@ -287,8 +291,8 @@ export default function NewslettersPage() {
   }
 
   async function handleAddEmail() {
-    if (!newEmail || !newEmail.includes("@")) {
-      setAddResult({ ok: false, msg: "Enter a valid email address." });
+    if (!newName.trim() || !newPhone.trim() || !newEmail.trim()) {
+      setAddResult({ ok: false, msg: "Name, phone number, and email address are required." });
       return;
     }
     setAddingEmail(true);
@@ -297,11 +301,13 @@ export default function NewslettersPage() {
       const res = await fetch("/api/admin/newsletter/subscribers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newEmail }),
+        body: JSON.stringify({ name: newName, phone: newPhone, email: newEmail }),
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || "Failed");
       setAddResult({ ok: true, msg: data.message });
+      setNewName("");
+      setNewPhone("");
       setNewEmail("");
       fetchSubscribers();
     } catch (err: any) {
@@ -361,15 +367,18 @@ export default function NewslettersPage() {
   }
 
   const exportToCSV = () => {
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
     const csv = [
-      ["Email", "Status", "Subscribed Date"],
+      ["Name", "Phone", "Email", "Status", "Subscribed Date"],
       ...subscribers.map((s) => [
+        s.name || parseWaitlistMetadata(s.materialPreferences).name || "",
+        s.phone || "",
         s.email,
         s.active ? "Active" : "Inactive",
         new Date(s.createdAt).toLocaleDateString(),
       ]),
     ]
-      .map((r) => r.join(","))
+      .map((row) => row.map(escapeCsv).join(","))
       .join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -731,19 +740,55 @@ export default function NewslettersPage() {
               <Plus className="w-4 h-4 text-geo-gold" />
               Add Subscriber
             </h3>
-            <div className="flex gap-3">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAddEmail();
+              }}
+              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.25fr_auto]"
+            >
+              <label className="sr-only" htmlFor="new-subscriber-name">Full name</label>
               <input
+                id="new-subscriber-name"
+                name="name"
+                type="text"
+                autoComplete="name"
+                required
+                maxLength={100}
+                placeholder="Full name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="rounded-lg border border-white/10 bg-black/50 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold/50 transition-colors"
+              />
+              <label className="sr-only" htmlFor="new-subscriber-phone">Phone number</label>
+              <input
+                id="new-subscriber-phone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                required
+                maxLength={32}
+                placeholder="Phone (with country code)"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                className="rounded-lg border border-white/10 bg-black/50 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold/50 transition-colors"
+              />
+              <label className="sr-only" htmlFor="new-subscriber-email">Email address</label>
+              <input
+                id="new-subscriber-email"
+                name="email"
                 type="email"
+                autoComplete="email"
+                required
                 placeholder="name@example.com"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddEmail()}
-                className="flex-1 rounded-lg border border-white/10 bg-black/50 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold/50 transition-colors"
+                className="rounded-lg border border-white/10 bg-black/50 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold/50 transition-colors"
               />
               <button
-                onClick={handleAddEmail}
+                type="submit"
                 disabled={addingEmail}
-                className="flex items-center gap-2 px-5 py-2.5 bg-geo-gold/20 hover:bg-geo-gold/30 border border-geo-gold/30 rounded-lg text-geo-gold text-sm font-medium transition-all disabled:opacity-40"
+                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-geo-gold/20 hover:bg-geo-gold/30 border border-geo-gold/30 rounded-lg text-geo-gold text-sm font-medium transition-all disabled:opacity-40 sm:col-span-2 lg:col-span-1"
               >
                 {addingEmail ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -752,7 +797,7 @@ export default function NewslettersPage() {
                 )}
                 Add
               </button>
-            </div>
+            </form>
             {addResult && (
               <p
                 className={`mt-2.5 text-xs ${addResult.ok ? "text-green-400" : "text-red-400"}`}
@@ -797,12 +842,15 @@ export default function NewslettersPage() {
               ))}
             </div>
           ) : subscribers.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border border-white/10">
+            <div className="overflow-x-auto rounded-lg border border-white/10">
               <table className="min-w-full divide-y divide-white/10">
                 <thead className="bg-white/5">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
                       Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
+                      Phone
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
                       Email
@@ -831,7 +879,10 @@ export default function NewslettersPage() {
                         className="hover:bg-white/10 transition-colors"
                       >
                         <td className="px-6 py-4 text-sm text-gray-300">
-                          {meta.name || "—"}
+                          {sub.name || meta.name || "—"}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-300">
+                          {sub.phone || "—"}
                         </td>
                         <td className="px-6 py-4 text-sm text-white">
                           {sub.email}

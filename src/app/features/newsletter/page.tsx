@@ -20,7 +20,7 @@ const PAST_TOPICS = [
 ]
 
 export default function NewsletterPage() {
-    const { email, setEmail, status, message, handleSubscribe } = useNewsletter()
+    const { name, setName, phone, setPhone, email, setEmail, status, message, handleSubscribe } = useNewsletter()
 
     return (
         <main className="min-h-screen bg-gradient-to-br from-geo-dark via-black to-geo-dark text-white">
@@ -74,19 +74,52 @@ export default function NewsletterPage() {
                             </div>
 
                             {/* Subscribe Form */}
-                            <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3 mb-6">
+                            <form onSubmit={handleSubscribe} className="grid sm:grid-cols-2 gap-3 mb-6">
+                                <label className="sr-only" htmlFor="brief-name">Full name</label>
                                 <input
+                                    id="brief-name"
+                                    name="name"
+                                    type="text"
+                                    autoComplete="name"
+                                    required
+                                    maxLength={100}
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="Full name"
+                                    disabled={status === 'loading' || status === 'success'}
+                                    className="w-full px-4 py-4 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold disabled:opacity-50"
+                                />
+                                <label className="sr-only" htmlFor="brief-phone">Phone number</label>
+                                <input
+                                    id="brief-phone"
+                                    name="phone"
+                                    type="tel"
+                                    autoComplete="tel"
+                                    required
+                                    maxLength={32}
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    placeholder="Phone number (with country code)"
+                                    disabled={status === 'loading' || status === 'success'}
+                                    className="w-full px-4 py-4 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold disabled:opacity-50"
+                                />
+                                <label className="sr-only" htmlFor="brief-email">Email address</label>
+                                <input
+                                    id="brief-email"
+                                    name="email"
                                     type="email"
+                                    autoComplete="email"
+                                    required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Enter your email address"
+                                    placeholder="Email address"
                                     disabled={status === 'loading' || status === 'success'}
-                                    className="flex-1 px-4 py-4 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold disabled:opacity-50"
+                                    className="w-full sm:col-span-2 px-4 py-4 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold disabled:opacity-50"
                                 />
                                 <button
                                     type="submit"
                                     disabled={status === 'loading' || status === 'success'}
-                                    className="px-8 py-4 bg-gradient-to-r from-geo-gold to-yellow-600 text-black font-bold rounded-lg hover:from-yellow-500 hover:to-yellow-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                                    className="sm:col-span-2 px-8 py-4 bg-gradient-to-r from-geo-gold to-yellow-600 text-black font-bold rounded-lg hover:from-yellow-500 hover:to-yellow-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
                                     <Mail className="w-5 h-5" />
                                     {status === 'loading' ? 'Subscribing...' : status === 'success' ? 'Subscribed!' : 'Subscribe Free'}

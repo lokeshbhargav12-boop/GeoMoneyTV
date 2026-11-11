@@ -153,6 +153,8 @@ model RareEarthMaterial {
 
 model Newsletter {
   id                  String   @id @default(cuid())
+  name                String?
+  phone               String?  @db.VarChar(32)
   email               String   @unique
   active              Boolean  @default(true)
   materialPreferences String?  @db.Text // JSON string of selected categories/topics

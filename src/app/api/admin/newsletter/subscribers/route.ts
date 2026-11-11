@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { parseNewsletterContact } from '@/lib/newsletter-contact'
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -15,23 +16,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { email } = await req.json()
-  if (!email || typeof email !== 'string' || !email.includes('@')) {
-    return NextResponse.json({ error: 'Valid email address required' }, { status: 400 })
+  const parsedContact = parseNewsletterContact(await req.json())
+  if ('error' in parsedContact) {
+    return NextResponse.json({ error: parsedContact.error }, { status: 400 })
   }
 
-  const sanitized = email.trim().toLowerCase()
-
-  const existing = await prisma.newsletter.findUnique({ where: { email: sanitized } })
+  const { name, phone, email } = parsedContact.data
+  const existing = await prisma.newsletter.findUnique({ where: { email } })
   if (existing) {
-    if (!existing.active) {
-      await prisma.newsletter.update({ where: { email: sanitized }, data: { active: true } })
-      return NextResponse.json({ success: true, message: 'Subscriber reactivated.' })
-    }
-    return NextResponse.json({ error: 'Email is already subscribed.' }, { status: 400 })
+    await prisma.newsletter.update({
+      where: { email },
+      data: { name, phone, active: true },
+    })
+    return NextResponse.json({
+      success: true,
+      message: existing.active ? 'Subscriber details updated.' : 'Subscriber reactivated.',
+    })
   }
 
-  await prisma.newsletter.create({ data: { email: sanitized } })
+  await prisma.newsletter.create({ data: { name, phone, email } })
   return NextResponse.json({ success: true, message: 'Subscriber added successfully.' })
 }
 

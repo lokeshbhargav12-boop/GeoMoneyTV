@@ -1,19 +1,23 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import nodemailer from 'nodemailer'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { parseNewsletterContact } from '@/lib/newsletter-contact'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
-    const { email } = await req.json()
-
-    if (!email || !email.includes('@')) {
+    const parsedContact = parseNewsletterContact(await req.json())
+    if ('error' in parsedContact) {
       return NextResponse.json(
-        { error: 'Valid email is required' },
+        { error: parsedContact.error },
         { status: 400 }
       )
     }
+
+    const { name, phone, email } = parsedContact.data
 
     // Check if email already exists
     const existing = await prisma.newsletter.findUnique({
@@ -29,7 +33,7 @@ export async function POST(req: Request) {
 
     // Create newsletter subscription
     await prisma.newsletter.create({
-      data: { email },
+      data: { name, phone, email },
     })
 
     // Send confirmation email (best-effort, don't block subscription if SMTP fails)
@@ -133,6 +137,11 @@ export async function POST(req: Request) {
 
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions)
+    if ((session?.user as any)?.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const subscribers = await prisma.newsletter.findMany({
       where: { active: true },
       orderBy: { createdAt: 'desc' },
