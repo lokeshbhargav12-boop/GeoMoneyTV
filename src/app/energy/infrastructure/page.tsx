@@ -338,7 +338,9 @@ export default function EnergyInfrastructurePage() {
               </h1>
             </div>
             <p className="mt-0.5 text-xs text-gray-400">
-              Reference infrastructure, provider observations and clearly labelled planning simulations.
+              Reference dataset — values are indicative and should be verified
+              before use. Provider observations and planning simulations are
+              labelled separately.
             </p>
           </div>
 

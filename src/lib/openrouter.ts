@@ -33,8 +33,12 @@ const RETIRED_FREE_MODELS = new Set([
     'z-ai/glm-4.5-air:free',
 ])
 
-/** Per-model request timeout in milliseconds. Prevents slow models blocking the chain. */
-const MODEL_TIMEOUT_MS = 20_000
+/**
+ * Per-model request timeout in milliseconds. Prevents slow models blocking the chain.
+ * Raised from 20s: a single bias analysis call measured 20.7s in production QA,
+ * which meant the first (and often only viable) model was always aborted.
+ */
+const MODEL_TIMEOUT_MS = 32_000
 
 export type AiFailureCode = 'configuration' | 'authentication' | 'rate_limit' | 'timeout' | 'invalid_output' | 'provider_unavailable'
 

@@ -57,6 +57,12 @@ font {
 /* ── Leaflet map stacking & wrapping fixes ──────────────────────────────── */
 .leaflet-container {
   z-index: 1 !important;
+  /* Unloaded/failed tiles must never show Leaflet's default light gray —
+     the client reported white patches inside the dark command-desk map. */
+  background: #0a0c10 !important;
+}
+.leaflet-container .leaflet-tile {
+  background: transparent;
 }
 .leaflet-map-pane,
 .leaflet-tile-pane,

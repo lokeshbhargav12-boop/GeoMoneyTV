@@ -322,7 +322,8 @@ export default function WorldMonitorPage() {
   const [aircraftDataStale, setAircraftDataStale] = useState(false);
   const [shipData, setShipData] = useState<ShipData[]>([]);
   const [shipTotal, setShipTotal] = useState(0);
-  const [shipSource, setShipSource] = useState("AIS unavailable");
+  // Never surface "AIS unavailable" before the first fetch has resolved.
+  const [shipSource, setShipSource] = useState("Syncing AIS…");
   const [shipDataLive, setShipDataLive] = useState(false);
   const [shipDataStale, setShipDataStale] = useState(false);
   const [shipUpdatedAt, setShipUpdatedAt] = useState<number | null>(null);
@@ -1343,17 +1344,17 @@ export default function WorldMonitorPage() {
                 {idx.name.toUpperCase()}
               </span>
               <span
-                className={`text-xs font-bold font-mono ${getRiskColor(idx.value)}`}
+                className={`text-xs font-bold font-mono ${isLoading ? "text-gray-500" : getRiskColor(idx.value)}`}
               >
-                {idx.value}
+                {isLoading ? "—" : idx.value}
               </span>
               <span className="text-[9px] font-mono text-gray-600">
-                {idx.signalCount} signals
+                {isLoading ? "syncing…" : `${idx.signalCount} signals`}
               </span>
             </div>
           ))}
-          <div className="shrink-0 ml-auto text-[9px] text-gray-600 font-mono">
-            {allEvents.length} events •{" "}
+          <div className="shrink-0 ml-auto text-[9px] font-mono text-gray-600">
+            {isLoading ? "syncing…" : `${allEvents.length} events`} •{" "}
             {dataTimestamp
               ? new Date(dataTimestamp).toLocaleTimeString()
               : "--:--"}
@@ -1444,7 +1445,13 @@ export default function WorldMonitorPage() {
                       className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-mono ${sourceStatus.vessels.mode === "live" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : sourceStatus.vessels.mode === "stale" ? "border-orange-500/30 bg-orange-500/10 text-orange-300" : "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"}`}
                     >
                       <Radar className="h-3.5 w-3.5" />
-                      {sourceStatus.vessels.mode === "live" ? "Live AIS" : sourceStatus.vessels.mode === "stale" ? "Stale AIS" : "AIS unavailable"}
+                      {isLoading
+                        ? "Syncing AIS…"
+                        : sourceStatus.vessels.mode === "live"
+                          ? "Live AIS"
+                          : sourceStatus.vessels.mode === "stale"
+                            ? "Stale AIS"
+                            : "AIS unavailable"}
                     </div>
                   </div>
 
@@ -1558,8 +1565,16 @@ export default function WorldMonitorPage() {
                     </div>
                   )}
                   {aiError && (
-                    <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
-                      {aiError}
+                    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                      <span>{aiError}</span>
+                      <button
+                        type="button"
+                        onClick={() => fetchAiBrief(aiQuery || undefined, false)}
+                        disabled={aiLoading}
+                        className="rounded-full border border-red-400/40 px-3 py-1 font-semibold text-red-100 transition-colors hover:bg-red-400/20 disabled:opacity-50"
+                      >
+                        Retry
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1694,10 +1709,10 @@ export default function WorldMonitorPage() {
                               Aircraft
                             </div>
                             <div className="mt-1 text-xl font-bold font-mono text-cyan-400">
-                              {aircraftData.length.toLocaleString()}
+                              {isLoading ? "—" : aircraftData.length.toLocaleString()}
                             </div>
                             <div className="text-[10px] text-gray-500">
-                              Total {aircraftTotal.toLocaleString()}
+                              {isLoading ? "syncing…" : `Total ${aircraftTotal.toLocaleString()}`}
                             </div>
                           </div>
                           <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-3">
@@ -1705,10 +1720,16 @@ export default function WorldMonitorPage() {
                               Vessels
                             </div>
                             <div className="mt-1 text-xl font-bold font-mono text-orange-400">
-                              {realShipData.length.toLocaleString()}
+                              {isLoading ? "—" : realShipData.length.toLocaleString()}
                             </div>
                             <div className="text-[10px] text-gray-500">
-                              {sourceStatus.vessels.mode === "live" ? "Live AIS" : sourceStatus.vessels.mode === "stale" ? `Stale · ${shipSource}` : shipSource}
+                              {isLoading
+                                ? "Syncing AIS…"
+                                : sourceStatus.vessels.mode === "live"
+                                  ? "Live AIS"
+                                  : sourceStatus.vessels.mode === "stale"
+                                    ? `Stale · ${shipSource}`
+                                    : shipSource}
                             </div>
                           </div>
                         </div>
@@ -1872,8 +1893,16 @@ export default function WorldMonitorPage() {
                           </div>
                         )}
                         {aiError && (
-                          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
-                            {aiError}
+                          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                            <span>{aiError}</span>
+                            <button
+                              type="button"
+                              onClick={() => fetchAiBrief(aiQuery || undefined, false)}
+                              disabled={aiLoading}
+                              className="rounded-full border border-red-400/40 px-3 py-1 font-semibold text-red-100 transition-colors hover:bg-red-400/20 disabled:opacity-50"
+                            >
+                              Retry
+                            </button>
                           </div>
                         )}
                       </>
@@ -1978,32 +2007,37 @@ export default function WorldMonitorPage() {
                 <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
                   <Globe2 className="w-3.5 h-3.5 text-geo-gold" />
                   <span className="font-mono">
-                    {allEvents.filter((e) => e.locations.length > 0).length}{" "}
-                    plotted
+                    {isLoading
+                      ? "syncing…"
+                      : `${allEvents.filter((e) => e.locations.length > 0).length} plotted`}
                   </span>
                 </div>
                 <div className="w-px h-3 bg-white/10" />
                 <div className="flex items-center gap-1.5 text-[10px] text-cyan-400">
                   <Plane className="w-3.5 h-3.5" />
                   <span className="font-mono">
-                    {aircraftData.length} aircraft
+                    {isLoading ? "syncing…" : `${aircraftData.length} aircraft`}
                   </span>
                 </div>
                 <div className="w-px h-3 bg-white/10" />
                 <div className="flex items-center gap-1.5 text-[10px] text-orange-400">
                   <Ship className="w-3.5 h-3.5" />
-                  <span className="font-mono">{realShipData.length} real AIS vessels</span>
+                  <span className="font-mono">
+                    {isLoading ? "syncing…" : `${realShipData.length} real AIS vessels`}
+                  </span>
                 </div>
                 <div className="w-px h-3 bg-white/10" />
                 <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
                   <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                  <span className="font-mono">{osintEvents.length} OSINT</span>
+                  <span className="font-mono">
+                    {isLoading ? "syncing…" : `${osintEvents.length} OSINT`}
+                  </span>
                 </div>
                 <div className="w-px h-3 bg-white/10" />
                 <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
                   <Newspaper className="w-3.5 h-3.5 text-blue-400" />
                   <span className="font-mono">
-                    {articleEvents.length} intel
+                    {isLoading ? "syncing…" : `${articleEvents.length} intel`}
                   </span>
                 </div>
               </div>

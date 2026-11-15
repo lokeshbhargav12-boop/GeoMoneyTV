@@ -37,9 +37,41 @@ async function resolveLogoUrl(rawValue?: string | null): Promise<string | null> 
 
 const inter = Inter({ subsets: ["latin"] });
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://geomoneytv.com";
+
+// Site-wide metadata defaults (QA P0-3): the site is shared on LinkedIn,
+// Instagram, Facebook and TikTok, so link previews must not be blank.
 export const metadata: Metadata = {
-  title: "GeoMoney — Beta",
-  description: "Strategic intelligence for decision makers worldwide.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "GeoMoney — Geopolitical, Energy & Market Intelligence",
+    template: "%s | GeoMoney",
+  },
+  description:
+    "Strategic intelligence for decision makers worldwide: geopolitics, energy systems, critical materials and the markets they move.",
+  applicationName: "GeoMoney",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "GeoMoney",
+    url: SITE_URL,
+    title: "GeoMoney — Geopolitical, Energy & Market Intelligence",
+    description:
+      "Strategic intelligence for decision makers worldwide: geopolitics, energy systems, critical materials and the markets they move.",
+    images: [{ url: "/globe-placeholder.jpg", width: 1200, height: 630, alt: "GeoMoney" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "GeoMoney — Geopolitical, Energy & Market Intelligence",
+    description:
+      "Strategic intelligence for decision makers worldwide: geopolitics, energy systems, critical materials and the markets they move.",
+    images: ["/globe-placeholder.jpg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 const getLogoUrl = unstable_cache(
@@ -60,12 +92,37 @@ const getLogoUrl = unstable_cache(
   { revalidate: 300 }, // cache for 5 minutes
 );
 
+/**
+ * Server-render the last stored ticker snapshot (QA P3): without this the
+ * server HTML says "Loading market ticker…" and the strip pops in after
+ * hydration. Short revalidate keeps it near-live without a query per request.
+ */
+const getTickerSnapshot = unstable_cache(
+  async () => {
+    if (process.env.NEXT_PHASE === "phase-production-build") {
+      return [];
+    }
+    try {
+      const { getStoredTickerData } = await import("@/lib/ticker-service");
+      const data = await getStoredTickerData();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+  ["ticker_snapshot"],
+  { revalidate: 30 },
+);
+
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const logoUrl = await getLogoUrl();
+  const [logoUrl, tickerSnapshot] = await Promise.all([
+    getLogoUrl(),
+    getTickerSnapshot(),
+  ]);
 
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
@@ -91,7 +148,7 @@ export default async function RootLayout({
 
           {/* Fixed Ticker */}
           <div className="fixed top-0 z-50 w-full">
-            <Ticker />
+            <Ticker initialItems={tickerSnapshot} />
           </div>
           {/* Persistent Navbar */}
           <Navbar logoUrl={logoUrl} />

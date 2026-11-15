@@ -1,5 +1,6 @@
 export interface NewsletterContactInput {
   name: string;
+  /** Optional: only collected where commercially justified. */
   phone: string;
   email: string;
 }
@@ -8,7 +9,7 @@ export function parseNewsletterContact(
   value: unknown
 ): { data: NewsletterContactInput } | { error: string } {
   if (!value || typeof value !== "object") {
-    return { error: "Name, phone number, and email address are required." };
+    return { error: "Name and email address are required." };
   }
 
   const body = value as Record<string, unknown>;
@@ -21,15 +22,17 @@ export function parseNewsletterContact(
     return { error: "Enter a valid name (up to 100 characters)." };
   }
 
-  const digitCount = phone.replace(/\D/g, "").length;
-  if (
-    !phone ||
-    phone.length > 32 ||
-    !/^[+()\d\s.-]+$/.test(phone) ||
-    digitCount < 7 ||
-    digitCount > 15
-  ) {
-    return { error: "Enter a valid phone number, including the country code." };
+  // Phone is optional. Validate the format only when one was supplied.
+  if (phone) {
+    const digitCount = phone.replace(/\D/g, "").length;
+    if (
+      phone.length > 32 ||
+      !/^[+()\d\s.-]+$/.test(phone) ||
+      digitCount < 7 ||
+      digitCount > 15
+    ) {
+      return { error: "Enter a valid phone number, including the country code." };
+    }
   }
 
   if (!email || email.length > 191 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

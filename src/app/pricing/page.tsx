@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle, Sparkles } from "lucide-react";
+import { BASIC_PLAN } from "@/lib/billing-plans";
 
 export const metadata = {
   title: "Pricing & Access | GeoMoney",
@@ -24,15 +25,11 @@ const AVAILABLE_PLANS = [
     },
   },
   {
-    name: "Basic",
-    price: "US$39 / month",
-    description: "Subscriber research and intelligence.",
-    features: [
-      "Subscriber-only geopolitical and economic briefings",
-      "Research on energy systems, critical materials and supply chains",
-      "Member reports and analysis included in Basic",
-      "Access to Basic content while subscribed",
-    ],
+    // Derived from the shared plan definition so pricing and checkout never disagree.
+    name: BASIC_PLAN.name,
+    price: BASIC_PLAN.priceLabel,
+    description: BASIC_PLAN.description,
+    features: BASIC_PLAN.features,
     cta: {
       label: "Choose Basic",
       href: "/payment",

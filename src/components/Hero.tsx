@@ -75,6 +75,24 @@ interface HeroProps {
   initialSlides?: CarouselSlide[];
 }
 
+/**
+ * True when the page is being viewed through Google Translate (or any
+ * non-English document language). The typewriter only translates snapshots, so
+ * animating the subtitle leaves a truncated, half-translated sentence.
+ */
+const isTranslatedPage = (): boolean => {
+  if (typeof document === "undefined") return false;
+
+  const lang = (document.documentElement.lang || "").toLowerCase();
+  if (lang && !lang.startsWith("en")) return true;
+
+  const match = document.cookie.match(/(?:^|;\s*)googtrans=([^;]*)/);
+  if (!match) return false;
+
+  const target = decodeURIComponent(match[1]).split("/").filter(Boolean).pop();
+  return Boolean(target && target.toLowerCase() !== "en");
+};
+
 export default function Hero({ initialSlides = [] }: HeroProps) {
   const [text, setText] = useState("");
   const [showCursor, setShowCursor] = useState(true);
@@ -90,6 +108,15 @@ export default function Hero({ initialSlides = [] }: HeroProps) {
   const highlightStart = "How energy, resources, and markets ".length;
 
   useEffect(() => {
+    // Skip the typewriter on translated pages: Google Translate can only
+    // translate completed text, so typing produces "Comment ene façonner...".
+    if (isTranslatedPage()) {
+      setText(fullText);
+      setIsTypingComplete(true);
+      setShowCursor(false);
+      return;
+    }
+
     let currentIndex = 0;
     const typingInterval = setInterval(() => {
       if (currentIndex <= fullText.length) {
@@ -190,7 +217,10 @@ export default function Hero({ initialSlides = [] }: HeroProps) {
         <div className="mt-10 flex flex-1 flex-col items-center justify-center space-y-6">
           <div className="animate-fade-in-up space-y-4">
             <h1 className="text-6xl font-black tracking-tighter sm:text-8xl uppercase relative z-20">
-              <span className="bg-clip-text text-transparent bg-gradient-to-b from-yellow-200 via-geo-gold to-yellow-700 drop-shadow-[0_0_15px_rgba(212,175,55,0.5)] filter">
+              <span
+                translate="no"
+                className="notranslate bg-clip-text text-transparent bg-gradient-to-b from-yellow-200 via-geo-gold to-yellow-700 drop-shadow-[0_0_15px_rgba(212,175,55,0.5)] filter"
+              >
                 Global Power & Money
               </span>
             </h1>
@@ -198,8 +228,15 @@ export default function Hero({ initialSlides = [] }: HeroProps) {
             <div className="mx-auto max-w-3xl text-xl text-gray-300 sm:text-2xl font-light tracking-wide drop-shadow-md min-h-[6rem]">
               <p>
                 {text.slice(0, highlightStart)}
+                {/* Restyle: a soft gold underline instead of a filled box with
+                    awkward padding/baseline (QA). `box-decoration-break: clone`
+                    keeps the underline clean if the phrase wraps. */}
                 <span
-                  className={`${text.length > highlightStart ? "bg-geo-gold text-black px-1 font-medium" : ""}`}
+                  className={`${
+                    text.length > highlightStart
+                      ? "text-geo-gold font-medium underline decoration-geo-gold/70 decoration-[3px] underline-offset-[6px] [box-decoration-break:clone]"
+                      : ""
+                  }`}
                 >
                   {text.slice(highlightStart)}
                 </span>

@@ -24,6 +24,21 @@ interface TickerItem {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** True when the symbol repeats the label (e.g. GOLD/GOLD) and adds no value. */
+function symbolAddsInformation(label: string, symbol: string): boolean {
+  if (!symbol) return false;
+  const normalize = (value: string) =>
+    value.replace(/[^a-z0-9]/gi, "").toUpperCase();
+  const nLabel = normalize(label);
+  const nSymbol = normalize(symbol);
+  if (!nLabel || !nSymbol) return false;
+  // Hide the symbol when one side already contains the other: GOLD/GOLD,
+  // CRUDE OIL/CRUDE, NAT GAS/NATGAS, NEWCASTLE COAL/NEWCASTLE — all read as
+  // duplicated names (QA P1-2). Only show it when it truly differs (XAU/USD).
+  return !(nLabel.includes(nSymbol) || nSymbol.includes(nLabel));
+}
+
+
 function formatPrice(value: number) {
   if (!Number.isFinite(value)) return "--";
   if (Math.abs(value) >= 1000) {
@@ -88,9 +103,13 @@ function statusLabelStyle(status: MarketStatus): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function Ticker() {
-  const [items, setItems] = useState<TickerItem[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function Ticker({ initialItems = [] }: { initialItems?: TickerItem[] }) {
+  const [items, setItems] = useState<TickerItem[]>(() =>
+    initialItems.filter(
+      (item) => Number.isFinite(item?.price) && typeof item?.marketStatus === "string",
+    ),
+  );
+  const [loading, setLoading] = useState(initialItems.length === 0);
 
   useEffect(() => {
     let active = true;
@@ -159,6 +178,11 @@ export default function Ticker() {
               const change = Number(item.change ?? 0);
               const changePercent = Number(item.changePercent ?? 0);
               const positive = change >= 0;
+              // Only show a change chip when the feed actually supplied a
+              // non-zero change (closed markets report 0 and used to render
+              // a meaningless "+0.00").
+              const hasChange =
+                isActive && (change !== 0 || changePercent !== 0);
               const accentClass = isActive
                 ? positive
                   ? "text-emerald-400"
@@ -195,9 +219,11 @@ export default function Ticker() {
                     >
                       {item.label}
                     </span>
-                    <span className="text-[10px] uppercase tracking-[0.16em] text-gray-600">
-                      {item.symbol}
-                    </span>
+                    {symbolAddsInformation(item.label, item.symbol) && (
+                      <span className="text-[10px] uppercase tracking-[0.16em] text-gray-600">
+                        {item.symbol}
+                      </span>
+                    )}
                   </div>
 
                   {/* ---- Price ---- */}
@@ -207,8 +233,8 @@ export default function Ticker() {
                     {formatPrice(item.price)}
                   </div>
 
-                  {/* ---- Change (active markets only) ---- */}
-                  {isActive && (
+                  {/* ---- Change (active markets with real change data only) ---- */}
+                  {isActive && hasChange && (
                     <>
                       <div className={`text-xs font-medium tabular-nums ${accentClass}`}>
                         {positive ? "+" : ""}
@@ -231,7 +257,7 @@ export default function Ticker() {
                   {/* ---- Last Trade Tooltip (closed only) ---- */}
                   {!isActive && relativeTime && (
                     <span
-                      className="text-[10px] text-gray-600"
+                      className="ml-1 inline-flex items-center rounded-full border border-white/[0.06] bg-white/[0.03] px-2 py-0.5 text-[10px] text-gray-500"
                       title={`Last trade: ${new Date(item.lastTradingTimestamp!).toLocaleString()}`}
                     >
                       Last: {relativeTime}

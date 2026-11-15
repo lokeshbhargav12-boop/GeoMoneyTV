@@ -25,7 +25,20 @@ function decodeHtmlEntities(text: string): string {
 }
 
 function stripHtmlTags(text: string): string {
-  return text.replace(/<[^>]*>/g, "");
+  // Insert a space where a tag separated two words, otherwise "sentence.<p>Next"
+  // collapses into "sentence.Next" (QA P0-4).
+  return text.replace(/<[^>]*>/g, " ");
+}
+
+/** Drops short, caption-like lines that Readability leaves in the prose. */
+function looksLikeCaption(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return true;
+  // Captions are short, usually end without terminal punctuation, and are not
+  // the kind of long-form sentence an article body is made of.
+  if (trimmed.length > 140) return false;
+  if (/[.!?]["')\]]?$/.test(trimmed)) return false;
+  return trimmed.split(/\s+/).length <= 16;
 }
 
 function renderInline(text: string): React.ReactNode {
@@ -52,8 +65,17 @@ function renderInline(text: string): React.ReactNode {
 }
 
 function renderFormattedContent(raw: string): React.ReactNode {
-  const text = decodeHtmlEntities(stripHtmlTags(raw)).trim();
-  const blocks = text.split(/\n{2,}/);
+  const text = decodeHtmlEntities(stripHtmlTags(raw))
+    // Re-join a sentence that a tag split mid-word, then normalise newlines.
+    .replace(/([.!?])(?=[A-Z"'(])/g, "$1 ")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  // Split on single or double newlines: the stored body may use either.
+  const blocks = text.split(/\n+/).filter((block) => !looksLikeCaption(block));
 
   return (
     <>

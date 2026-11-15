@@ -162,9 +162,13 @@ interface LiveHubData {
 }
 
 // ─── CRITICAL ENERGY COMMODITIES ──────────────────────────────
+// `liveSymbol` maps each desk commodity to the provider symbol used by the
+// ticker feed so the two data sources agree (QA: "energy commodities show
+// Unavailable while the ticker shows live prices for the same metals").
 const ENERGY_COMMODITIES = [
   {
     symbol: "Li",
+    liveSymbol: "LITHIUM",
     name: "Lithium Carbonate",
     price: 13250,
     change: -4.2,
@@ -173,6 +177,7 @@ const ENERGY_COMMODITIES = [
   },
   {
     symbol: "Co",
+    liveSymbol: "COBALT",
     name: "Cobalt",
     price: 28.5,
     change: +2.8,
@@ -181,6 +186,7 @@ const ENERGY_COMMODITIES = [
   },
   {
     symbol: "U₃O₈",
+    liveSymbol: "URANIUM",
     name: "Uranium",
     price: 82.5,
     change: +12.3,
@@ -189,6 +195,7 @@ const ENERGY_COMMODITIES = [
   },
   {
     symbol: "Cu",
+    liveSymbol: "COPPER",
     name: "Copper",
     price: 9420,
     change: +5.1,
@@ -197,6 +204,7 @@ const ENERGY_COMMODITIES = [
   },
   {
     symbol: "Si",
+    liveSymbol: "POLYSILICON",
     name: "Polysilicon",
     price: 6.85,
     change: -8.7,
@@ -205,6 +213,7 @@ const ENERGY_COMMODITIES = [
   },
   {
     symbol: "Ni",
+    liveSymbol: "NICKEL",
     name: "Nickel",
     price: 16850,
     change: -2.1,
@@ -213,6 +222,7 @@ const ENERGY_COMMODITIES = [
   },
   {
     symbol: "Pt",
+    liveSymbol: "PLATINUM",
     name: "Platinum",
     price: 985,
     change: +1.4,
@@ -221,6 +231,7 @@ const ENERGY_COMMODITIES = [
   },
   {
     symbol: "Ag",
+    liveSymbol: "SILVER",
     name: "Silver",
     price: 31.2,
     change: +3.6,
@@ -229,6 +240,7 @@ const ENERGY_COMMODITIES = [
   },
   {
     symbol: "Mn",
+    liveSymbol: "MANGANESE",
     name: "Manganese",
     price: 4.8,
     change: +0.9,
@@ -237,6 +249,7 @@ const ENERGY_COMMODITIES = [
   },
   {
     symbol: "GaAs",
+    liveSymbol: "GALLIUM",
     name: "Gallium",
     price: 320,
     change: +6.2,
@@ -787,7 +800,7 @@ export default function EnergyPage() {
                 {[
                   "China's rare earth monopoly impact",
                   "US IRA effect on clean energy",
-                  "Nuclear energy revival 2025",
+                  "Nuclear energy revival",
                   "Green hydrogen economy outlook",
                 ].map((q) => (
                   <button
@@ -979,20 +992,23 @@ export default function EnergyPage() {
               Track prices for critical minerals and materials powering the
               energy transition.
             </p>
-            <p className="mb-4 text-xs text-gray-300">Quotes are delayed or stale. Missing observations show “Unavailable”, not a sample price.</p>
+            <p className="mb-4 text-xs text-gray-300">
+              Live quotes where the provider covers the metal; otherwise the
+              reference price from our dataset is shown and clearly badged
+              “Reference”.
+            </p>
             {feedError && <p role="status" className="mb-4 text-sm text-amber-200">{feedError}</p>}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {ENERGY_COMMODITIES.map((commodity) => {
                 const liveCommodity = live?.commodities?.find(
                   (c: any) =>
-                    c.label?.toLowerCase().includes(commodity.name.toLowerCase().split(" ")[0]) ||
-                    (commodity.symbol === "Cu" && c.symbol === "COPPER") ||
-                    (commodity.symbol === "Ag" && c.symbol === "SILVER") ||
-                    (commodity.symbol === "U₃O₈" && c.symbol === "URANIUM") ||
-                    (commodity.symbol === "Li" && c.symbol === "LITHIUM")
+                    c.symbol?.toUpperCase() === commodity.liveSymbol ||
+                    c.label?.toUpperCase() === commodity.liveSymbol ||
+                    c.label?.toLowerCase().includes(commodity.name.toLowerCase().split(" ")[0])
                 );
-                const price = liveCommodity ? liveCommodity.price : null;
-                const change = liveCommodity ? liveCommodity.changePercent : 0;
+                const isLive = Boolean(liveCommodity && typeof liveCommodity.price === "number");
+                const price = isLive ? liveCommodity.price : commodity.price;
+                const change = isLive ? liveCommodity.changePercent ?? 0 : commodity.change;
                 return (
                   <div
                     key={commodity.symbol}
@@ -1005,15 +1021,22 @@ export default function EnergyPage() {
                       <span
                         className={`text-xs font-medium ${change >= 0 ? "text-green-400" : "text-red-400"}`}
                       >
-                        {liveCommodity && change >= 0 ? "+" : ""}
-                        {liveCommodity ? `${change.toFixed(2)}%` : "—"}
+                        {change >= 0 ? "+" : ""}
+                        {change.toFixed(2)}%
                       </span>
                     </div>
                     <div className="text-white font-semibold">
-                      {price === null ? "Unavailable" : `$${price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+                      ${price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      <span className="text-gray-400 text-xs font-normal"> {commodity.unit}</span>
                     </div>
                     <div className="text-gray-500 text-xs">{commodity.name}</div>
-                    <EnergyDataNotice status={liveCommodity?.dataStatus || "unavailable"} source={liveCommodity?.source || "No provider quote"} observedAt={liveCommodity?.lastTradingTimestamp} />
+                    {isLive ? (
+                      <EnergyDataNotice status={liveCommodity.dataStatus} source={liveCommodity.source} observedAt={liveCommodity.lastTradingTimestamp} />
+                    ) : (
+                      <span className="mt-2 inline-block rounded border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-200">
+                        Reference
+                      </span>
+                    )}
                     <div className="mt-2 text-[10px] text-emerald-400/70 font-medium uppercase tracking-wider">
                       {commodity.use}
                     </div>
@@ -1373,16 +1396,92 @@ export default function EnergyPage() {
             <Battery className="w-6 h-6 text-purple-400" />
             Energy Storage Systems (ESS & BESS)
           </h2>
-          <div className="bg-white/5 rounded-xl border border-white/10 p-6 flex items-center justify-center min-h-[200px]">
-            <div className="text-center">
-              <Zap className="w-12 h-12 text-purple-400/50 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-white mb-2">
-                Energy Storage Overview
-              </h3>
-              <p className="text-gray-400 text-sm max-w-md mx-auto">
-                Track battery energy storage systems, utility-scale storage
-                deployments, and grid stability metrics.
-              </p>
+          <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+            <p className="text-gray-400 text-sm mb-6">
+              Observed storage levels from the EIA weekly series, plus the
+              battery-storage build-out tracked in the infrastructure matrix.
+              Missing observations are labelled, never filled with a sample
+              price.
+            </p>
+            {liveLoading ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-24 animate-pulse rounded-lg border border-white/10 bg-white/5" />
+                ))}
+              </div>
+            ) : (() => {
+              // The EIA series can all be missing at once (invalid/absent API
+              // key). A grid of five "Unavailable" cards is exactly the wall
+              // the client flagged — collapse it into one clear notice.
+              const storage = (live?.storage ?? []) as any[];
+              const observed = storage.filter((s) => typeof s.value === "number");
+              if (observed.length === 0) {
+                return (
+                  <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-gray-300">
+                    No storage observations are available right now. The EIA
+                    weekly feed has not returned a value for this window;
+                    nothing is being substituted.
+                  </div>
+                );
+              }
+              return (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {storage.map((series) => {
+                    const hasValue = typeof series.value === "number";
+                    const changePercent =
+                      typeof series.changePercent === "number" ? series.changePercent : null;
+                    return (
+                      <div
+                        key={series.name}
+                        className="rounded-lg border border-white/10 bg-black/30 p-4"
+                      >
+                        <div className="text-xs uppercase tracking-wider text-gray-500">
+                          {series.name}
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-white">
+                          {hasValue
+                            ? `${series.value.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${series.unit}`
+                            : "Unavailable"}
+                        </div>
+                        {changePercent !== null && (
+                          <div
+                            className={`mt-1 text-xs font-medium ${changePercent >= 0 ? "text-green-400" : "text-red-400"}`}
+                          >
+                            {changePercent >= 0 ? "+" : ""}
+                            {changePercent.toFixed(2)}% vs previous week
+                          </div>
+                        )}
+                        <div className="mt-2 text-[10px] text-gray-500">
+                          {series.source}
+                          {series.date ? ` · ${series.date}` : " · observation date unavailable"}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            <div className="mt-6 rounded-lg border border-purple-400/20 bg-purple-500/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-white">
+                    Battery storage (BESS) build-out
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-gray-400">
+                    Utility-scale battery capacity, interconnection queue and
+                    dispatchability are tracked per asset in the infrastructure
+                    command desk.
+                  </p>
+                </div>
+                <Link
+                  href="/energy/infrastructure"
+                  className="inline-flex items-center gap-2 rounded-full border border-purple-300/30 bg-purple-300/10 px-4 py-2 text-xs font-semibold text-purple-100 transition-colors hover:bg-purple-300/20"
+                >
+                  Open infrastructure matrix
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
             </div>
           </div>
         </motion.section>

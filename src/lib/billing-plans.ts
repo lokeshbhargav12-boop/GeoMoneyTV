@@ -35,6 +35,7 @@ export const BILLING_PLANS: BillingPlan[] = [
       "Subscriber-only geopolitical and economic briefings",
       "Energy systems, critical materials and supply-chain research",
       "Member reports and analysis included in Basic",
+      "Access to Basic content while subscribed",
       "Secure billing management and cancellation anytime",
     ],
   },

@@ -99,7 +99,9 @@ export default function HomepageAdminPage() {
     try {
       const [homepageRes, carouselRes] = await Promise.all([
         fetch("/api/admin/settings/homepage"),
-        fetch("/api/admin/settings/hero-carousel"),
+        // Cache-buster: the public GET is CDN-cached for up to 5 min, but the
+        // admin panel must always see what was just saved.
+        fetch(`/api/admin/settings/hero-carousel?t=${Date.now()}`, { cache: "no-store" }),
       ]);
       const homepageData = await homepageRes.json();
       const carouselData = await carouselRes.json();

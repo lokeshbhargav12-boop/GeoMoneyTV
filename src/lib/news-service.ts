@@ -68,14 +68,22 @@ function isGeopoliticsRelevant(article: NewsArticle): boolean {
 
 /**
  * Auto-detect article category based on content keywords.
+ * Order matters: the most specific signal wins so a "copper mine" story does not
+ * land in geopolitics (QA P1-1).
  */
 function detectCategory(article: NewsArticle): string {
   const text = `${article.title} ${article.description}`.toLowerCase()
 
-  if (['rare earth', 'commodity', 'commodities', 'mining', 'mineral', 'gold price', 'silver price', 'copper', 'lithium', 'cobalt', 'uranium'].some(k => text.includes(k))) {
+  // Academic papers, press releases and trade journals are not geopolitics.
+  const lowerUrl = (article.url || '').toLowerCase()
+  if (/(plos|nature\.com|sciencedirect|springer|wiley|mdpi|arxiv|researchgate|\.edu|\.ac\.)/.test(lowerUrl)) {
+    return 'research'
+  }
+
+  if (['rare earth', 'commodity', 'commodities', 'mining', 'mineral', 'gold price', 'silver price', 'copper', 'lithium', 'cobalt', 'uranium', 'nickel', 'zinc', 'aluminium', 'aluminum'].some(k => text.includes(k))) {
     return 'commodities'
   }
-  if (['energy', 'oil', 'gas', 'pipeline', 'lng', 'opec', 'petroleum', 'solar', 'wind energy', 'refinery'].some(k => text.includes(k))) {
+  if (['energy', 'oil', 'gas', 'pipeline', 'lng', 'opec', 'petroleum', 'solar', 'wind energy', 'refinery', 'power grid', 'electricity'].some(k => text.includes(k))) {
     return 'energy'
   }
   if (['economy', 'economic', 'gdp', 'inflation', 'recession', 'central bank', 'federal reserve', 'interest rate', 'fiscal', 'monetary', 'imf', 'world bank', 'debt'].some(k => text.includes(k))) {
@@ -85,6 +93,47 @@ function detectCategory(article: NewsArticle): string {
     return 'technology'
   }
   return 'geopolitics'
+}
+
+// ─── INGEST DEDUPE / PER-ENTITY CAPS (QA P1-1) ───────────────────────────────
+
+/** Normalised title used to spot near-duplicate headlines across sources. */
+function normaliseTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** True when two headlines are near-duplicates (token overlap >= 70%). */
+function titlesAreNearDuplicates(a: string, b: string): boolean {
+  const left = normaliseTitle(a).split(' ').filter((w) => w.length > 2)
+  const right = new Set(normaliseTitle(b).split(' ').filter((w) => w.length > 2))
+  if (left.length === 0 || right.size === 0) return false
+  let shared = 0
+  for (const word of left) if (right.has(word)) shared++
+  const overlap = shared / Math.min(new Set(left).size, right.size)
+  return overlap >= 0.7
+}
+
+/** The headline entity used for per-feed caps (first meaningful proper noun). */
+const ENTITY_STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'for', 'with', 'from', 'into', 'over',
+  'after', 'before', 'amid', 'as', 'at', 'by', 'in', 'of', 'on', 'to', 'up',
+  'new', 'how', 'why', 'what', 'when', 'who', 'says', 'say', 'could', 'may',
+  'will', 'would', 'us', 'uk', 'eu', 'global', 'world',
+])
+
+function headlineEntity(title: string): string | null {
+  const words = title.replace(/[^A-Za-z0-9 ]+/g, ' ').split(/\s+/)
+  for (const word of words) {
+    const lower = word.toLowerCase()
+    if (word.length < 3 || ENTITY_STOPWORDS.has(lower)) continue
+    // Prefer a capitalised word that is not the first word of the sentence.
+    if (/^[A-Z]/.test(word) && words.indexOf(word) > 0) return lower
+  }
+  return null
 }
 
 export async function fetchFromNewsAPI(apiKey: string): Promise<NewsArticle[]> {
@@ -172,7 +221,68 @@ export async function fetchFromRSS(feedUrl: string, feedName: string): Promise<N
   }
 }
 
-async function fetchFullContent(url: string): Promise<string | null> {
+/**
+ * Converts Readability's HTML output into plain text that preserves paragraph
+ * boundaries. Previously we stored `textContent`, which glued sentences
+ * together and mixed image captions into the prose (QA P0-4).
+ */
+function htmlToParagraphText(html: string): string {
+  let text = html
+    // Captions and inline figures are not article prose.
+    .replace(/<figure[\s\S]*?<\/figure>/gi, ' ')
+    .replace(/<figcaption[\s\S]*?<\/figcaption>/gi, ' ')
+    .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
+
+  // Block-level boundaries become paragraph breaks.
+  text = text
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/(p|div|section|article|blockquote|h[1-6]|li|tr|ul|ol)>/gi, '\n\n')
+    .replace(/<\s*li[^>]*>/gi, '- ')
+
+  // Drop any remaining tags and decode the common entities.
+  text = text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&mdash;/gi, '—')
+    .replace(/&ndash;/gi, '–')
+    .replace(/&hellip;/gi, '…')
+
+  return text
+    // Insert a space where a sentence end is glued to the next capital letter.
+    .replace(/([.!?])(?=[A-Z"'(])/g, '$1 ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/** Removes a duplicated headline/lead paragraph from the top of the body. */
+function stripDuplicatedLead(body: string, title: string, description?: string | null): string {
+  const normalize = (value: string) =>
+    value.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+
+  const paragraphs = body.split('\n\n')
+  const candidates = [title, description].filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 20,
+  ).map(normalize)
+
+  while (paragraphs.length > 1 && candidates.includes(normalize(paragraphs[0]))) {
+    paragraphs.shift()
+  }
+
+  return paragraphs.join('\n\n').trim()
+}
+
+async function fetchFullContent(
+  url: string,
+  title?: string,
+  description?: string | null,
+): Promise<string | null> {
   try {
     const response = await fetch(url, {
       headers: {
@@ -191,7 +301,17 @@ async function fetchFullContent(url: string): Promise<string | null> {
     const reader = new Readability(dom.window.document)
     const article = reader.parse()
 
-    return article ? (article.textContent ?? null) : null
+    if (!article) return null
+
+    // Prefer the structured HTML so paragraph breaks survive; fall back to the
+    // plain-text extraction only when HTML is unavailable.
+    const body = article.content
+      ? htmlToParagraphText(article.content)
+      : htmlToParagraphText(article.textContent ?? '')
+
+    if (!body) return null
+
+    return stripDuplicatedLead(body, title ?? article.title ?? '', description)
   } catch (error) {
     console.warn(`Failed to fetch full content for ${url}:`, error)
     return null
@@ -274,9 +394,41 @@ export async function syncNewsToDatabase(adminUserId?: string): Promise<number> 
     const relevantArticles = articles.filter(isGeopoliticsRelevant)
     console.log(`Filtered ${articles.length} articles → ${relevantArticles.length} geopolitics-relevant`)
 
+    // ── INGEST DEDUPE + PER-ENTITY CAP (QA P1-1) ────────────────────────────
+    // 33 of the latest 100 articles were the same Nvidia story with near-identical
+    // headlines, so dedupe within the batch before it ever reaches the database.
+    const MAX_PER_ENTITY = 3
+    const entityCounts = new Map<string, number>()
+    const acceptedTitles: string[] = []
+    const dedupedArticles: NewsArticle[] = []
+
+    for (const article of relevantArticles) {
+      const entity = headlineEntity(article.title)
+      if (entity) {
+        const count = entityCounts.get(entity) ?? 0
+        if (count >= MAX_PER_ENTITY) {
+          console.log(`Skipped (per-entity cap ${MAX_PER_ENTITY}): ${article.title}`)
+          continue
+        }
+        entityCounts.set(entity, count + 1)
+      }
+
+      if (acceptedTitles.some((existing) => titlesAreNearDuplicates(existing, article.title))) {
+        console.log(`Skipped (near-duplicate headline): ${article.title}`)
+        continue
+      }
+
+      acceptedTitles.push(article.title)
+      dedupedArticles.push(article)
+    }
+
+    if (dedupedArticles.length !== relevantArticles.length) {
+      console.log(`Dedupe: ${relevantArticles.length} → ${dedupedArticles.length} after entity caps and headline similarity`)
+    }
+
     // Save to database
     let savedCount = 0
-    for (const article of relevantArticles) {
+    for (const article of dedupedArticles) {
       try {
         // Create slug from title
         const slug = article.title
@@ -285,20 +437,26 @@ export async function syncNewsToDatabase(adminUserId?: string): Promise<number> 
           .replace(/(^-|-$)/g, '')
           .substring(0, 100) + '-' + Date.now()
 
-        // Check if article already exists by URL or similar title
-        const existing = await prisma.article.findFirst({
-          where: {
-            OR: [
-              { title: article.title },
-              { description: { contains: article.url } }
-            ]
-          }
+        // Check if article already exists by URL or a near-duplicate headline
+        // from another source (previously only an exact title match was caught).
+        const recentArticles = await prisma.article.findMany({
+          where: { published: true },
+          select: { id: true, title: true, description: true, content: true, sourceUrl: true },
+          orderBy: { createdAt: 'desc' },
+          take: 120,
         })
+
+        const existing = recentArticles.find(
+          (row) =>
+            row.sourceUrl === article.url ||
+            row.title === article.title ||
+            titlesAreNearDuplicates(row.title, article.title),
+        )
 
         if (!existing) {
           // Try to fetch full content if the current content seems truncated or short
           if (article.url) {
-            const fullContent = await fetchFullContent(article.url)
+            const fullContent = await fetchFullContent(article.url, article.title, article.description)
             if (fullContent && fullContent.length > article.content.length) {
               console.log(`Enriched content for: ${article.title}`)
               article.content = fullContent
@@ -329,7 +487,7 @@ export async function syncNewsToDatabase(adminUserId?: string): Promise<number> 
           const isTruncated = existing.content.trim().match(/\[\+\d+ chars\]$/) || existing.content.trim().endsWith('...')
 
           if (isTruncated && article.url) {
-            const fullContent = await fetchFullContent(article.url)
+            const fullContent = await fetchFullContent(article.url, existing.title, existing.description)
             if (fullContent && fullContent.length > existing.content.length) {
               await prisma.article.update({
                 where: { id: existing.id },

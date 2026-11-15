@@ -538,8 +538,21 @@ export default function FossilEnergyPage() {
               </div>
             </div>
             <p className="p-4 text-xs text-gray-300">Historical reference inventory, not current operating telemetry. All source records are classified operating; construction/permitting coverage is unavailable. LNG maps gas-fired plants, not LNG terminals. Watchlist and capacity figures use separate illustrative clusters.</p>
-            {status === "Operating" ? <EnergyInfrastructureGlobe plants={plantQuery} height="560px" /> : (
-              <div role="status" className="p-8 text-center text-gray-300">No {status.toLowerCase()} records in this reference dataset. This does not mean no projects exist.</div>
+            {/*
+              Always render the map. Previously a non-"Operating" status filter
+              replaced the whole panel with a one-line empty message, which made
+              the page look like it had no data (client feedback).
+            */}
+            <EnergyInfrastructureGlobe plants={plantQuery} height="560px" />
+            {status !== "Operating" && (
+              <div role="status" className="border-t border-white/10 p-4 text-xs leading-relaxed text-gray-300">
+                <span className="mr-2 inline-block rounded border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 font-semibold uppercase tracking-wider text-amber-200">
+                  Coverage note
+                </span>
+                The current reference dataset contains no <strong>{status.toLowerCase()}</strong> records for this filter,
+                so the map above shows the operating inventory for the same region and technology. Absence in this
+                reference dataset is not evidence that no such projects exist.
+              </div>
             )}
           </div>
 

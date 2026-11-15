@@ -148,11 +148,10 @@ export default function WeeklyBriefPage() {
                   name="phone"
                   type="tel"
                   autoComplete="tel"
-                  required
                   maxLength={32}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Phone number (with country code)"
+                  placeholder="Phone number (optional)"
                   disabled={status === "loading" || status === "success"}
                   className="w-full px-4 py-4 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold disabled:opacity-50"
                 />

@@ -99,5 +99,8 @@ export function timeAgo(iso: string): string {
 }
 
 export function signed(value: number): string {
+  // Zero renders as "±0" so a flat 7-day delta reads as a value, not a missing
+  // number ("7d 0" looked like an unformatted placeholder — QA P3).
+  if (value === 0) return "±0"
   return value > 0 ? `+${value}` : `${value}`
 }

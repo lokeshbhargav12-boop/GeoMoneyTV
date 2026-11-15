@@ -9,7 +9,9 @@ import NewsImage from "@/components/NewsImage";
 import EnergySection from "@/components/EnergySection";
 import BriefingsSection from "@/components/BriefingsSection";
 
-export const dynamic = "force-dynamic";
+// Cache the public homepage at the CDN/ISR layer instead of rendering it on
+// every request (QA P2-5: response was `no-store`, TTFB ~0.8s).
+export const revalidate = 300;
 
 const inferMediaTypeFromUrl = (url: string): CarouselSlide["mediaType"] =>
   /\.(mp4|webm|mov)(\?.*)?$/i.test(url) ? "video" : "image";
@@ -143,11 +145,7 @@ async function getHeroCarouselSlides(): Promise<CarouselSlide[]> {
   }
 }
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: { q?: string };
-}) {
+export default async function Home() {
   const [articles, globalBriefings, quickBriefings, heroCarouselSlides] =
     await Promise.all([
       getRecentArticles(),
@@ -252,34 +250,34 @@ export default async function Home({
       {/* Pro Waitlist CTA */}
       <WaitlistSection />
 
-      {/* Bottom Quick Links Bar */}
-      <div className="fixed bottom-0 z-50 w-full bg-black/90 backdrop-blur-md border-t border-white/10">
-        <div className="flex justify-start sm:justify-center gap-6 sm:gap-8 py-3 text-xs font-bold tracking-widest text-white px-4 overflow-x-auto no-scrollbar whitespace-nowrap">
+      {/* Bottom Quick Links Bar — auto-height, 2x2 grid on mobile so no label is clipped */}
+      <div className="fixed bottom-0 z-50 w-full border-t border-white/10 bg-black/90 backdrop-blur-md">
+        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-x-2 gap-y-1 px-3 py-2 text-[11px] font-bold tracking-widest text-white sm:flex sm:items-center sm:justify-center sm:gap-8 sm:px-4 sm:py-3 sm:text-xs">
           <Link
             href="/features/newsletter"
-            className="cursor-pointer hover:text-geo-gold transition-colors flex flex-col items-center min-w-max"
+            className="flex min-h-[44px] cursor-pointer flex-col items-center justify-center text-center leading-tight transition-colors hover:text-geo-gold"
           >
             <span>THE GEOMONEY BRIEF</span>
           </Link>
           <Link
             href="/features/analytics"
-            className="cursor-pointer hover:text-geo-gold transition-colors flex flex-col items-center min-w-max"
+            className="flex min-h-[44px] cursor-pointer flex-col items-center justify-center text-center leading-tight transition-colors hover:text-geo-gold"
           >
             <span>ANALYTICS</span>
-            <span className="text-[9px] text-gray-500 mt-0.5">COMING SOON</span>
+            <span className="mt-0.5 text-[9px] leading-tight text-gray-500">COMING SOON</span>
           </Link>
           <Link
             href="/features/weekly-brief"
-            className="cursor-pointer hover:text-geo-gold transition-colors flex flex-col items-center min-w-max"
+            className="flex min-h-[44px] cursor-pointer flex-col items-center justify-center text-center leading-tight transition-colors hover:text-geo-gold"
           >
             <span>INTELLIGENCE REPORT</span>
           </Link>
           <Link
             href="/features/app"
-            className="cursor-pointer hover:text-geo-gold transition-colors flex flex-col items-center min-w-max"
+            className="flex min-h-[44px] cursor-pointer flex-col items-center justify-center text-center leading-tight transition-colors hover:text-geo-gold"
           >
             <span>GEOMONEY TV APP</span>
-            <span className="text-[9px] text-gray-500 mt-0.5">COMING SOON</span>
+            <span className="mt-0.5 text-[9px] leading-tight text-gray-500">COMING SOON</span>
           </Link>
         </div>
       </div>

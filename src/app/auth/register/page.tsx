@@ -198,9 +198,9 @@ export default function Register() {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 rounded-full bg-gradient-to-br from-geo-gold to-yellow-600" />
-          <h2 className="mt-6 text-3xl font-bold tracking-tight text-white">
+          <h1 className="mt-6 text-3xl font-bold tracking-tight text-white">
             Create your account
-          </h2>
+          </h1>
           <p className="mt-2 text-sm text-gray-400">
             Join GeoMoney
           </p>

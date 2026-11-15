@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Clock, ArrowLeft, Filter, Search } from "lucide-react";
+import { Suspense } from "react";
 
 interface Article {
   id: string;
@@ -61,30 +63,79 @@ function NewsImageClient({
   );
 }
 
-export default function NewsPageClient() {
+function NewsPageClient() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const urlSearch = searchParams?.get("search") ?? "";
+  const urlCategory = searchParams?.get("category") ?? "all";
+  const urlPage = Math.max(1, parseInt(searchParams?.get("page") ?? "1", 10) || 1);
+
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [activeCategory, setActiveCategory] = useState(urlCategory);
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(urlSearch);
+  const [page, setPage] = useState(urlPage);
   const [totalPages, setTotalPages] = useState(1);
   const [totalArticles, setTotalArticles] = useState(0);
   const [categories, setCategories] =
     useState<NewsCategory[]>(DEFAULT_CATEGORIES);
+
+  // Track the last URL we wrote so we do not fight the browser on arrival.
+  const lastPushedUrl = useRef<string | null>(null);
+
+  // Seed state from the URL whenever the incoming query changes
+  // (e.g. an AI-navigation push to /news?search=china).
+  useEffect(() => {
+    const incoming = searchParams?.toString() ?? "";
+    if (lastPushedUrl.current === incoming) return;
+
+    setSearchQuery(urlSearch);
+    setDebouncedSearch(urlSearch);
+    setActiveCategory(urlCategory);
+    setPage(urlPage);
+  }, [searchParams, urlSearch, urlCategory, urlPage]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const firstFilterRun = useRef(true);
   useEffect(() => {
+    // Skip the initial run: the page may have arrived from a deep link with an
+    // explicit ?page=N that must not be reset to 1 on mount.
+    if (firstFilterRun.current) {
+      firstFilterRun.current = false;
+      return;
+    }
     setPage(1); // Reset page on filter change
   }, [debouncedSearch, activeCategory]);
 
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  // Keep the address bar in sync so searches/filters are shareable and survive
+  // a refresh or the back button.
+  const syncUrl = useCallback(
+    (nextSearch: string, nextCategory: string, nextPage: number) => {
+      const params = new URLSearchParams();
+      if (nextSearch) params.set("search", nextSearch);
+      if (nextCategory !== "all") params.set("category", nextCategory);
+      if (nextPage > 1) params.set("page", String(nextPage));
+      const query = params.toString();
+      const target = query ? `/news?${query}` : "/news";
+      lastPushedUrl.current = query;
+      router.replace(target, { scroll: false });
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    syncUrl(debouncedSearch, activeCategory, page);
+  }, [debouncedSearch, activeCategory, page, syncUrl]);
 
   useEffect(() => {
     const fetchArticles = async () => {
@@ -194,6 +245,22 @@ export default function NewsPageClient() {
             ))}
           </div>
         </div>
+
+        {/* Active search notice — confirms what the AI assistant applied */}
+        {debouncedSearch && !loading && (
+          <div className="mb-6 flex items-center gap-2 text-sm">
+            <span className="text-gray-400">Showing results for</span>
+            <span className="rounded-full bg-geo-gold/15 border border-geo-gold/30 px-3 py-1 text-geo-gold font-medium">
+              {debouncedSearch}
+            </span>
+            <button
+              onClick={() => setSearchQuery("")}
+              className="text-gray-500 hover:text-white transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        )}
 
         {/* Results Count */}
         <div className="mb-6 text-sm text-gray-500">
@@ -307,5 +374,14 @@ export default function NewsPageClient() {
         }
       </div>
     </div>
+  );
+}
+
+export default function NewsPage() {
+  // useSearchParams requires a Suspense boundary in the App Router.
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-geo-dark" />}>
+      <NewsPageClient />
+    </Suspense>
   );
 }

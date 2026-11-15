@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { ArrowLeft, Calendar, ExternalLink, Tag } from "lucide-react";
 import NewsImage from "@/components/NewsImage";
 import ArticleContent from "@/components/ArticleContent";
@@ -9,9 +10,75 @@ import ArticleNavigation from "@/components/ArticleNavigation";
 // Cache article pages for 5 minutes
 export const revalidate = 300;
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://geomoneytv.com";
+
 interface NewsPageProps {
   params: {
     slug: string;
+  };
+}
+
+/** Truncates a description to a meta-friendly length on a word boundary. */
+function metaDescription(article: {
+  description?: string | null;
+  content?: string | null;
+  title: string;
+}): string {
+  const raw = (article.description || article.content || article.title)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (raw.length <= 158) return raw;
+  return `${raw.slice(0, 155).replace(/\s+\S*$/, "")}…`;
+}
+
+export async function generateMetadata({ params }: NewsPageProps): Promise<Metadata> {
+  const article = await prisma.article.findUnique({
+    where: { slug: params.slug },
+    select: {
+      title: true,
+      description: true,
+      content: true,
+      imageUrl: true,
+      category: true,
+      sourceName: true,
+      createdAt: true,
+    },
+  });
+
+  if (!article) {
+    return {
+      title: "Article not found | GeoMoney",
+      robots: { index: false, follow: true },
+    };
+  }
+
+  const description = metaDescription(article);
+  const url = `${SITE_URL}/news/${params.slug}`;
+  const image = article.imageUrl || `${SITE_URL}/globe-placeholder.jpg`;
+
+  return {
+    title: `${article.title} | GeoMoney`,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "article",
+      title: article.title,
+      description,
+      url,
+      siteName: "GeoMoney",
+      images: [{ url: image, alt: article.title }],
+      publishedTime: article.createdAt.toISOString(),
+      section: article.category,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: article.title,
+      description,
+      images: [image],
+    },
+    other: article.sourceName ? { "article:source": article.sourceName } : undefined,
   };
 }
 

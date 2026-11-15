@@ -71,19 +71,18 @@ export default function Newsletter() {
             />
           </div>
           <div className="text-left">
-            <label htmlFor="newsletter-phone" className="sr-only">Phone number</label>
+            <label htmlFor="newsletter-phone" className="sr-only">Phone number (optional)</label>
             <input
               id="newsletter-phone"
               name="phone"
               type="tel"
               autoComplete="tel"
-              placeholder="Phone number (with country code)"
+              placeholder="Phone number (optional)"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className={inputClass}
               disabled={status === 'loading'}
               maxLength={32}
-              required
             />
           </div>
           <div className="text-left sm:col-span-2">

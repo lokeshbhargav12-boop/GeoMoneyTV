@@ -61,15 +61,13 @@ export default function NewsletterPage() {
                                 Get system signals and intelligence delivered to your inbox every week.
                             </p>
 
-                            {/* Social Proof */}
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="flex -space-x-3">
-                                    {[1, 2, 3, 4, 5].map((i) => (
-                                        <div key={i} className="w-10 h-10 rounded-full bg-gradient-to-br from-geo-gold/50 to-yellow-600/50 border-2 border-geo-dark" />
-                                    ))}
-                                </div>
+                            {/* Social Proof — no fake avatar stack (unlicensed placeholders) */}
+                            <div className="flex items-center gap-3 mb-8">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-geo-gold/30 bg-geo-gold/10 px-3 py-1 text-xs font-semibold text-geo-gold">
+                                    Weekly
+                                </span>
                                 <div className="text-sm text-gray-400">
-                                    Professionals trust our intelligence
+                                    Read by analysts, traders and policy professionals
                                 </div>
                             </div>
 
@@ -95,11 +93,10 @@ export default function NewsletterPage() {
                                     name="phone"
                                     type="tel"
                                     autoComplete="tel"
-                                    required
                                     maxLength={32}
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
-                                    placeholder="Phone number (with country code)"
+                                    placeholder="Phone number (optional)"
                                     disabled={status === 'loading' || status === 'success'}
                                     className="w-full px-4 py-4 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-geo-gold disabled:opacity-50"
                                 />
@@ -154,7 +151,7 @@ export default function NewsletterPage() {
                                     </div>
                                     <div>
                                         <div className="font-semibold">The GeoMoney Brief</div>
-                                        <div className="text-sm text-gray-400">newsletter@geomoney.tv</div>
+                                        <div className="text-sm text-gray-400">info@geomoneytv.com</div>
                                     </div>
                                 </div>
 
@@ -163,31 +160,38 @@ export default function NewsletterPage() {
                                     <div className="text-geo-gold font-bold text-xl">This Week in Commodities</div>
 
                                     <div className="bg-black/30 rounded-lg p-4">
-                                        <div className="text-sm text-gray-400 mb-2">Market Snapshot</div>
+                                        <div className="text-sm text-gray-400 mb-2">
+                                            Market snapshot <span className="text-[10px] uppercase tracking-wider text-amber-200/80">· sample preview, not a live quote</span>
+                                        </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <span className="text-geo-gold font-medium">Gold</span>
-                                                <span className="text-green-400 text-sm ml-2">↑ 2.3%</span>
+                                                <span className="text-green-400 text-sm ml-2">↑</span>
                                             </div>
                                             <div>
                                                 <span className="text-gray-300 font-medium">Silver</span>
-                                                <span className="text-red-400 text-sm ml-2">↓ 0.8%</span>
+                                                <span className="text-red-400 text-sm ml-2">↓</span>
                                             </div>
                                             <div>
                                                 <span className="text-gray-300 font-medium">Copper</span>
-                                                <span className="text-green-400 text-sm ml-2">↑ 1.5%</span>
+                                                <span className="text-green-400 text-sm ml-2">↑</span>
                                             </div>
                                             <div>
                                                 <span className="text-gray-300 font-medium">Oil</span>
-                                                <span className="text-green-400 text-sm ml-2">↑ 3.1%</span>
+                                                <span className="text-green-400 text-sm ml-2">↑</span>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="text-sm text-gray-300 leading-relaxed">
-                                        This week, gold surged past $2,700 as geopolitical tensions
-                                        mounted in Eastern Europe. Meanwhile, copper demand signals
-                                        from China suggest a potential supply squeeze...
+                                        Each issue opens with the week&apos;s moves across gold, silver,
+                                        copper and crude, then explains the geopolitical and supply-chain
+                                        drivers behind them. The snapshot above is an illustrative
+                                        preview — live levels are shown on the{" "}
+                                        <Link href="/energy" className="text-geo-gold underline hover:text-yellow-300">
+                                            Energy Hub
+                                        </Link>{" "}
+                                        and in the market ticker.
                                     </div>
 
                                     <div className="text-geo-gold text-sm font-medium cursor-pointer">

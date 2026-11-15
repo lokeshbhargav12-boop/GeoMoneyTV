@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="GeoMoney">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F5E27A"/>
+      <stop offset="55%" stop-color="#D4AF37"/>
+      <stop offset="100%" stop-color="#9A7B1F"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#050505"/>
+  <circle cx="32" cy="32" r="23" fill="none" stroke="url(#gold)" stroke-width="3"/>
+  <path d="M32 9c6 6 9 14 9 23s-3 17-9 23c-6-6-9-14-9-23s3-17 9-23z" fill="none" stroke="url(#gold)" stroke-width="2.2" opacity="0.85"/>
+  <path d="M9 32h46" stroke="url(#gold)" stroke-width="2.2" opacity="0.85"/>
+  <path d="M12 20h40M12 44h40" stroke="url(#gold)" stroke-width="1.6" opacity="0.55"/>
+</svg>

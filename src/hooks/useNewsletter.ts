@@ -23,9 +23,9 @@ export function useNewsletter(): UseNewsletterReturn {
 
     const handleSubscribe = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!name.trim() || !phone.trim() || !email.trim()) {
+        if (!name.trim() || !email.trim()) {
             setStatus('error')
-            setMessage('Please enter your name, phone number, and email address.')
+            setMessage('Please enter your name and email address.')
             return
         }
 

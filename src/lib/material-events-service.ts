@@ -1412,33 +1412,47 @@ function buildSeedWhatMovedFallback(): IntelOverviewResponse['whatMoved'] {
     .map((sym) => findMaterialSeed(sym))
     .filter((s): s is CriticalMaterialSeed => s !== null)
 
-  return seeds.slice(0, 6).map((seed, idx) => {
+  // Six near-identical "China Export Licensing & Processing Concentration — X"
+  // cards read as duplicate content (QA). Store the event once and list every
+  // affected material on it, instead of one card per material.
+  const materialLinks = seeds.map((seed) => {
     const baseline = deriveSeedBaselinePulse(seed)
-    const { events, crossMaterial } = deriveSeedBaselineEvents(seed, baseline)
+    const { events } = deriveSeedBaselineEvents(seed, baseline)
     const primary = events[0]
-    const linkedPeers = crossMaterial[0]?.otherMaterials ?? []
     return {
-      id: primary.id,
-      title: primary.title,
-      summary: primary.summary,
-      eventType: primary.eventType,
-      occurredAt: new Date(Date.now() - (idx + 1) * 6 * 60 * 60 * 1000).toISOString(),
-      severity: primary.severity,
-      confidence: primary.confidence,
-      importance: primary.relevanceScore * (1 + 0.15 * linkedPeers.length),
-      priceDirection: primary.implication?.priceDirection ?? 'upward',
-      materials: [
-        {
-          name: seed.name,
-          symbol: seed.symbol,
-          relevanceScore: primary.relevanceScore,
-          relationshipType: primary.relationshipType,
-          whyRelevant: primary.whyRelevant,
-        },
-        ...linkedPeers.slice(0, 2),
-      ],
+      name: seed.name,
+      symbol: seed.symbol,
+      relevanceScore: primary.relevanceScore,
+      relationshipType: primary.relationshipType,
+      whyRelevant: primary.whyRelevant,
     }
   })
+
+  if (materialLinks.length === 0) return []
+
+  const leadSeed = seeds[0]
+  const leadBaseline = deriveSeedBaselinePulse(leadSeed)
+  const { events: leadEvents } = deriveSeedBaselineEvents(leadSeed, leadBaseline)
+  const lead = leadEvents[0]
+  const maxRelevance = Math.max(...materialLinks.map((m) => m.relevanceScore))
+
+  return [
+    {
+      id: 'seed_evt_export_licensing_policy',
+      title: 'China Export Licensing & Processing Concentration',
+      summary: `Export licensing scrutiny and refining concentration in China keep physical availability tight across ${materialLinks.length} critical materials (${materialLinks
+        .slice(0, 4)
+        .map((m) => m.symbol)
+        .join(', ')}${materialLinks.length > 4 ? ', …' : ''}).`,
+      eventType: lead.eventType,
+      occurredAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      severity: lead.severity,
+      confidence: lead.confidence,
+      importance: maxRelevance * (1 + 0.15 * (materialLinks.length - 1)),
+      priceDirection: lead.implication?.priceDirection ?? 'upward',
+      materials: materialLinks,
+    },
+  ]
 }
 
 /** "What Moved Critical Materials Today?" + the early-warning status board. */
@@ -1483,8 +1497,25 @@ export async function getIntelOverview(): Promise<IntelOverviewResponse> {
       })
     }
 
-    const whatMoved = recentEvents
-      .filter((event) => event.materialLinks.length > 0)
+    const merged = new Map<string, (typeof recentEvents)[number] & { materialLinks: any[] }>()
+    for (const event of recentEvents.filter((e) => e.materialLinks.length > 0)) {
+      // Seed-generated events share a title up to the "—" separator but exist
+      // as one row per material; merge them so the page shows one card with
+      // every affected material rather than six near-identical cards (QA).
+      const key = event.title.split('—')[0].trim().toLowerCase()
+      const current = merged.get(key)
+      if (!current) {
+        merged.set(key, { ...event, materialLinks: [...event.materialLinks] })
+        continue
+      }
+      for (const link of event.materialLinks) {
+        if (!current.materialLinks.some((l) => l.material.symbol === link.material.symbol)) {
+          current.materialLinks.push(link)
+        }
+      }
+    }
+
+    const whatMoved = Array.from(merged.values())
       .map((event) => {
         const maxRelevance = Math.max(...event.materialLinks.map((l) => l.relevanceScore))
         const importance = maxRelevance * (1 + 0.15 * (event.materialLinks.length - 1))

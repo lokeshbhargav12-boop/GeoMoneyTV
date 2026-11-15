@@ -40,7 +40,7 @@ export default function GeoMoneyAppPage() {
                         >
                             <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 rounded-full border border-blue-500/30 mb-6">
                                 <Clock className="w-4 h-4 text-blue-400" />
-                                <span className="text-blue-400 text-sm font-medium">Launching Q1 2026</span>
+                                <span className="text-blue-400 text-sm font-medium">Launching 2026</span>
                             </div>
 
                             <h1 className="text-5xl md:text-6xl font-bold mb-6">
@@ -242,7 +242,7 @@ export default function GeoMoneyAppPage() {
                     </p>
                     <div className="inline-flex items-center gap-4 text-geo-gold">
                         <Smartphone className="w-6 h-6" />
-                        <span className="font-medium">Launching Q1 2026</span>
+                        <span className="font-medium">Launching 2026</span>
                     </div>
                 </div>
             </section>

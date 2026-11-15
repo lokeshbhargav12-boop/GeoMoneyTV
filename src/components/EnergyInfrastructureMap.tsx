@@ -162,6 +162,29 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   useEffect(() => {
     map.setView(center, zoom, { animate: true, duration: 1 });
   }, [center, zoom, map]);
+
+  // Responsive layouts resize the map container after mount (sidebar collapse,
+  // rotation, breakpoint switch). Leaflet keeps painting the old viewport and
+  // newly exposed areas stay blank — the light-gray "white patches" the client
+  // reported. invalidateSize() makes it re-measure and load the missing tiles.
+  useEffect(() => {
+    const container = map.getContainer();
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+    });
+    observer.observe(container);
+    // One delayed pass after mount: fonts and surrounding layout shift the
+    // container size after the first paint, leaving edge tiles unrequested.
+    const timer = window.setTimeout(() => map.invalidateSize({ animate: false }), 400);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [map]);
+
   return null;
 }
 
@@ -572,6 +595,11 @@ export default function EnergyInfrastructureMap({
           url={getCartoTileUrl("darkNoLabels")}
           attribution=""
           noWrap={true}
+          // A failed tile renders as a transparent pixel, so the dark container
+          // background shows instead of a broken-image / white square.
+          errorTileUrl="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+          keepBuffer={4}
+          updateWhenIdle={false}
           bounds={[
             [-90, -180],
             [90, 180],

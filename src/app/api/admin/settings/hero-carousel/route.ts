@@ -149,7 +149,14 @@ export async function GET() {
                 slides = getFreshDefaultSlides()
             }
         }
-        return NextResponse.json({ slides })
+        return NextResponse.json({ slides }, {
+            headers: {
+                // Public carousel reads are identical for every visitor; let the
+                // CDN absorb them instead of hitting the DB per request (QA P2-5).
+                // max-age=0 keeps browsers (incl. the admin panel) fresh.
+                'Cache-Control': 'public, max-age=0, s-maxage=300, stale-while-revalidate=600',
+            },
+        })
     } catch (error) {
         return NextResponse.json({ error: 'Failed to fetch carousel settings' }, { status: 500 })
     }

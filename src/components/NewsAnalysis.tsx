@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2, BrainCircuit, Target, Scale, Zap, TrendingUp, TrendingDown, Minus, Eye, Lightbulb, BarChart3 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -48,32 +48,56 @@ export default function NewsAnalysis({ title, text, articleId, className }: News
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState('');
 
+  const abortRef = useRef<AbortController | null>(null);
+
    // Auto-initialize if we have an articleId (cached analysis may exist)
    useEffect(() => {
      if (articleId) {
        analyzeContent();
      }
+     // Cancel an in-flight analysis when the article changes or the view unmounts.
+     return () => abortRef.current?.abort();
    }, [articleId]);
 
   const analyzeContent = async (forceRefresh = false) => {
     setLoading(true);
     setError('');
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    // Client-side guard: never leave the Intelligence Engine spinning forever
+    // when the provider is slow or rate limited (QA P2-2).
+    const timeoutId = window.setTimeout(() => controller.abort(), 45_000);
+
     try {
       const response = await fetch('/api/ai/bias', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, text, articleId, forceRefresh }),
+        signal: controller.signal,
       });
 
-      if (!response.ok) throw new Error('Failed to analyze content');
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Failed to analyze content');
+      }
 
       const data = await response.json();
       setResult(data);
     } catch (err) {
-      setError('Could not analyze content at this time.');
+      const aborted = err instanceof DOMException && err.name === 'AbortError';
+      setError(
+        aborted
+          ? 'The analysis timed out. The AI provider may be rate limited — please retry.'
+          : err instanceof Error
+            ? err.message
+            : 'Could not analyze content at this time.',
+      );
       console.error(err);
     } finally {
+      window.clearTimeout(timeoutId);
+      abortRef.current = null;
       setLoading(false);
     }
   };

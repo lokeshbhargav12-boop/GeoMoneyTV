@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     // Create newsletter subscription
     await prisma.newsletter.create({
-      data: { name, phone, email },
+      data: { name, phone: phone || null, email },
     })
 
     // Send confirmation email (best-effort, don't block subscription if SMTP fails)

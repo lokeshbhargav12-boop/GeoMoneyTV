@@ -11,7 +11,7 @@ const LANGUAGES = [
   { code: "en", label: "English" },
   { code: "fr", label: "French" },
   { code: "es", label: "Spanish" },
-  { code: "pt", label: "Portuguese" },
+  { code: "pt", label: "Portuguese (Brazil)" },
 ];
 
 const NAV_LINKS = [
@@ -48,6 +48,12 @@ interface NavbarProps {
   logoUrl?: string | null;
 }
 
+/**
+ * Product/brand names that must never be machine-translated
+ * ("Analytics" -> "Analytique", "Account" -> "Compte" broke the nav).
+ */
+const NOTRANSLATE_LABELS = new Set(["Geomoney Aperture", "Analytics"]);
+
 export default function Navbar({ logoUrl }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: session } = useSession();
@@ -83,7 +89,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
   if (pathname?.startsWith("/admin")) return null;
 
   return (
-    <nav className="fixed top-16 z-[100] w-full bg-black/60 backdrop-blur-xl border-b border-white/5">
+    <nav className="fixed top-12 z-[100] w-full bg-black/60 backdrop-blur-xl border-b border-white/5">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
@@ -98,10 +104,16 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             ) : (
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-geo-gold to-yellow-600" />
             )}
-            <span className="text-lg font-bold tracking-widest text-white hidden sm:block">
+            <span
+              className="notranslate text-lg font-bold tracking-widest text-white hidden sm:block"
+              translate="no"
+            >
               GeoMoney
             </span>
-            <span className="hidden sm:inline-block text-[10px] font-bold tracking-widest text-yellow-400 border border-yellow-400/50 rounded px-1.5 py-0.5 bg-yellow-400/10">
+            <span
+              className="notranslate hidden sm:inline-block text-[10px] font-bold tracking-widest text-yellow-400 border border-yellow-400/50 rounded px-1.5 py-0.5 bg-yellow-400/10"
+              translate="no"
+            >
               BETA
             </span>
           </Link>
@@ -116,7 +128,10 @@ export default function Navbar({ logoUrl }: NavbarProps) {
                 <div key={link.href} className="relative group">
                   <Link
                     href={link.href}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium tracking-wide transition-all duration-200 block ${
+                    translate={NOTRANSLATE_LABELS.has(link.label) ? "no" : "yes"}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium tracking-wide transition-all duration-200 block whitespace-nowrap ${
+                      NOTRANSLATE_LABELS.has(link.label) ? "notranslate " : ""
+                    }${
                       isActive
                         ? "text-geo-gold bg-geo-gold/10"
                         : "text-gray-300 hover:text-white hover:bg-white/5"
@@ -176,7 +191,8 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             ) : (
               <Link
                 href="/auth/signin"
-                className="rounded-full border border-white/20 px-4 py-1.5 text-sm font-medium hover:bg-white/10 text-white transition-colors"
+                translate="no"
+                className="notranslate whitespace-nowrap rounded-full border border-white/20 px-4 py-1.5 text-sm font-medium hover:bg-white/10 text-white transition-colors"
               >
                 Account
               </Link>
@@ -206,7 +222,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-white/5 bg-black/95 backdrop-blur-xl">
+        <div className="md:hidden border-t border-white/5 bg-black">
           <div className="px-4 py-4 space-y-1">
             {NAV_LINKS.map((link) => {
               const isActive =
@@ -217,7 +233,10 @@ export default function Navbar({ logoUrl }: NavbarProps) {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className={`block px-4 py-3 rounded-lg text-sm font-medium tracking-wide transition-all ${
+                  translate={NOTRANSLATE_LABELS.has(link.label) ? "no" : "yes"}
+                  className={`block whitespace-nowrap px-4 py-3 rounded-lg text-sm font-medium tracking-wide transition-all ${
+                    NOTRANSLATE_LABELS.has(link.label) ? "notranslate " : ""
+                  }${
                     isActive
                       ? "text-geo-gold bg-geo-gold/10"
                       : "text-gray-300 hover:text-white hover:bg-white/5"

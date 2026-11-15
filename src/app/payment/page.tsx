@@ -1,18 +1,16 @@
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, ShieldCheck } from "lucide-react";
 import StripeCheckoutButton from "@/components/StripeCheckoutButton";
+import { BASIC_PLAN } from "@/lib/billing-plans";
 
 export const metadata = {
   title: "Subscribe to GeoMoney Basic",
   description: "Secure Stripe checkout for the GeoMoney Basic monthly membership.",
 };
 
-const FEATURES = [
-  "Global macro analytics dashboard",
-  "Exclusive weekly intelligence reports",
-  "Advanced energy & critical materials data",
-  "Priority support and new feature previews",
-];
+// Single source of truth: the Basic plan definition in src/lib/billing-plans.ts.
+// Never advertise unreleased features (e.g. the Analytics dashboard) at checkout.
+const FEATURES = BASIC_PLAN.features;
 
 export default function PaymentPage() {
   return (

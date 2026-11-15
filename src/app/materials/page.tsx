@@ -260,6 +260,23 @@ export default function MaterialsPage() {
                 ? new Date(stats.lastUpdate).toLocaleDateString("en-US", { month: "short", day: "numeric" })
                 : "—"}
             </div>
+            {stats.lastUpdate && (
+              <div className="mt-1 text-[11px] leading-tight">
+                {(() => {
+                  const days = Math.floor(
+                    (Date.now() - new Date(stats.lastUpdate).getTime()) / 86_400_000,
+                  );
+                  if (!Number.isFinite(days) || days < 0) return null;
+                  if (days <= 2) {
+                    return <span className="text-emerald-400">Fresh · {days === 0 ? "today" : `${days}d ago`}</span>;
+                  }
+                  if (days <= 7) {
+                    return <span className="text-amber-300">Aging · {days}d ago</span>;
+                  }
+                  return <span className="text-rose-300">Stale · {days}d ago</span>;
+                })()}
+              </div>
+            )}
           </div>
         </div>
 
