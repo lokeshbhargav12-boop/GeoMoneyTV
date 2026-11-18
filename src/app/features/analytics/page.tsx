@@ -26,17 +26,11 @@ export default function AnalyticsComingSoonPage() {
           </h1>
           <p className="mt-3 text-xl text-geo-gold font-semibold">Coming Soon</p>
           <p className="mt-4 text-sm sm:text-base text-gray-400 leading-relaxed">
-            Advanced Analytics will be introduced in a future platform release. Visit the
-            main pricing page for the latest subscription details.
+            Advanced Analytics will be introduced in a future platform release. Explore The
+            GeoMoney Brief for current intelligence and updates.
           </p>
 
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/pricing"
-              className="inline-flex items-center justify-center rounded-full bg-geo-gold px-6 py-3 text-sm font-semibold text-black hover:bg-yellow-500 transition-colors"
-            >
-              View Pricing
-            </Link>
+          <div className="mt-10 flex items-center justify-center">
             <Link
               href="/features/newsletter"
               className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white hover:border-geo-gold/40 hover:text-geo-gold transition-colors"

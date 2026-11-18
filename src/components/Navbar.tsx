@@ -90,8 +90,8 @@ export default function Navbar({ logoUrl }: NavbarProps) {
 
   return (
     <nav className="fixed top-12 z-[100] w-full bg-black/60 backdrop-blur-xl border-b border-white/5">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between gap-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 shrink-0">
             {logoUrl && !logoLoadFailed ? (
@@ -119,7 +119,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
           </Link>
 
           {/* Desktop Links */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden xl:flex min-w-0 items-center gap-0.5">
             {NAV_LINKS.map((link) => {
               const isActive =
                 pathname === link.href ||
@@ -129,7 +129,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
                   <Link
                     href={link.href}
                     translate={NOTRANSLATE_LABELS.has(link.label) ? "no" : "yes"}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium tracking-wide transition-all duration-200 block whitespace-nowrap ${
+                    className={`px-2 2xl:px-3 py-2 rounded-lg text-xs 2xl:text-sm font-medium tracking-wide transition-all duration-200 block whitespace-nowrap ${
                       NOTRANSLATE_LABELS.has(link.label) ? "notranslate " : ""
                     }${
                       isActive
@@ -160,7 +160,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
           </div>
 
           {/* Right Side */}
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 2xl:gap-3">
             {/* Language Selector */}
             <select
               value={lang}
@@ -179,14 +179,16 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             </select>
 
             {session?.user ? (
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <Link
                   href="/profile"
-                  className="rounded-full border border-geo-gold/30 bg-geo-gold/10 px-4 py-1.5 text-sm font-medium text-geo-gold hover:bg-geo-gold/20 transition-colors"
+                  className="whitespace-nowrap rounded-full border border-geo-gold/30 bg-geo-gold/10 px-4 py-1.5 text-sm font-medium text-geo-gold hover:bg-geo-gold/20 transition-colors"
                 >
                   Profile
                 </Link>
-                <SignOutButton />
+                <div className="hidden sm:block">
+                  <SignOutButton />
+                </div>
               </div>
             ) : (
               <Link
@@ -208,7 +210,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             {/* Mobile Hamburger */}
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="md:hidden p-2 text-gray-300 hover:text-white transition-colors"
+              className="xl:hidden p-2 text-gray-300 hover:text-white transition-colors"
             >
               {mobileOpen ? (
                 <X className="w-5 h-5" />
@@ -222,7 +224,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-white/5 bg-black">
+        <div className="xl:hidden border-t border-white/5 bg-black">
           <div className="px-4 py-4 space-y-1">
             {NAV_LINKS.map((link) => {
               const isActive =
@@ -246,6 +248,11 @@ export default function Navbar({ logoUrl }: NavbarProps) {
                 </Link>
               );
             })}
+            {session?.user && (
+              <div className="px-4 pt-3 sm:hidden">
+                <SignOutButton />
+              </div>
+            )}
           </div>
         </div>
       )}
