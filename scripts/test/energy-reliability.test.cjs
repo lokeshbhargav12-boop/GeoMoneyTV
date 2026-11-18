@@ -120,6 +120,20 @@ describe('Reference plant inventory', () => {
     assert.ok(data.features.length > 0);
     assert.ok(data.features.every((f) => ['Coal', 'Gas', 'Oil'].includes(f.properties.fuel)));
   });
+  it('paginates the fossil roster while preserving full-filter totals', () => {
+    const query = { fuels: ['Coal', 'Gas', 'Oil'], minMW: 50 };
+    const all = plants.queryPowerPlants({ ...query, limit: 20000 });
+    const page = plants.queryPowerPlants({ ...query, limit: 25, offset: 25 });
+    assert.ok(all.metadata.totalCount > 25);
+    assert.equal(page.features.length, 25);
+    assert.equal(page.metadata.totalCount, all.metadata.totalCount);
+    assert.equal(page.metadata.totalCapacityMW, all.metadata.totalCapacityMW);
+    assert.equal(page.metadata.hasMore, true);
+    assert.deepEqual(page.features[0], all.features[25]);
+    const parsed = plants.parsePlantQueryParams(new URLSearchParams('limit=25.9&offset=25.9'));
+    assert.equal(parsed.limit, 25);
+    assert.equal(parsed.offset, 25);
+  });
   it('does not invent construction records in the operating-only source', () => {
     assert.equal(plants.queryPowerPlants({ statuses: ['construction'] }).features.length, 0);
   });

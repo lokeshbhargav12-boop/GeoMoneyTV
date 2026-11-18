@@ -20,6 +20,10 @@ planning calculators. Existing unrelated working-tree edits were preserved.
 - Fixed fossil “All” filtering to Coal/Gas/Oil. Historical operating-only source
   limitations are explicit for Construction/Permitting and LNG terminals.
   Watchlist categories are no longer labelled map overlays.
+- Replaced the eight illustrative fossil roster clusters (five shown by default)
+  with paginated WRI source records. The shared plant API now returns stable
+  offsets, full-filter counts and aggregate capacity; the default global fossil
+  filter exposes 5,410 records at ≥50 MW without downloading the full GeoJSON.
 - Infrastructure navigation activates workspace tabs. Feed refresh preserves
   workspace state and reports failure. 3D assets honor layer filters and send
   clicks to the inspector, as in 2D.
@@ -41,10 +45,10 @@ planning calculators. Existing unrelated working-tree edits were preserved.
 
 ## Verification
 
-- `npm run test:energy`: 13 deterministic model/data/reference checks, no network,
+- `npm run test:energy`: 14 deterministic model/data/reference checks, no network,
   database or cache writes.
 - `npm run test:energy:ui`: Puppeteer at 390px and 1440px across five pages. Checks
-  validation, source notices, fossil status, navigation, refresh persistence and
+  validation, source notices, fossil roster pagination/status, navigation, refresh persistence and
   failure handling, accessible toggles, 2D/3D switching and horizontal overflow.
   Provider responses are intercepted fixtures, not evidence of live feed health.
 - `npm run test:aperture`: existing 23 checks passed.

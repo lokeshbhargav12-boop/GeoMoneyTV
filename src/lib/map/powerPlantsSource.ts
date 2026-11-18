@@ -72,6 +72,7 @@ export interface PlantQuery {
   statuses?: PlantStatus[];
   minMW?: number;
   limit?: number;
+  offset?: number;
 }
 
 export function queryPowerPlants(q: PlantQuery): PlantFC {
@@ -80,10 +81,13 @@ export function queryPowerPlants(q: PlantQuery): PlantFC {
   const statuses = q.statuses?.length ? new Set(q.statuses) : null;
   const minMW = q.minMW ?? 0;
   const limit = Math.min(q.limit ?? MAP_API.plantsDefaultLimit, MAP_API.plantsMaxLimit);
+  const offset = Math.max(0, Math.floor(q.offset ?? 0));
   const bbox = q.bbox;
   const crossesAntimeridian = bbox ? bbox[0] > bbox[2] : false;
 
   const out: PointFeature[] = [];
+  let totalCount = 0;
+  let totalCapacityMW = 0;
   for (const f of fc.features) {
     const p = f.properties;
     if (fuels && !fuels.has(p.fuel)) continue;
@@ -97,13 +101,23 @@ export function queryPowerPlants(q: PlantQuery): PlantFC {
         : lng >= bbox[0] && lng <= bbox[2];
       if (!inLng) continue;
     }
+    totalCount += 1;
+    totalCapacityMW += p.capacityMW ?? 0;
+    if (totalCount <= offset || out.length >= limit) continue;
     out.push(f);
-    if (out.length >= limit) break;
   }
 
   return {
     type: "FeatureCollection",
-    metadata: { ...fc.metadata, count: out.length, limit },
+    metadata: {
+      ...fc.metadata,
+      count: out.length,
+      limit,
+      offset,
+      totalCount,
+      totalCapacityMW,
+      hasMore: offset + out.length < totalCount,
+    },
     features: out,
   };
 }
@@ -133,6 +147,8 @@ export function parsePlantQueryParams(sp: URLSearchParams): PlantQuery {
   const minMW = Number(sp.get("minMW"));
   if (Number.isFinite(minMW) && minMW > 0) q.minMW = minMW;
   const limit = Number(sp.get("limit"));
-  if (Number.isFinite(limit) && limit > 0) q.limit = limit;
+  if (Number.isFinite(limit) && limit > 0) q.limit = Math.floor(limit);
+  const offset = Number(sp.get("offset"));
+  if (Number.isFinite(offset) && offset >= 0) q.offset = Math.floor(offset);
   return q;
 }

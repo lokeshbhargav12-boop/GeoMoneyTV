@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -21,7 +21,12 @@ import {
   Zap,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { REGION_BBOX, type FuelType, type PlantStatus } from "@/config/energyLayers";
+import {
+  REGION_BBOX,
+  STATUS_LABELS,
+  type FuelType,
+  type PlantStatus,
+} from "@/config/energyLayers";
 const EnergyInfrastructureGlobe = dynamic(
   () => import("@/components/EnergyInfrastructureGlobe"),
   { ssr: false },
@@ -30,23 +35,34 @@ const EnergyInfrastructureGlobe = dynamic(
 type FossilPlant = {
   id: string;
   name: string;
-  tech: "Coal" | "Gas" | "Oil" | "LNG";
-  status: "Operating" | "Construction" | "Permitting";
-  capacity: number;
-  region: "North America" | "Europe" | "Asia-Pacific" | "Middle East";
-  owner: string;
-  corridor: string;
-  x: number;
-  y: number;
-  pressure: string;
-  note: string;
+  fuel: FuelType;
+  status: PlantStatus;
+  capacityMW: number | null;
+  owner: string | null;
+  country: string;
+  year: number | null;
+  source: string;
 };
+
+type PlantFeature = {
+  properties: FossilPlant;
+};
+
+type PlantResponse = {
+  features: PlantFeature[];
+  metadata?: {
+    totalCount?: number;
+    totalCapacityMW?: number;
+  };
+};
+
+type FossilRegion = "North America" | "Europe" | "Asia-Pacific" | "Middle East";
 
 type Corridor = {
   id: string;
   name: string;
   kind: string;
-  region: FossilPlant["region"];
+  region: FossilRegion;
   throughput: string;
   status: string;
   summary: string;
@@ -71,125 +87,7 @@ const OVERLAYS = [
   "Export Terminals",
   "Grid Tie-Ins",
 ] as const;
-
-const FOSSIL_PLANTS: FossilPlant[] = [
-  {
-    id: "powder-river",
-    name: "Powder River Coal Belt",
-    tech: "Coal",
-    status: "Operating",
-    capacity: 4200,
-    region: "North America",
-    owner: "US thermal baseload cluster",
-    corridor: "BNSF coal rail and terminal chain",
-    x: 18,
-    y: 44,
-    pressure: "Rail throughput tightening into export windows",
-    note: "Coal mines, railheads, and plant demand are modeled together to keep the retired coal route visible inside the fossil desk.",
-  },
-  {
-    id: "rotterdam-gas",
-    name: "Rotterdam Flex Gas Hub",
-    tech: "Gas",
-    status: "Operating",
-    capacity: 3100,
-    region: "Europe",
-    owner: "Northwest Europe peaker fleet",
-    corridor: "North Sea pipelines and LNG backfill",
-    x: 44,
-    y: 28,
-    pressure:
-      "Storage levels healthy, imports still exposed to shipping disruptions",
-    note: "Acts as a balancing cluster for gas-fired power and LNG regasification into the continental grid.",
-  },
-  {
-    id: "japan-lng",
-    name: "Tokyo Bay LNG and Power Block",
-    tech: "LNG",
-    status: "Operating",
-    capacity: 5100,
-    region: "Asia-Pacific",
-    owner: "Utility consortium",
-    corridor: "Pacific LNG lanes with coastal gas plants",
-    x: 82,
-    y: 34,
-    pressure: "Spot LNG prices remain the main swing factor during heat events",
-    note: "High-capacity import terminals feed multiple combined-cycle units and reserve generators.",
-  },
-  {
-    id: "gujarat-coal",
-    name: "Gujarat Coal and Port Arc",
-    tech: "Coal",
-    status: "Construction",
-    capacity: 2800,
-    region: "Asia-Pacific",
-    owner: "Industrial generation corridor",
-    corridor: "Imported coal terminals and inland conveyor links",
-    x: 69,
-    y: 48,
-    pressure: "Port handling capacity is pacing the buildout schedule",
-    note: "This cluster keeps the legacy coal storyline live while surfacing current port, rail, and cooling-water constraints.",
-  },
-  {
-    id: "permian-thermal",
-    name: "Permian Thermal Spine",
-    tech: "Gas",
-    status: "Permitting",
-    capacity: 3600,
-    region: "North America",
-    owner: "Merchant generators and pipeline sponsors",
-    corridor: "Gathering, takeaway, and power-market interconnects",
-    x: 24,
-    y: 58,
-    pressure: "Pipeline takeaway and transformer lead times are gating COD",
-    note: "Planned gas generation is grouped with its fuel transport dependencies rather than shown as isolated plants.",
-  },
-  {
-    id: "abqaiq-oil",
-    name: "Eastern Province Oil-Fired Reserve",
-    tech: "Oil",
-    status: "Operating",
-    capacity: 1900,
-    region: "Middle East",
-    owner: "Strategic reserve generation",
-    corridor: "Crude and product pipelines with backup generation",
-    x: 58,
-    y: 56,
-    pressure:
-      "Reserve role remains sensitive to refinery and export corridor events",
-    note: "Oil-fired capacity remains relevant for reserve and industrial continuity despite lower utilization.",
-  },
-  {
-    id: "med-lng",
-    name: "East Med LNG Chain",
-    tech: "LNG",
-    status: "Construction",
-    capacity: 2400,
-    region: "Middle East",
-    owner: "Regional export alliance",
-    corridor: "Liquefaction trains, shipping lanes, and receiving plants",
-    x: 55,
-    y: 42,
-    pressure:
-      "Construction timing depends on marine works and compressor availability",
-    note: "Tracks LNG infrastructure as a system from liquefaction to receiving generation assets.",
-  },
-  {
-    id: "poland-coal",
-    name: "Silesia Coal Reliability Pocket",
-    tech: "Coal",
-    status: "Operating",
-    capacity: 2600,
-    region: "Europe",
-    owner: "Regional baseload fleet",
-    corridor: "Mine-mouth coal, rail delivery, and balancing services",
-    x: 49,
-    y: 36,
-    pressure:
-      "Aging units need outage coordination against winter demand peaks",
-    note: "Keeps coal reliability assets visible where retirement timing and system stress still matter.",
-  },
-];
+const ROSTER_PAGE_SIZE = 25;
 
 const CORRIDORS: Corridor[] = [
   {
@@ -277,14 +175,13 @@ export default function FossilEnergyPage() {
   const [activeOverlays, setActiveOverlays] = useState<
     (typeof OVERLAYS)[number][]
   >(["Gas Pipelines", "Export Terminals"]);
-  const filteredPlants = useMemo(() => {
-    return FOSSIL_PLANTS.filter((plant) => {
-      if (technology !== "All" && plant.tech !== technology) return false;
-      if (region !== "Global" && plant.region !== region) return false;
-      if (plant.status !== status) return false;
-      return true;
-    });
-  }, [region, status, technology]);
+  const [plants, setPlants] = useState<FossilPlant[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalCapacityMW, setTotalCapacityMW] = useState(0);
+  const [rosterPage, setRosterPage] = useState(1);
+  const [requestVersion, setRequestVersion] = useState(0);
+  const [plantsLoading, setPlantsLoading] = useState(true);
+  const [plantError, setPlantError] = useState<string | null>(null);
 
   const filteredCorridors = useMemo(() => {
     return CORRIDORS.filter((corridor) => {
@@ -294,14 +191,6 @@ export default function FossilEnergyPage() {
       return true;
     });
   }, [activeOverlays, region]);
-
-  const totalCapacity = filteredPlants.reduce(
-    (sum, plant) => sum + plant.capacity,
-    0,
-  );
-  const operatingCount = filteredPlants.filter(
-    (plant) => plant.status === "Operating",
-  ).length;
 
   const toggleOverlay = (overlay: (typeof OVERLAYS)[number]) => {
     setActiveOverlays((current) =>
@@ -330,6 +219,55 @@ export default function FossilEnergyPage() {
       minMW: 50,
     };
   }, [technology, region, status]);
+  const plantQueryKey = JSON.stringify(plantQuery);
+
+  useEffect(() => {
+    setRosterPage(1);
+  }, [plantQueryKey]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    if (plantQuery.fuels?.length) params.set("fuels", plantQuery.fuels.join(","));
+    if (plantQuery.statuses?.length) params.set("status", plantQuery.statuses.join(","));
+    if (plantQuery.bbox) params.set("bbox", plantQuery.bbox.join(","));
+    params.set("minMW", String(plantQuery.minMW));
+    params.set("limit", String(ROSTER_PAGE_SIZE));
+    params.set("offset", String((rosterPage - 1) * ROSTER_PAGE_SIZE));
+
+    async function loadPlants() {
+      setPlantsLoading(true);
+      setPlantError(null);
+      setPlants([]);
+      try {
+        const response = await fetch(`/api/map/power-plants?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Plant inventory returned HTTP ${response.status}`);
+        const data = (await response.json()) as PlantResponse;
+        setPlants(data.features.map((feature) => feature.properties));
+        setTotalCount(data.metadata?.totalCount ?? data.features.length);
+        setTotalCapacityMW(data.metadata?.totalCapacityMW ?? 0);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error("[Fossil roster] plant inventory failed:", error);
+        setTotalCount(0);
+        setTotalCapacityMW(0);
+        setPlantError("The sourced fossil asset roster could not load. Please retry.");
+      } finally {
+        if (!controller.signal.aborted) setPlantsLoading(false);
+      }
+    }
+
+    loadPlants();
+    return () => controller.abort();
+    // The serialized query is the stable request contract; object identity changes each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plantQueryKey, rosterPage, requestVersion]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / ROSTER_PAGE_SIZE));
+  const pageStart = totalCount === 0 ? 0 : (rosterPage - 1) * ROSTER_PAGE_SIZE + 1;
+  const pageEnd = Math.min(rosterPage * ROSTER_PAGE_SIZE, totalCount);
 
   return (
     <main className="min-h-screen bg-[#06080d] text-white pt-32 pb-24">
@@ -393,31 +331,31 @@ export default function FossilEnergyPage() {
               <div className="space-y-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">
-                    Operating Plants
+                    Sourced Plant Inventory
                   </p>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
                       <div className="text-2xl font-bold text-white">
-                        {filteredPlants.length}
+                        {plantsLoading ? "…" : totalCount.toLocaleString()}
                       </div>
                       <div className="text-gray-500 text-xs mt-1">
-                        Filtered assets
+                        Matching source records
                       </div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
                       <div className="text-2xl font-bold text-white">
-                        {operatingCount}
+                        {plants.length}
                       </div>
                       <div className="text-gray-500 text-xs mt-1">
-                        Example operating assets
+                        Assets on this page
                       </div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/30 p-3 col-span-2">
                       <div className="text-2xl font-bold text-white">
-                        {totalCapacity.toLocaleString()} MW
+                        {Math.round(totalCapacityMW).toLocaleString()} MW
                       </div>
                       <div className="text-gray-500 text-xs mt-1">
-                        Modeled capacity behind the current filter stack
+                        Reported capacity behind the current filter stack
                       </div>
                     </div>
                   </div>
@@ -537,7 +475,7 @@ export default function FossilEnergyPage() {
                 </span>
               </div>
             </div>
-            <p className="p-4 text-xs text-gray-300">Historical reference inventory, not current operating telemetry. All source records are classified operating; construction/permitting coverage is unavailable. LNG maps gas-fired plants, not LNG terminals. Watchlist and capacity figures use separate illustrative clusters.</p>
+            <p className="p-4 text-xs text-gray-300">Historical reference inventory, not current operating telemetry. All source records are classified operating; construction/permitting coverage is unavailable. LNG maps gas-fired plants, not LNG terminals. Corridor watchlist entries remain separate illustrative clusters; roster totals and rows use the sourced WRI inventory.</p>
             {/*
               Always render the map. Previously a non-"Operating" status filter
               replaced the whole panel with a one-line empty message, which made
@@ -550,8 +488,8 @@ export default function FossilEnergyPage() {
                   Coverage note
                 </span>
                 The current reference dataset contains no <strong>{status.toLowerCase()}</strong> records for this filter,
-                so the map above shows the operating inventory for the same region and technology. Absence in this
-                reference dataset is not evidence that no such projects exist.
+                so the map and roster show no matching source rows. Absence in this reference dataset is not evidence
+                that no such projects exist.
               </div>
             )}
           </div>
@@ -638,12 +576,16 @@ export default function FossilEnergyPage() {
           </div>
         </section>
 
-        <section>
-          <div className="flex items-center justify-between gap-4 mb-6">
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <Building2 className="w-6 h-6 text-cyan-300" /> Fossil Asset
-              Roster
-            </h2>
+        <section aria-busy={plantsLoading}>
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <Building2 className="w-6 h-6 text-cyan-300" /> Fossil Asset Roster
+              </h2>
+              <p className="mt-2 text-xs text-gray-400">
+                {plantsLoading ? "Loading sourced inventory…" : `${totalCount.toLocaleString()} WRI reference records match these filters`}
+              </p>
+            </div>
             <Link
               href="/energy/infrastructure"
               className="inline-flex items-center gap-2 text-sm text-orange-200 hover:text-orange-100 transition-colors"
@@ -651,48 +593,94 @@ export default function FossilEnergyPage() {
               Open infrastructure matrix <span aria-hidden="true">/</span>
             </Link>
           </div>
-          <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/[0.04]">
-            <table className="min-w-full text-sm">
-              <thead className="border-b border-white/10 text-gray-500 uppercase tracking-[0.2em] text-xs">
-                <tr>
-                  <th className="px-4 py-4 text-left">Asset</th>
-                  <th className="px-4 py-4 text-left">Fuel</th>
-                  <th className="px-4 py-4 text-left">Region</th>
-                  <th className="px-4 py-4 text-left">Status</th>
-                  <th className="px-4 py-4 text-left">Capacity</th>
-                  <th className="px-4 py-4 text-left">Watch</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPlants.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-gray-300">No illustrative clusters match these filters. This is not evidence of absent real assets.</td></tr>}
-                {filteredPlants.map((plant) => (
-                  <tr
-                    key={plant.id}
-                    className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.03]"
-                  >
-                    <td className="px-4 py-4">
-                      <div className="text-left">
-                        <div className="font-semibold text-white">
-                          {plant.name}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {plant.corridor}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-gray-300">{plant.tech}</td>
-                    <td className="px-4 py-4 text-gray-300">{plant.region}</td>
-                    <td className="px-4 py-4 text-gray-300">{plant.status}</td>
-                    <td className="px-4 py-4 text-gray-300">
-                      {plant.capacity.toLocaleString()} MW
-                    </td>
-                    <td className="px-4 py-4 text-gray-400">
-                      {plant.pressure}
-                    </td>
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="border-b border-white/10 text-gray-500 uppercase tracking-[0.2em] text-xs">
+                  <tr>
+                    <th className="px-4 py-4 text-left">Asset</th>
+                    <th className="px-4 py-4 text-left">Fuel</th>
+                    <th className="px-4 py-4 text-left">Country</th>
+                    <th className="px-4 py-4 text-left">Status</th>
+                    <th className="px-4 py-4 text-left">Capacity</th>
+                    <th className="px-4 py-4 text-left">Source / year</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {plantsLoading && (
+                    <tr><td colSpan={6} className="p-8 text-center text-gray-300">Loading sourced fossil assets…</td></tr>
+                  )}
+                  {!plantsLoading && plantError && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center">
+                        <p role="alert" className="text-amber-200">{plantError}</p>
+                        <button
+                          type="button"
+                          onClick={() => setRequestVersion((version) => version + 1)}
+                          className="mt-4 rounded-full border border-orange-300/30 bg-orange-300/10 px-4 py-2 text-xs text-orange-100 hover:bg-orange-300/20"
+                        >
+                          Retry roster
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                  {!plantsLoading && !plantError && plants.length === 0 && (
+                    <tr><td colSpan={6} className="p-8 text-center text-gray-300">No WRI reference records match these filters. This source has no construction/permitting coverage; absence is not evidence that no real assets exist.</td></tr>
+                  )}
+                  {!plantsLoading && !plantError && plants.map((plant) => (
+                    <tr
+                      key={plant.id}
+                      className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.03]"
+                    >
+                      <td className="px-4 py-4">
+                        <div className="font-semibold text-white">{plant.name}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {plant.owner || "Owner not reported"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-gray-300">{plant.fuel}</td>
+                      <td className="px-4 py-4 text-gray-300">{plant.country}</td>
+                      <td className="px-4 py-4 text-gray-300">{STATUS_LABELS[plant.status]}</td>
+                      <td className="px-4 py-4 text-gray-300 whitespace-nowrap">
+                        {plant.capacityMW == null
+                          ? "Not reported"
+                          : `${plant.capacityMW.toLocaleString(undefined, { maximumFractionDigits: 1 })} MW`}
+                      </td>
+                      <td className="px-4 py-4 text-gray-400">
+                        <div>{plant.source}</div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {plant.year == null ? "Commissioning year not reported" : `Commissioned: ${plant.year}`}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <nav aria-label="Fossil asset roster pages" className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-4 py-3 text-xs">
+              <span className="text-gray-400" aria-live="polite">
+                {totalCount > 0 ? `Showing ${pageStart.toLocaleString()}–${pageEnd.toLocaleString()} of ${totalCount.toLocaleString()}` : "No records to display"}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRosterPage((current) => Math.max(1, current - 1))}
+                  disabled={plantsLoading || rosterPage <= 1}
+                  className="rounded-full border border-white/10 px-3 py-1.5 text-gray-300 enabled:hover:bg-white/10 disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span className="px-2 text-gray-400">Page {rosterPage} of {totalPages}</span>
+                <button
+                  type="button"
+                  onClick={() => setRosterPage((current) => Math.min(totalPages, current + 1))}
+                  disabled={plantsLoading || rosterPage >= totalPages}
+                  className="rounded-full border border-white/10 px-3 py-1.5 text-gray-300 enabled:hover:bg-white/10 disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </nav>
           </div>
         </section>
 

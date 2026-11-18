@@ -26,6 +26,7 @@ const setInput = async (page, selector, value) => {
   const browser = await puppeteer.launch({ headless: true, args: ['--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const errors = [];
   const page = await browser.newPage();
+  page.setDefaultTimeout(90000);
   let refreshes = 0;
   let failRefresh = false;
   page.on('pageerror', (error) => errors.push(error.message));
@@ -40,7 +41,16 @@ const setInput = async (page, selector, value) => {
     if (url.pathname === '/api/coal/market') return json({ timestamp, benchmarks: [{ label: 'API2 Rotterdam', symbol: 'API2', price: null, change: null, changePercent: null, unit: '$/t', note: 'UI fixture', live: false }], eia: {}, routes: [{ id: 'test', name: 'Test route', origin: [0, 0], destination: [20, 20], mode: 'UI fixture', vesselCount: 0, congestion: 'unavailable', watch: 'Coverage unavailable' }], osint: [], climate: [], vessels: [] });
     if (url.pathname === '/api/ai/coal-commentary') return json({ error: 'UI fixture: briefing unavailable' }, 503);
     if (url.pathname === '/api/world-monitor/ships') return json({ timestamp: Date.now(), live: false, source: 'UI fixture', ships: [], notice: 'Coverage unavailable' });
-    if (url.pathname === '/api/map/power-plants') return json({ type: 'FeatureCollection', features: [] });
+    if (url.pathname === '/api/map/power-plants') {
+      const isRoster = url.searchParams.has('offset');
+      const isOperating = url.searchParams.get('status') === 'operating';
+      if (isRoster && isOperating) return json({
+        type: 'FeatureCollection',
+        metadata: { count: 1, totalCount: 5410, totalCapacityMW: 3680140, hasMore: true },
+        features: [{ properties: { id: `fixture-${url.searchParams.get('offset')}`, name: 'UI Fixture Coal Plant', fuel: 'Coal', status: 'operating', capacityMW: 660, owner: 'Fixture owner', country: 'India', year: 2010, source: 'WRI GPPD v1.3.0' } }],
+      });
+      return json({ type: 'FeatureCollection', metadata: { count: 0, totalCount: 0, totalCapacityMW: 0, hasMore: false }, features: [] });
+    }
     if (url.pathname === '/api/map/boundaries') return json({ type: 'FeatureCollection', features: [] });
     if (url.pathname.startsWith('/api/')) return json({ success: true, events: [], tickers: [], data: [], articles: [] });
     if (url.hostname !== new URL(base).hostname) return request.abort();
@@ -65,8 +75,12 @@ const setInput = async (page, selector, value) => {
       assert.ok(!await page.evaluate(() => document.body.textContent.includes('NaN')));
       assert.ok(await page.$eval('#energy-field-1', (el) => el.labels.length > 0));
       await goto('/energy/fossil-energy', 'Reference: WRI');
+      await page.waitForFunction(() => document.body.textContent.includes('UI Fixture Coal Plant'));
+      assert.ok(await page.evaluate(() => document.body.textContent.includes('5,410 WRI reference records')));
+      await clickText(page, 'Next');
+      await page.waitForFunction(() => document.body.textContent.includes('Page 2 of 217'));
       await clickText(page, 'Construction');
-      await page.waitForFunction(() => document.body.textContent.includes('No construction records'));
+      await page.waitForFunction(() => [...document.querySelectorAll('div[role="status"]')].some((el) => el.textContent.includes('construction') && el.textContent.includes('map and roster show no matching source rows')));
       assert.equal(await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Construction').getAttribute('aria-pressed')), 'true');
       await goto('/energy/infrastructure', 'UI fixture: reference layers');
       await clickText(page, 'Supply / Demand');
@@ -85,10 +99,10 @@ const setInput = async (page, selector, value) => {
       await clickText(page, '3D Globe');
       await page.waitForFunction(() => document.querySelector('#global-map canvas'));
       await clickText(page, 'Processing');
-      assert.equal(await page.evaluate(() => [...document.querySelectorAll('#global-map button')].find((b) => b.textContent.trim() === 'Processing').getAttribute('aria-pressed')), 'true');
+      await page.waitForFunction(() => [...document.querySelectorAll('#global-map button')].find((b) => b.textContent.trim() === 'Processing')?.getAttribute('aria-pressed') === 'true');
       await clickText(page, '2D Map');
       await page.waitForFunction(() => document.querySelector('#global-map .leaflet-container'));
-      assert.equal(await page.evaluate(() => [...document.querySelectorAll('#global-map button')].find((b) => b.textContent.trim() === 'Processing').getAttribute('aria-pressed')), 'true');
+      await page.waitForFunction(() => [...document.querySelectorAll('#global-map button')].find((b) => b.textContent.trim() === 'Processing')?.getAttribute('aria-pressed') === 'true');
       await goto('/energy/oil-and-gas', 'Storage Visualization Demo');
       await page.waitForFunction(() => document.body.textContent.includes('SIMULATED'));
       assert.ok(!await page.evaluate(() => document.body.textContent.includes('AI-detected Dark Ships')));
