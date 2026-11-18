@@ -1,9 +1,25 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sparkles, ArrowRight, Loader2, AlertTriangle, RotateCcw } from "lucide-react";
+import {
+  Sparkles,
+  ArrowRight,
+  ArrowUpRight,
+  Loader2,
+  AlertTriangle,
+  RotateCcw,
+  Newspaper,
+  Calculator,
+  Atom,
+  Flame,
+  Globe2,
+  Compass,
+  type LucideIcon,
+} from "lucide-react";
 import { motion } from "framer-motion";
+import type { NavigationRecommendation } from "@/lib/ai-navigation";
 
 const SUGGESTIONS = [
   "Show me news about China",
@@ -11,6 +27,14 @@ const SUGGESTIONS = [
   "Open the Energy Hub",
   "What is happening with Nvidia?",
 ];
+
+const RECOMMENDATION_ICONS: Record<NavigationRecommendation["category"], LucideIcon> = {
+  News: Newspaper,
+  Tool: Calculator,
+  Energy: Flame,
+  Materials: Atom,
+  Monitor: Globe2,
+};
 
 /** Client-side guard so a stalled request never leaves the UI spinning. */
 const NAVIGATE_TIMEOUT_MS = 20_000;
@@ -21,6 +45,8 @@ export default function AiAssistant() {
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [lastPrompt, setLastPrompt] = useState("");
+  const [recommendations, setRecommendations] = useState<NavigationRecommendation[]>([]);
+  const [resultQuery, setResultQuery] = useState("");
   const router = useRouter();
   const inFlight = useRef<AbortController | null>(null);
 
@@ -36,7 +62,9 @@ export default function AiAssistant() {
     setLastPrompt(prompt);
     setIsLoading(true);
     setError("");
-    setFeedback("Analyzing request...");
+    setRecommendations([]);
+    setResultQuery("");
+    setFeedback("Finding the best GeoMoney tools and intelligence...");
 
     try {
       const response = await fetch("/api/ai/navigate", {
@@ -48,8 +76,20 @@ export default function AiAssistant() {
 
       const data = await response.json().catch(() => ({}));
 
-      if (!response.ok || !data.path) {
-        throw new Error(data?.error || "The assistant could not determine a destination.");
+      if (!response.ok) {
+        throw new Error(data?.error || "The assistant could not process your request.");
+      }
+
+      if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+        setRecommendations(data.recommendations);
+        setResultQuery(data.query || prompt);
+        setFeedback(data.message || "Choose where you would like to go next.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!data.path) {
+        throw new Error("The assistant could not determine a destination.");
       }
 
       setFeedback(data.message || "Navigating...");
@@ -109,15 +149,22 @@ export default function AiAssistant() {
             id="ai-navigation-input"
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ask about markets, or a topic…"
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (recommendations.length > 0) {
+                setRecommendations([]);
+                setResultQuery("");
+                setFeedback("");
+              }
+            }}
+            placeholder="Try gold, oil, lithium, or any market topic…"
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 pr-12 text-white placeholder-gray-400 focus:outline-none focus:border-geo-gold/50 focus:ring-1 focus:ring-geo-gold/50 transition-all font-light text-lg"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={isLoading || !query.trim()}
-            aria-label="Send request"
+            aria-label="Find related tools and intelligence"
             className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-geo-gold/10 text-geo-gold hover:bg-geo-gold hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
@@ -129,24 +176,29 @@ export default function AiAssistant() {
         </form>
 
         {/* Suggestion chips */}
-        <div className="flex flex-wrap gap-2">
-          {SUGGESTIONS.map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              disabled={isLoading}
-              onClick={() => {
-                setQuery(suggestion);
-                void runNavigate(suggestion);
-              }}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-400 hover:border-geo-gold/40 hover:text-geo-gold transition-colors disabled:opacity-50"
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
+        {recommendations.length === 0 && (
+          <div className="flex flex-wrap gap-2">
+            {SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                disabled={isLoading}
+                onClick={() => {
+                  setQuery(suggestion);
+                  void runNavigate(suggestion);
+                }}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-400 hover:border-geo-gold/40 hover:text-geo-gold transition-colors disabled:opacity-50"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
 
-        <div className="min-h-[1.5rem] text-sm text-gray-400 font-light flex items-center">
+        <div
+          className="min-h-[1.5rem] text-sm text-gray-400 font-light flex items-center"
+          aria-live="polite"
+        >
           {error ? (
             <motion.span
               initial={{ opacity: 0 }}
@@ -179,6 +231,56 @@ export default function AiAssistant() {
             <span className="opacity-50 text-xs">Powered by GeoMoney AI</span>
           )}
         </div>
+
+        {recommendations.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            aria-label={`Tools and intelligence related to ${resultQuery}`}
+            className="border-t border-white/10 pt-4"
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <Compass className="h-4 w-4 text-geo-gold" />
+              <h2 className="text-sm font-semibold text-white">
+                Explore <span className="capitalize text-geo-gold">{resultQuery}</span>
+              </h2>
+            </div>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {recommendations.map((recommendation, index) => {
+                const Icon = RECOMMENDATION_ICONS[recommendation.category];
+                return (
+                  <motion.div
+                    key={`${recommendation.path}-${recommendation.title}`}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.04 }}
+                  >
+                    <Link
+                      href={recommendation.path}
+                      className="group/card flex h-full items-start gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3.5 transition-all hover:border-geo-gold/40 hover:bg-geo-gold/[0.07]"
+                    >
+                      <span className="mt-0.5 rounded-lg border border-geo-gold/20 bg-geo-gold/10 p-2 text-geo-gold">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.16em] text-gray-500">
+                          {recommendation.category}
+                        </span>
+                        <span className="block text-sm font-semibold text-gray-100 transition-colors group-hover/card:text-geo-gold">
+                          {recommendation.title}
+                        </span>
+                        <span className="mt-1 block text-xs leading-relaxed text-gray-400">
+                          {recommendation.description}
+                        </span>
+                      </span>
+                      <ArrowUpRight className="h-4 w-4 shrink-0 text-gray-600 transition-all group-hover/card:-translate-y-0.5 group-hover/card:translate-x-0.5 group-hover/card:text-geo-gold" />
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.section>
+        )}
       </div>
     </motion.div>
   );

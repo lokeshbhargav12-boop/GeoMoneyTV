@@ -430,6 +430,7 @@ export default function ToolsPage() {
 
         {/* Basic Converters */}
         <motion.section
+          id="unit-converters"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
@@ -538,6 +539,7 @@ export default function ToolsPage() {
 
         {/* Equivalent Grade Calculator */}
         <motion.section
+          id="equivalent-grade"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.15 }}
@@ -626,6 +628,7 @@ export default function ToolsPage() {
 
         {/* Rare Earth Price Tracker */}
         <motion.section
+          id="rare-earth-prices"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
@@ -670,6 +673,7 @@ export default function ToolsPage() {
 
         {/* Project Economics Scenario Calculator (Analytical Tool) */}
         <motion.section
+          id="project-economics"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
@@ -770,6 +774,7 @@ export default function ToolsPage() {
 
         {/* Price Alerts — UNLOCKED */}
         <motion.section
+          id="price-alerts"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
@@ -881,6 +886,7 @@ Set custom notifications for commodity price thresholds. Notifications are saved
 
         {/* Resource Estimation — UNLOCKED */}
         <motion.section
+          id="resource-estimation"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.35 }}
@@ -990,6 +996,7 @@ Set custom notifications for commodity price thresholds. Notifications are saved
 
         {/* Grade Guide */}
         <motion.section
+          id="grade-guide"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}

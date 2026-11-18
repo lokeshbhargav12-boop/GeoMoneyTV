@@ -1,20 +1,9 @@
 import { NextResponse } from 'next/server';
-
-const COMMAND_WORDS = new Set([
-  'show', 'me', 'news', 'about', 'articles', 'on', 'find', 'search', 'for',
-  'the', 'latest', 'get', 'go', 'to', 'open', 'please', 'give', 'any', 'all',
-  'some', 'a', 'an', 'of', 'in', 'and', 'with', 'please', 'tell', 'what',
-]);
-
-function extractSearchTerm(prompt: string): string {
-  const words = prompt
-    .toLowerCase()
-    .replace(/[?!.,;:"'()]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((w) => !COMMAND_WORDS.has(w));
-  return words.join(' ').trim();
-}
+import {
+  extractSearchTerm,
+  getToolRecommendations,
+  isExploratoryQuery,
+} from '@/lib/ai-navigation';
 
 export async function POST(req: Request) {
   try {
@@ -29,16 +18,27 @@ export async function POST(req: Request) {
 
     const lowerPrompt = prompt.toLowerCase();
 
+    if (isExploratoryQuery(prompt)) {
+      const topic = extractSearchTerm(prompt) || prompt.trim();
+      return NextResponse.json({
+        path: null,
+        message: `Found GeoMoney tools and intelligence related to "${topic}".`,
+        search: topic,
+        query: topic,
+        recommendations: getToolRecommendations(prompt),
+      });
+    }
+
     let path = '/';
     let message = 'Navigating to Home...';
     let search: string | null = null;
 
-    if (lowerPrompt.includes('admin') || lowerPrompt.includes('dashboard')) {
-      path = '/admin';
-      message = 'Navigating to Admin Dashboard...';
-    } else if (lowerPrompt.includes('settings')) {
+    if (lowerPrompt.includes('settings')) {
       path = '/admin/settings';
       message = 'Navigating to Settings...';
+    } else if (lowerPrompt.includes('admin') || lowerPrompt.includes('dashboard')) {
+      path = '/admin';
+      message = 'Navigating to Admin Dashboard...';
     } else if (
       lowerPrompt.includes('news') ||
       lowerPrompt.includes('article') ||

@@ -13,6 +13,7 @@
     "test:aperture:ui": "node scripts/test/aperture-ui.cjs",
     "test:energy": "node --test scripts/test/energy-reliability.test.cjs",
     "test:energy:ui": "node scripts/test/energy-ui.cjs",
+    "test:navigation": "node --require ./scripts/test/register.cjs --test scripts/test/ai-navigation.test.ts",
     "postbuild": "echo 'Build completed successfully'",
     "postinstall": "prisma generate",
     "newsletter-queue": "node scripts/process-newsletter-queue.js",
