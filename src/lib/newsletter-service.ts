@@ -2,6 +2,15 @@ import { prisma } from '@/lib/prisma'
 import { getAiModel } from '@/lib/get-ai-model'
 import { COMPLIANCE_PROMPT, enforceCompliance } from '@/lib/compliance-engine'
 import { generatePdfFromHtml } from '@/lib/pdf-generator'
+import {
+  formatArticlesForPrompt,
+  formatMaterialsForPrompt,
+  formatTickersForPrompt,
+  loadNewsletterData,
+  reconcileMaterialHighlights,
+  selectMarketSnapshotTickers,
+  type NewsletterTicker,
+} from '@/lib/newsletter-data-service'
 import nodemailer from 'nodemailer'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,20 +60,7 @@ async function fetchOpenRouterWithRetry(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function generateWeeklyReport(): Promise<{ subject: string; htmlContent: string }> {
-  const [articles, materials, tickers] = await Promise.all([
-    prisma.article.findMany({
-      where: { published: true },
-      orderBy: { createdAt: 'desc' },
-      take: 15,
-      select: { title: true, category: true, aiSummary: true, aiAnalysis: true, createdAt: true },
-    }),
-    prisma.rareEarthMaterial.findMany({
-      select: { name: true, symbol: true, category: true, price: true, unit: true },
-    }),
-    prisma.commodityPrice.findMany({
-      select: { label: true, symbol: true, price: true, change: true, previousClose: true, type: true },
-    }),
-  ])
+  const { articles, materials, tickers } = await loadNewsletterData({ articleLimit: 15 })
 
   const aiModel = await getAiModel()
   const apiKey = process.env.OPENROUTER_API_KEY
@@ -74,32 +70,16 @@ export async function generateWeeklyReport(): Promise<{ subject: string; htmlCon
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
 
-  // Build live data context strings
-  const articlesCtx = articles
-    .map(a => `• [${a.category.toUpperCase()}] ${a.title}: ${a.aiSummary || a.aiAnalysis || 'No summary available'}`)
-    .join('\n') || 'No recent articles in the database.'
+  // Build context from the same refreshed snapshot used for the rendered prices.
+  const articlesCtx = formatArticlesForPrompt(articles)
+  const materialsCtx = formatMaterialsForPrompt(materials)
+  const tickersCtx = formatTickersForPrompt(tickers)
+  const marketSnapshot = selectMarketSnapshotTickers(tickers)
 
-  const materialsCtx = materials
-    .map(m => `• ${m.name} (${m.symbol}): ${m.price != null ? `$${m.price} per ${m.unit || 'unit'}` : 'Price N/A'}`)
-    .join('\n') || 'No critical materials data available.'
-
-  const tickersCtx = tickers
-    .map(t => {
-      const chg = t.change != null ? (t.change >= 0 ? `+${t.change.toFixed(2)}` : t.change.toFixed(2)) : 'N/A'
-      return `• ${t.label} (${t.symbol}): $${t.price.toFixed(2)} [${chg}]`
-    })
-    .join('\n') || 'No ticker data available.'
-
-  // Identify key ticker proxies for Market Snapshot section
-  const remx = tickers.find(t => t.symbol?.toUpperCase().includes('REMX'))
-  const mp = tickers.find(t => t.symbol?.toUpperCase() === 'MP')
-  const uup = tickers.find(t => t.symbol?.toUpperCase().includes('UUP') || t.label?.toUpperCase().includes('DOLLAR'))
-  const uso = tickers.find(t => t.symbol?.toUpperCase().includes('USO') || t.label?.toUpperCase().includes('OIL') || t.label?.toUpperCase().includes('WTI'))
-
-  const fmtTicker = (t: typeof tickers[0] | undefined, fallback: string) => {
-    if (!t) return fallback
+  const fmtTicker = (t: NewsletterTicker) => {
     const chg = t.change != null ? ` (${t.change >= 0 ? '+' : ''}${t.change.toFixed(2)})` : ''
-    return `$${t.price.toFixed(2)}${chg}`
+    const pct = t.changePercent != null ? ` / ${t.changePercent >= 0 ? '+' : ''}${t.changePercent.toFixed(2)}%` : ''
+    return `$${t.price.toFixed(2)}${chg}${pct}`
   }
 
   const prompt = `You are a senior geopolitical and financial intelligence analyst for GeoMoney, a premium geopolitical intelligence platform. Today is ${publicationDate}.
@@ -183,10 +163,7 @@ OUTPUT FORMAT — respond ONLY with valid JSON, no markdown fences, no extra key
     snapshotEnergy: s('snapshotEnergy'),
     snapshotMaterials: s('snapshotMaterials'),
     snapshotCurrency: s('snapshotCurrency'),
-    remxLevel: fmtTicker(remx, '[verify level]'),
-    mpLevel: fmtTicker(mp, '[verify level]'),
-    uupLevel: fmtTicker(uup, '[verify level]'),
-    usoLevel: fmtTicker(uso, '[verify level]'),
+    marketSnapshot: marketSnapshot.map(t => ({ label: `${t.label} (${t.symbol})`, level: fmtTicker(t) })),
     marketSnapshotReadthrough: s('marketSnapshotReadthrough'),
     keyDevelopment1Title: s('keyDevelopment1Title', 'Primary Geopolitical Driver'),
     keyDevelopment1Body: s('keyDevelopment1Body'),
@@ -216,10 +193,7 @@ function buildIntelligenceReportHtml(p: {
   snapshotEnergy: string
   snapshotMaterials: string
   snapshotCurrency: string
-  remxLevel: string
-  mpLevel: string
-  uupLevel: string
-  usoLevel: string
+  marketSnapshot: Array<{ label: string; level: string }>
   marketSnapshotReadthrough: string
   keyDevelopment1Title: string
   keyDevelopment1Body: string
@@ -350,20 +324,19 @@ function buildIntelligenceReportHtml(p: {
   <!-- Market Snapshot -->
   <div style="margin-bottom:28px;">
     ${sectionTitle('Market Snapshot')}
-    <p style="color:${muted};font-size:11px;margin:0 0 10px;font-style:italic;">For reference only. Verify all levels before use.</p>
+    <p style="color:${muted};font-size:11px;margin:0 0 10px;font-style:italic;">Latest stored market observations. Session change is shown, not weekly change.</p>
     ${card(`
       <table style="width:100%;border-collapse:collapse;">
         <thead>
           <tr style="">
             <th style="padding:8px 12px;color:${muted};font-size:11px;font-weight:600;letter-spacing:1px;text-align:left;border-bottom:1px solid ${border};">INSTRUMENT</th>
-            <th style="padding:8px 12px;color:${muted};font-size:11px;font-weight:600;letter-spacing:1px;text-align:right;border-bottom:1px solid ${border};">LEVEL / WEEKLY CHANGE</th>
+            <th style="padding:8px 12px;color:${muted};font-size:11px;font-weight:600;letter-spacing:1px;text-align:right;border-bottom:1px solid ${border};">LEVEL / SESSION CHANGE</th>
           </tr>
         </thead>
         <tbody>
-          ${tickerRow('Rare Earths Exposure Proxy (REMX)', p.remxLevel)}
-          ${tickerRow('MP Materials (MP)', p.mpLevel)}
-          ${tickerRow('USD Proxy (UUP)', p.uupLevel)}
-          ${tickerRow('Oil Exposure Proxy (USO)', p.usoLevel)}
+          ${p.marketSnapshot.length > 0
+            ? p.marketSnapshot.map(t => tickerRow(t.label, t.level)).join('')
+            : `<tr><td colspan="2" style="padding:12px;color:${muted};font-size:12px;">No current market observations available.</td></tr>`}
         </tbody>
       </table>
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid ${border};">
@@ -471,20 +444,7 @@ function buildIntelligenceReportHtml(p: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function generateDailyReport(): Promise<{ subject: string; htmlContent: string }> {
-  const [articles, materials, tickers] = await Promise.all([
-    prisma.article.findMany({
-      where: { published: true },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { title: true, category: true, aiSummary: true, aiAnalysis: true, createdAt: true },
-    }),
-    prisma.rareEarthMaterial.findMany({
-      select: { id: true, name: true, symbol: true, category: true, price: true, unit: true, supply: true, demand: true, countries: true },
-    }),
-    prisma.commodityPrice.findMany({
-      select: { label: true, symbol: true, price: true, change: true, previousClose: true, type: true },
-    }),
-  ])
+  const { articles, materials, tickers } = await loadNewsletterData({ articleLimit: 10 })
 
   const aiModel = await getAiModel()
   const apiKey = process.env.OPENROUTER_API_KEY
@@ -494,24 +454,9 @@ export async function generateDailyReport(): Promise<{ subject: string; htmlCont
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
 
-  const materialsCtx = materials
-    .map(m => {
-      let countries = ''
-      try { countries = JSON.parse(m.countries || '[]').join(', ') } catch { }
-      return `• ${m.name} (${m.symbol}) [${m.category}]: ${m.price != null ? `$${m.price} per ${m.unit || 'unit'}` : 'Price N/A'} | Supply: ${m.supply || 'N/A'} | Demand: ${m.demand || 'N/A'} | Countries: ${countries || 'N/A'}`
-    })
-    .join('\n') || 'No critical materials data available.'
-
-  const articlesCtx = articles
-    .map(a => `• [${a.category.toUpperCase()}] ${a.title}: ${a.aiSummary || a.aiAnalysis || 'No summary'}`)
-    .join('\n') || 'No recent articles.'
-
-  const tickersCtx = tickers
-    .map(t => {
-      const chg = t.change != null ? (t.change >= 0 ? `+${t.change.toFixed(2)}` : t.change.toFixed(2)) : 'N/A'
-      return `• ${t.label} (${t.symbol}): $${t.price.toFixed(2)} [${chg}]`
-    })
-    .join('\n') || 'No ticker data.'
+  const materialsCtx = formatMaterialsForPrompt(materials)
+  const articlesCtx = formatArticlesForPrompt(articles)
+  const tickersCtx = formatTickersForPrompt(tickers)
 
   const prompt = `You are a senior critical materials and geopolitical intelligence analyst for GeoMoney. Today is ${publicationDate}.
 
@@ -536,8 +481,7 @@ OUTPUT FORMAT — respond ONLY with valid JSON, no markdown fences, no extra key
   "executiveSummary": "3-4 sentence paragraph. Overview of today's critical materials environment: price behavior, supply chain signals, policy developments, and geopolitical transmission effects.",
   "materialHighlights": [
     {
-      "name": "Material Name (Symbol)",
-      "priceNote": "Current price context and recent behavior",
+      "name": "Material Name (Symbol) — select only from the supplied materials",
       "supplyChainStatus": "1-2 sentences on supply chain conditions, concentration risk, processing bottlenecks",
       "geopoliticalExposure": "1-2 sentences on how current geopolitical dynamics affect this material"
     }
@@ -571,8 +515,10 @@ OUTPUT FORMAT — respond ONLY with valid JSON, no markdown fences, no extra key
     const val = typeof d[key] === 'string' ? d[key] : fallback
     return enforceCompliance(val).cleaned
   }
-  const materialHighlights: Array<{ name: string; priceNote: string; supplyChainStatus: string; geopoliticalExposure: string }> =
-    Array.isArray(d.materialHighlights) ? d.materialHighlights : []
+  const materialHighlights = reconcileMaterialHighlights(
+    Array.isArray(d.materialHighlights) ? d.materialHighlights : [],
+    materials,
+  )
   const watchpoints: string[] = Array.isArray(d.watchpoints)
     ? d.watchpoints.map((w: string) => enforceCompliance(w).cleaned)
     : []

@@ -4,6 +4,14 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getAiModel } from '@/lib/get-ai-model'
 import { COMPLIANCE_PROMPT, enforceCompliance } from '@/lib/compliance-engine'
+import {
+  formatArticlesForPrompt,
+  formatMaterialsForPrompt,
+  formatTickersForPrompt,
+  loadNewsletterData,
+  reconcileMaterialHighlights,
+  selectMarketSnapshotTickers,
+} from '@/lib/newsletter-data-service'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -45,63 +53,18 @@ async function buildDataContext(
   }
 
   try {
-    // Fetch articles
-    if (enabledDataSources.articles) {
-      const take = ragSettings.contextWindowSize || 10
-      context.articles = await prisma.article.findMany({
-        where: { published: true },
-        orderBy: { createdAt: 'desc' },
-        take,
-        select: { 
-          title: true, 
-          category: true, 
-          aiSummary: true, 
-          aiAnalysis: true, 
-          createdAt: true 
-        },
-      })
-    }
+    const data = await loadNewsletterData({
+      articleLimit: ragSettings.contextWindowSize || 10,
+      enabledDataSources,
+    })
+    context.articles = data.articles
+    context.materials = data.materials
+    context.tickers = data.tickers
+    context.refreshedAt = data.refreshedAt
+    context.sync = data.sync
+    context.errors.push(...data.sync.errors)
   } catch (err: any) {
-    context.errors.push(`Failed to fetch articles: ${err.message}`)
-  }
-
-  try {
-    // Fetch materials
-    if (enabledDataSources.materials) {
-      context.materials = await prisma.rareEarthMaterial.findMany({
-        select: { 
-          id: true,
-          name: true, 
-          symbol: true, 
-          category: true, 
-          price: true, 
-          unit: true,
-          supply: true,
-          demand: true,
-          countries: true,
-        },
-      })
-    }
-  } catch (err: any) {
-    context.errors.push(`Failed to fetch materials: ${err.message}`)
-  }
-
-  try {
-    // Fetch tickers
-    if (enabledDataSources.tickers) {
-      context.tickers = await prisma.commodityPrice.findMany({
-        select: { 
-          label: true, 
-          symbol: true, 
-          price: true, 
-          change: true, 
-          previousClose: true, 
-          type: true 
-        },
-      })
-    }
-  } catch (err: any) {
-    context.errors.push(`Failed to fetch tickers: ${err.message}`)
+    context.errors.push(`Failed to load report data: ${err.message}`)
   }
 
   try {
@@ -162,25 +125,10 @@ function buildPrompt(
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
 
-  // Build context strings
-  const articlesCtx = dataContext.articles
-    ?.map((a: any) => `• [${a.category.toUpperCase()}] ${a.title}: ${a.aiSummary || a.aiAnalysis || 'No summary available'}`)
-    .join('\n') || 'No recent articles in the database.'
-
-  const materialsCtx = dataContext.materials
-    ?.map((m: any) => {
-      let countries = ''
-      try { countries = JSON.parse(m.countries || '[]').join(', ') } catch { }
-      return `• ${m.name} (${m.symbol}) [${m.category}]: ${m.price != null ? `$${m.price} per ${m.unit || 'unit'}` : 'Price N/A'} | Supply: ${m.supply || 'N/A'} | Demand: ${m.demand || 'N/A'} | Countries: ${countries || 'N/A'}`
-    })
-    .join('\n') || 'No critical materials data available.'
-
-  const tickersCtx = dataContext.tickers
-    ?.map((t: any) => {
-      const chg = t.change != null ? (t.change >= 0 ? `+${t.change.toFixed(2)}` : t.change.toFixed(2)) : 'N/A'
-      return `• ${t.label} (${t.symbol}): $${t.price.toFixed(2)} [${chg}]`
-    })
-    .join('\n') || 'No ticker data available.'
+  // Use exactly the same context formatting as production report generation.
+  const articlesCtx = formatArticlesForPrompt(dataContext.articles || [])
+  const materialsCtx = formatMaterialsForPrompt(dataContext.materials || [])
+  const tickersCtx = formatTickersForPrompt(dataContext.tickers || [])
 
   const userCtx = userPreferences 
     ? `USER PROFILE:
@@ -234,8 +182,7 @@ OUTPUT FORMAT — respond ONLY with valid JSON, no markdown fences, no extra key
   "executiveSummary": "3-4 sentence paragraph. Overview of today's critical materials environment: price behavior, supply chain signals, policy developments, and geopolitical transmission effects.",
   "materialHighlights": [
     {
-      "name": "Material Name (Symbol)",
-      "priceNote": "Current price context and recent behavior",
+      "name": "Material Name (Symbol) — select only from the supplied materials",
       "supplyChainStatus": "1-2 sentences on supply chain conditions, concentration risk, processing bottlenecks",
       "geopoliticalExposure": "1-2 sentences on how current geopolitical dynamics affect this material"
     }
@@ -248,18 +195,14 @@ OUTPUT FORMAT — respond ONLY with valid JSON, no markdown fences, no extra key
 }`
   }
 
-  // Weekly report
-  // Identify key ticker proxies for Market Snapshot section
-  const remx = dataContext.tickers?.find((t: any) => t.symbol?.toUpperCase().includes('REMX'))
-  const mp = dataContext.tickers?.find((t: any) => t.symbol?.toUpperCase() === 'MP')
-  const uup = dataContext.tickers?.find((t: any) => t.symbol?.toUpperCase().includes('UUP') || t.label?.toUpperCase().includes('DOLLAR'))
-  const uso = dataContext.tickers?.find((t: any) => t.symbol?.toUpperCase().includes('USO') || t.label?.toUpperCase().includes('OIL') || t.label?.toUpperCase().includes('WTI'))
-
-  const fmtTicker = (t: any, fallback: string) => {
-    if (!t) return fallback
-    const chg = t.change != null ? ` (${t.change >= 0 ? '+' : ''}${t.change.toFixed(2)})` : ''
-    return `$${t.price.toFixed(2)}${chg}`
-  }
+  // Weekly report: use available observations rather than placeholders for
+  // proxy symbols that are not configured in the site's ticker feed.
+  const keyLevels = selectMarketSnapshotTickers(dataContext.tickers || [])
+    .map((t) => {
+      const change = t.change != null ? ` (${t.change >= 0 ? '+' : ''}${t.change.toFixed(2)})` : ''
+      return `${t.symbol} $${t.price.toFixed(2)}${change}`
+    })
+    .join(', ') || 'No current market observations available'
 
   return `You are a senior geopolitical and financial intelligence analyst for GeoMoney, a premium geopolitical intelligence platform. Today is ${publicationDate}.
 
@@ -280,7 +223,7 @@ ${materialsCtx}
 MARKET TICKERS:
 ${tickersCtx}
 
-KEY LEVELS: REMX ${fmtTicker(remx, '[verify]')}, MP ${fmtTicker(mp, '[verify]')}, UUP ${fmtTicker(uup, '[verify]')}, USO ${fmtTicker(uso, '[verify]')}
+KEY LEVELS: ${keyLevels}
 
 OUTPUT FORMAT — respond ONLY with valid JSON, no markdown fences, no extra keys:
 {
@@ -384,7 +327,7 @@ async function callAI(
 }
 
 // Modular helper: build HTML from parsed data
-function buildHtml(type: 'daily' | 'weekly', data: any): string {
+function buildHtml(type: 'daily' | 'weekly', data: any, dataContext: any): string {
   const gold = '#D4AF37'
   const bg = '#0a0a0a'
   const cardBg = '#111111'
@@ -407,8 +350,12 @@ function buildHtml(type: 'daily' | 'weekly', data: any): string {
 
   if (type === 'daily') {
     // Build daily HTML
-    const materialsHtml = (data.materialHighlights || [])
-      .map((m: any) => `
+    const materialHighlights = reconcileMaterialHighlights(
+      Array.isArray(data.materialHighlights) ? data.materialHighlights : [],
+      dataContext.materials || [],
+    )
+    const materialsHtml = materialHighlights
+      .map((m) => `
         <div style="padding:14px 0;border-bottom:1px solid ${border};">
           <div style="color:${gold};font-size:13px;font-weight:700;margin-bottom:6px;">${enforceCompliance(m.name || 'N/A').cleaned}</div>
           <div style="color:${text};font-size:12px;line-height:1.7;margin-bottom:4px;"><strong style="color:#fff;">Price:</strong> ${enforceCompliance(m.priceNote || 'N/A').cleaned}</div>
@@ -555,7 +502,7 @@ export async function POST(req: Request) {
     )
 
     // Step 4: Build HTML
-    const htmlContent = buildHtml(type, aiResult.response)
+    const htmlContent = buildHtml(type, aiResult.response, dataContext)
 
     const generationTime = Date.now() - startTime
 
@@ -572,6 +519,8 @@ export async function POST(req: Request) {
           articlesCount: dataContext.articles?.length || 0,
           materialsCount: dataContext.materials?.length || 0,
           tickersCount: dataContext.tickers?.length || 0,
+          refreshedAt: dataContext.refreshedAt,
+          sync: dataContext.sync,
           userPreferences: dataContext.userPreferences,
         },
         prompt,
