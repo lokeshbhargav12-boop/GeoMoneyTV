@@ -66,6 +66,7 @@ interface CachedResponse {
     demo: boolean;
     source: string;
     notice?: string;
+    stale?: boolean;
 }
 
 interface LiveShipSnapshot {
@@ -819,13 +820,14 @@ async function collectAisStreamSnapshot(): Promise<LiveShipSnapshot | null> {
         const ws = new WebSocket(AISTREAM_URL);
         const startedAt = Date.now();
         let settled = false;
+        let sampleTimer: ReturnType<typeof setTimeout> | null = null;
 
         const finish = (error?: Error) => {
             if (settled) {
                 return;
             }
             settled = true;
-            clearTimeout(sampleTimer);
+            if (sampleTimer) clearTimeout(sampleTimer);
             clearTimeout(hardTimeout);
 
             if (
@@ -856,10 +858,12 @@ async function collectAisStreamSnapshot(): Promise<LiveShipSnapshot | null> {
             }
         };
 
-        const sampleTimer = setTimeout(() => finish(), AISTREAM_SAMPLE_MS);
+        // Allow time for the WebSocket handshake before starting the sample
+        // window. Previously a slow connection consumed most of the 7-second
+        // window before the subscription was even sent.
         const hardTimeout = setTimeout(
-            () => finish(new Error("AISStream sample window timed out")),
-            AISTREAM_SAMPLE_MS + 4000,
+            () => finish(new Error("AISStream connection/sample window timed out")),
+            AISTREAM_SAMPLE_MS + 15000,
         );
 
         ws.on("open", () => {
@@ -870,6 +874,7 @@ async function collectAisStreamSnapshot(): Promise<LiveShipSnapshot | null> {
                     FilterMessageTypes: AISTREAM_MESSAGE_TYPES,
                 }),
             );
+            sampleTimer = setTimeout(() => finish(), AISTREAM_SAMPLE_MS);
         });
 
         ws.on("message", (raw) => {
@@ -1102,6 +1107,20 @@ export async function GET() {
                 headers: {
                     "Cache-Control": "public, s-maxage=10, stale-while-revalidate=20",
                 },
+            });
+        }
+
+        // A short sampling window can legitimately miss a position report.
+        // Keep the last real observations visible, explicitly marked stale,
+        // rather than replacing a useful snapshot with a misleading zero.
+        if (cache?.response.ships.length) {
+            const staleResponse: CachedResponse = {
+                ...cache.response,
+                stale: true,
+                notice: `No new AIS positions in the latest sample. Showing ${cache.response.ships.length} real vessels from the last successful observation.${cache.response.notice ? ` ${cache.response.notice}` : ""}`,
+            };
+            return NextResponse.json(staleResponse, {
+                headers: { "Cache-Control": "no-store" },
             });
         }
 
