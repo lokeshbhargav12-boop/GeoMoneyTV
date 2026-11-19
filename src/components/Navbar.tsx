@@ -119,7 +119,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
           </Link>
 
           {/* Desktop Links */}
-          <div className="hidden xl:flex min-w-0 items-center gap-0.5">
+          <div className="hidden 2xl:flex shrink-0 items-center gap-0.5">
             {NAV_LINKS.map((link) => {
               const isActive =
                 pathname === link.href ||
@@ -210,7 +210,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
             {/* Mobile Hamburger */}
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="xl:hidden p-2 text-gray-300 hover:text-white transition-colors"
+              className="2xl:hidden p-2 text-gray-300 hover:text-white transition-colors"
             >
               {mobileOpen ? (
                 <X className="w-5 h-5" />
@@ -224,7 +224,7 @@ export default function Navbar({ logoUrl }: NavbarProps) {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="xl:hidden border-t border-white/5 bg-black">
+        <div className="2xl:hidden border-t border-white/5 bg-black">
           <div className="px-4 py-4 space-y-1">
             {NAV_LINKS.map((link) => {
               const isActive =
