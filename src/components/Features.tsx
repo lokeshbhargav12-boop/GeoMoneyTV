@@ -12,7 +12,7 @@ const features = [
   },
   {
     title: "Analytics",
-    subtitle: "Real-Time Global Macro Monitor",
+    subtitle: "Advanced · Coming Soon",
     icon: "chart",
     href: "/features/analytics",
   },
@@ -30,7 +30,7 @@ const features = [
   },
   {
     title: "Energy Hub",
-    subtitle: "Renewables & Energy Transition",
+    subtitle: "Beta · Included with Basic",
     icon: "energy",
     href: "/energy",
   },

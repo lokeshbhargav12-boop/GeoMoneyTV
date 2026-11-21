@@ -558,7 +558,7 @@ export default function EnergyPage() {
             transition={{ duration: 0.5 }}
           >
             <span className="text-emerald-400 text-sm font-medium tracking-widest uppercase flex items-center gap-2">
-              <Zap className="w-4 h-4" /> Energy Hub
+              <Zap className="w-4 h-4" /> Energy Hub — Beta
             </span>
             <h1 className="text-4xl md:text-5xl font-bold mt-2">
               Global{" "}
@@ -571,6 +571,14 @@ export default function EnergyPage() {
               Track renewable and fossil systems with AI-powered analysis,
               calculators, pipeline-aware operating desks, and geopolitical
               policy intelligence.
+            </p>
+            <p className="text-xs text-gray-500 mt-3 max-w-2xl">
+              Currently available standard Energy Hub Beta functionality is included with{" "}
+              <Link href="/pricing" className="text-geo-gold hover:underline">
+                GeoMoney Basic
+              </Link>
+              . Selected public Energy Hub access is available to everyone, including free
+              accounts.
             </p>
           </motion.div>
         </div>

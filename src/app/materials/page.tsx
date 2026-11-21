@@ -10,11 +10,13 @@ import {
   Search,
   Activity,
   Layers,
+  Lock,
   RefreshCw,
   TrendingUp,
   TrendingDown,
   ArrowUpDown,
 } from "lucide-react";
+import TierInterestButton from "@/components/entitlement/TierInterestButton";
 import WhatMovedToday, { type MovedEvent } from "@/components/materials/WhatMovedToday";
 import MaterialsStatusBoard, { type BoardEntry } from "@/components/materials/MaterialsStatusBoard";
 
@@ -229,6 +231,24 @@ export default function MaterialsPage() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Module tier note — public pages stay open; the full intel module is Advanced. */}
+        <div className="mb-8 flex flex-col gap-3 rounded-xl border border-geo-gold/20 bg-geo-gold/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-geo-gold" />
+            <p className="text-sm leading-relaxed text-gray-300">
+              Public material pages stay open to everyone, and selected previews are available
+              to Free and Basic accounts. The full{" "}
+              <span className="font-semibold text-geo-gold">Critical Materials Intelligence</span>{" "}
+              module is included in{" "}
+              <span className="font-semibold text-geo-gold">Advanced — Coming Soon</span>.
+            </p>
+          </div>
+          <TierInterestButton
+            tier="advanced"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-geo-gold/40 bg-geo-gold/10 px-4 py-2 text-xs font-semibold text-geo-gold transition hover:bg-geo-gold/20"
+          />
         </div>
 
         {/* Stats strip */}

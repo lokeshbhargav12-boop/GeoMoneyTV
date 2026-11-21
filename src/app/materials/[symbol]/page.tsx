@@ -26,6 +26,8 @@ import MaterialIntelFeed from '@/components/materials/MaterialIntelFeed'
 import CrossMaterialImpact from '@/components/materials/CrossMaterialImpact'
 import ShockSimulator from '@/components/materials/ShockSimulator'
 import SinceLastCheckedBanner from '@/components/materials/SinceLastCheckedBanner'
+import TierGate from '@/components/entitlement/TierGate'
+import TierInterestButton from '@/components/entitlement/TierInterestButton'
 import type { MaterialIntel } from '@/components/materials/intel-types'
 
 interface MaterialBenchmarkInfo {
@@ -531,29 +533,33 @@ export default function MaterialDetailPage() {
                             </motion.section>
                         )}
 
-                        {/* C5 — Cross-Material Impact */}
+                        {/* C5 — Cross-Material Impact (Advanced preview) */}
                         {intel && intel.crossMaterial.length > 0 && (
                             <motion.section
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5, delay: 0.4 }}
                             >
-                                <CrossMaterialImpact items={intel.crossMaterial} />
+                                <TierGate module="critical-materials" heading="Cross-Material Impact">
+                                    <CrossMaterialImpact items={intel.crossMaterial} />
+                                </TierGate>
                             </motion.section>
                         )}
 
-                        {/* C7 — Shock Propagation Simulation */}
+                        {/* C7 — Shock Propagation Simulation (Advanced preview) */}
                         <motion.section
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5, delay: 0.42 }}
                         >
-                            <ShockSimulator symbol={symbol} materialName={material.name} />
+                            <TierGate module="critical-materials" heading="Shock Propagation Simulation">
+                                <ShockSimulator symbol={symbol} materialName={material.name} />
+                            </TierGate>
                         </motion.section>
                     </div>
 
 
-                    {/* Sidebar - Pro Features */}
+                    {/* Sidebar - Pro Features (Coming Soon / Early Access — no checkout) */}
                     <div className="space-y-6">
                         <motion.div
                             initial={{ opacity: 0, x: 20 }}
@@ -561,10 +567,19 @@ export default function MaterialDetailPage() {
                             transition={{ duration: 0.5, delay: 0.2 }}
                             className="bg-gradient-to-br from-geo-gold/10 to-yellow-600/5 rounded-xl border border-geo-gold/20 p-6"
                         >
-                            <div className="flex items-center gap-2 mb-4">
+                            <div className="flex items-center gap-2 mb-2">
                                 <Lock className="w-5 h-5 text-geo-gold" />
                                 <span className="text-geo-gold font-bold">Pro Features</span>
                             </div>
+                            <p className="text-xs text-amber-300 font-semibold mb-3">
+                                Pro — Coming Soon / Early Access
+                            </p>
+                            <p className="text-xs text-gray-400 leading-relaxed mb-4">
+                                Professional monitoring and investigation for users who need
+                                deeper intelligence workflows. Pro is not yet available for
+                                purchase — request early access and we will contact you as
+                                places open.
+                            </p>
 
                             <div className="space-y-4">
                                 <div className="p-4 bg-black/30 rounded-lg border border-white/10">
@@ -585,11 +600,15 @@ export default function MaterialDetailPage() {
                                 </div>
                             </div>
 
+                            <TierInterestButton
+                                tier="pro"
+                                className="inline-flex w-full items-center justify-center gap-2 mt-6 py-3 bg-gradient-to-r from-geo-gold to-yellow-600 text-black font-bold rounded-lg hover:from-yellow-500 hover:to-yellow-700 transition-all"
+                            />
                             <Link
                                 href="/pricing"
-                                className="block text-center w-full mt-6 py-3 bg-gradient-to-r from-geo-gold to-yellow-600 text-black font-bold rounded-lg hover:from-yellow-500 hover:to-yellow-700 transition-all"
+                                className="block text-center text-xs text-gray-400 hover:text-geo-gold transition-colors mt-3"
                             >
-                                Subscribe for Pro Access
+                                Compare plans
                             </Link>
                         </motion.div>
 

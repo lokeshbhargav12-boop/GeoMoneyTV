@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { Lock, Calculator, Scale, DollarSign, ArrowRight } from 'lucide-react'
+import TierInterestButton from '@/components/entitlement/TierInterestButton'
 
 // Sample base metals pricing
 const BASE_METALS = ['Gold', 'Silver', 'Copper', 'Nickel', 'Zinc', 'Lead', 'Palladium', 'Platinum', 'Lithium', 'Other']
@@ -229,7 +230,7 @@ export default function CommoditiesGradeGuide() {
                         </div>
                     </motion.div>
 
-                    {/* Pro Features Teaser */}
+                    {/* Pro Features Teaser (Pro — Coming Soon / Early Access; interest only) */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
@@ -243,16 +244,14 @@ export default function CommoditiesGradeGuide() {
                                     <Lock className="w-6 h-6 text-geo-gold" />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-white">Unlock Pro Features</h3>
-                                    <p className="text-gray-400 text-sm">Get Grade Guides, Advanced Calculators, Price Alerts & More</p>
+                                    <h3 className="text-lg font-bold text-white">Pro Features — Coming Soon / Early Access</h3>
+                                    <p className="text-gray-400 text-sm">Grade Guides, Advanced Calculators, Price Alerts & More planned for Pro. No checkout is enabled yet — request early access.</p>
                                 </div>
                             </div>
-                            <Link
-                                href="/tools"
-                                className="px-6 py-3 bg-gradient-to-r from-geo-gold to-yellow-600 text-black font-bold rounded-lg hover:from-yellow-500 hover:to-yellow-700 transition-all"
-                            >
-                                Subscribe Now
-                            </Link>
+                            <TierInterestButton
+                                tier="pro"
+                                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-geo-gold to-yellow-600 text-black font-bold rounded-lg hover:from-yellow-500 hover:to-yellow-700 transition-all"
+                            />
                         </div>
                     </motion.div>
 

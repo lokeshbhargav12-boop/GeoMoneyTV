@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Crown, Sparkles, CheckCircle2 } from "lucide-react";
-import { WAITLIST_LAUNCH_MESSAGE } from "@/lib/waitlist";
+import { getInterestPresentation } from "@/lib/entitlements";
 
 interface WaitlistModalProps {
   isOpen: boolean;
@@ -48,6 +48,10 @@ export default function WaitlistModal({
 
   if (!isOpen) return null;
 
+  // Source-aware copy: the same modal collects Basic waitlist signups,
+  // Advanced "Notify Me" interest and Pro early access requests.
+  const presentation = getInterestPresentation(source);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus("loading");
@@ -64,9 +68,7 @@ export default function WaitlistModal({
 
       if (response.ok) {
         setStatus("success");
-        setMessage(
-          "Successfully joined the GeoMoney Basic waitlist! Priority access has been reserved."
-        );
+        setMessage(presentation.successMessage);
         if (onSuccess) onSuccess();
         setTimeout(() => {
           onClose();
@@ -117,16 +119,16 @@ export default function WaitlistModal({
         <div className="text-center mb-6">
           <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full bg-geo-gold/10 border border-geo-gold/30 px-3.5 py-1 text-xs font-semibold text-geo-gold">
             <Crown className="w-3.5 h-3.5" />
-            GeoMoney Basic Priority Access
+            {presentation.badge}
           </div>
           <h2 className="text-2xl font-bold text-white mb-3">
-            Join GeoMoney Basic Waitlist
+            {presentation.title}
           </h2>
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-left mb-2">
             <div className="flex items-start gap-2.5">
               <Sparkles className="w-4 h-4 text-geo-gold shrink-0 mt-0.5" />
               <p className="text-gray-200 text-xs leading-relaxed">
-                {WAITLIST_LAUNCH_MESSAGE}
+                {presentation.blurb}
               </p>
             </div>
           </div>
@@ -174,14 +176,14 @@ export default function WaitlistModal({
             className="mt-2 w-full rounded-lg bg-gradient-to-r from-geo-gold to-yellow-500 px-6 py-3 font-bold text-black transition-all hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {status === "loading" ? (
-              "Joining Waitlist..."
+              "Submitting..."
             ) : status === "success" ? (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                Joined Waitlist!
+                {presentation.submittedLabel}
               </>
             ) : (
-              "Join the Waitlist"
+              presentation.submitLabel
             )}
           </button>
 

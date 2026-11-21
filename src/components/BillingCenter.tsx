@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
+  BellRing,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -19,7 +20,8 @@ import {
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
-import { BILLING_PLANS } from "@/lib/billing-plans";
+import { PLAN_TIERS, WAITLIST_SOURCES } from "@/lib/entitlements";
+import WaitlistModal from "@/components/WaitlistModal";
 
 type BillingTab = "plans" | "billing" | "payment-methods";
 
@@ -119,6 +121,7 @@ export default function BillingCenter() {
   const [action, setAction] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [interestSource, setInterestSource] = useState<string | null>(null);
 
   const loadBilling = useCallback(async () => {
     setLoading(true);
@@ -283,14 +286,16 @@ export default function BillingCenter() {
             {activeTab === "plans" && (
               <div>
                 <div className="grid gap-4 md:grid-cols-2">
-                  {BILLING_PLANS.map((plan) => {
+                  {PLAN_TIERS.map((plan) => {
+                    const isBasic = plan.id === "basic";
                     const isCurrent =
-                      (plan.id === "basic" && hasBasic) || (plan.id === "free" && !hasBasic);
+                      (isBasic && hasBasic) || (plan.id === "free" && !hasBasic);
+                    const isFuture = plan.status !== "available";
                     return (
                       <article
                         key={plan.id}
-                        className={`rounded-xl border p-5 ${
-                          plan.id === "basic"
+                        className={`flex flex-col rounded-xl border p-5 ${
+                          isBasic
                             ? "border-geo-gold/35 bg-geo-gold/[0.04]"
                             : "border-white/10 bg-black/20"
                         } ${isCurrent ? "ring-1 ring-geo-gold/50" : ""}`}
@@ -300,14 +305,21 @@ export default function BillingCenter() {
                             <h3 className="font-semibold text-white">{plan.name}</h3>
                             <p className="mt-1 text-lg font-bold text-geo-gold">{plan.priceLabel}</p>
                           </div>
-                          {isCurrent && (
-                            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-400">
-                              Current plan
-                            </span>
-                          )}
+                          <div className="flex flex-col items-end gap-1.5">
+                            {isCurrent && (
+                              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-400">
+                                Current plan
+                              </span>
+                            )}
+                            {isFuture && (
+                              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-300">
+                                {plan.statusLabel}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <p className="mt-3 text-xs leading-relaxed text-gray-400">{plan.description}</p>
-                        <ul className="mt-4 space-y-2">
+                        <ul className="mt-4 flex-1 space-y-2">
                           {plan.features.map((feature) => (
                             <li key={feature} className="flex items-start gap-2 text-xs text-gray-300">
                               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-geo-gold" />
@@ -316,7 +328,7 @@ export default function BillingCenter() {
                           ))}
                         </ul>
                         <div className="mt-5">
-                          {plan.id === "basic" ? (
+                          {isBasic ? (
                             hasBasic ? (
                               <button
                                 type="button"
@@ -338,13 +350,27 @@ export default function BillingCenter() {
                                 Subscribe with Stripe
                               </button>
                             )
-                          ) : (
+                          ) : plan.id === "free" ? (
                             <button
                               type="button"
                               disabled
                               className="w-full rounded-lg border border-white/10 px-4 py-2.5 text-sm text-gray-500"
                             >
-                              {!plan.available ? "Coming soon" : isCurrent ? "Your current plan" : "Included with Basic"}
+                              {isCurrent ? "Your current plan" : "Free account — public access"}
+                            </button>
+                          ) : (
+                            /* Advanced / Pro: no checkout while Coming Soon — collect interest instead. */
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setInterestSource(
+                                  plan.id === "pro" ? WAITLIST_SOURCES.pro : WAITLIST_SOURCES.advanced,
+                                )
+                              }
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-geo-gold/30 px-4 py-2.5 text-sm font-semibold text-geo-gold transition hover:bg-geo-gold/10"
+                            >
+                              {plan.id === "pro" ? <Crown className="h-4 w-4" /> : <BellRing className="h-4 w-4" />}
+                              {plan.cta.label}
                             </button>
                           )}
                         </div>
@@ -355,6 +381,11 @@ export default function BillingCenter() {
                 <p className="mt-5 flex items-center justify-center gap-2 text-center text-[11px] text-gray-500">
                   <ShieldCheck className="h-3.5 w-3.5" /> Hosted Stripe checkout. GeoMoney never receives your full card details.
                 </p>
+                <WaitlistModal
+                  isOpen={interestSource !== null}
+                  onClose={() => setInterestSource(null)}
+                  source={interestSource || undefined}
+                />
               </div>
             )}
 

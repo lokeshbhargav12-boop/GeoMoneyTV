@@ -2,6 +2,16 @@
 
 GeoMoney uses hosted Stripe Checkout for the Basic monthly subscription and the Stripe Customer Portal for payment methods, invoices, cancellation and billing details. Full card numbers and security codes never pass through the GeoMoney server.
 
+## 0. Tier availability
+
+Only the **Basic** tier (US$39/month) is purchasable. **Advanced** (Coming Soon) and
+**Pro** (Coming Soon / Early Access) must not display checkout buttons or take payments
+until they are formally activated — their cards collect demand through the waitlist /
+interest list instead (`advanced_notify`, `pro_early_access` sources on `/api/waitlist`).
+The checkout API accepts only `planId: "basic"`. Tier definitions, statuses, CTAs and
+feature-to-tier gating live in `src/lib/entitlements.ts`; see
+`docs/subscription-entitlements.md` before changing anything here.
+
 ## 1. Create the sandbox product
 
 In the Stripe Dashboard with **Test mode** enabled:

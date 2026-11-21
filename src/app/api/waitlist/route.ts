@@ -7,6 +7,7 @@ import {
     isWaitlistRecord,
     parseWaitlistMetadata,
 } from '@/lib/waitlist';
+import { getInterestPresentation } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,10 +123,14 @@ export async function POST(req: Request) {
 
                 const fromAddress = `${smtp.smtp_from_name || 'GeoMoney TV'} <${smtp.smtp_from_email || smtp.smtp_user}>`;
 
+                // Source-aware confirmation: Basic waitlist vs Advanced
+                // "Notify Me" vs Pro early access (src/lib/entitlements.ts).
+                const presentation = getInterestPresentation(source);
+
                 await transporter.sendMail({
                     from: fromAddress,
                     to: rawEmail,
-                    subject: 'GeoMoney Pro Waitlist Confirmation — Priority Access Reserved',
+                    subject: presentation.emailSubject,
                     html: `
 <!DOCTYPE html>
 <html lang="en">
@@ -133,20 +138,20 @@ export async function POST(req: Request) {
 <body style="margin:0;padding:0;background-color:#0a0a0a;color:#e0e0e0;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:40px 24px;">
   <div style="text-align:center;margin-bottom:32px;padding-bottom:24px;border-bottom:2px solid #D4AF37;">
-    <h1 style="color:#D4AF37;margin:0;font-size:28px;letter-spacing:2px;">GeoMoney Pro</h1>
+    <h1 style="color:#D4AF37;margin:0;font-size:28px;letter-spacing:2px;">${presentation.badge}</h1>
   </div>
 
   <div style="text-align:center;margin-bottom:32px;">
-    <h2 style="color:#ffffff;margin:0 0 8px;font-size:22px;">Hi ${finalName}, you're on the GeoMoney Pro Waitlist!</h2>
-    <p style="color:#aaa;margin:0;font-size:15px;">Your priority access spot for GeoMoney Pro has been reserved.</p>
+    <h2 style="color:#ffffff;margin:0 0 8px;font-size:22px;">Hi ${finalName}, ${presentation.emailHeadline}</h2>
+    <p style="color:#aaa;margin:0;font-size:15px;">${presentation.blurb}</p>
   </div>
 
   <div style="background:#111;border:1px solid #222;border-radius:12px;padding:24px;margin-bottom:24px;">
     <p style="color:#D4AF37;font-size:14px;font-weight:600;line-height:1.6;margin:0 0 12px;">
-      ${WAITLIST_LAUNCH_MESSAGE}
+      ${presentation.successMessage}
     </p>
     <p style="color:#ccc;font-size:14px;line-height:1.7;margin:0;">
-      Thank you for joining the GeoMoney Pro Waitlist. You will receive priority access upon launch to our premium analytics, exclusive intelligence reports, and professional geopolitical & critical materials tools.
+      ${presentation.emailBody}
     </p>
   </div>
 </div>

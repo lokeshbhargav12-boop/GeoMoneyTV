@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, ShieldCheck } from "lucide-react";
 import StripeCheckoutButton from "@/components/StripeCheckoutButton";
-import { BASIC_PLAN } from "@/lib/billing-plans";
+import { BASIC_PLAN } from "@/lib/entitlements";
 
 export const metadata = {
   title: "Subscribe to GeoMoney Basic",
   description: "Secure Stripe checkout for the GeoMoney Basic monthly membership.",
 };
 
-// Single source of truth: the Basic plan definition in src/lib/billing-plans.ts.
-// Never advertise unreleased features (e.g. the Analytics dashboard) at checkout.
+// Single source of truth: the Basic tier definition in src/lib/entitlements.ts.
+// Basic is the only purchasable tier; Advanced and Pro collect interest only.
 const FEATURES = BASIC_PLAN.features;
 
 export default function PaymentPage() {
@@ -44,7 +44,7 @@ export default function PaymentPage() {
           </ul>
 
           <div className="mb-8 flex items-baseline gap-2">
-            <span className="text-4xl font-bold text-white">US$39</span>
+            <span className="text-4xl font-bold text-white">US${BASIC_PLAN.price}</span>
             <span className="text-gray-400">/ month</span>
           </div>
 

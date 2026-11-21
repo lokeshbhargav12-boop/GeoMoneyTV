@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft, BarChart3 } from "lucide-react";
+import TierInterestButton from "@/components/entitlement/TierInterestButton";
+import { ADVANCED_PLAN } from "@/lib/entitlements";
 
 export const metadata = {
-  title: "GeoMoney Analytics | Coming Soon",
-  description: "GeoMoney Analytics is launching in a future platform release.",
+  title: "GeoMoney Analytics | Advanced — Coming Soon",
+  description:
+    "Instrument analytics are included in the GeoMoney Advanced subscription — Coming Soon.",
 };
 
 export default function AnalyticsInstrumentComingSoonPage() {
@@ -24,13 +27,18 @@ export default function AnalyticsInstrumentComingSoonPage() {
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
             GeoMoney Analytics
           </h1>
-          <p className="mt-3 text-xl text-geo-gold font-semibold">Coming Soon</p>
+          <p className="mt-3 text-xl text-geo-gold font-semibold">Advanced — Coming Soon</p>
           <p className="mt-4 text-sm sm:text-base text-gray-400 leading-relaxed">
-            Advanced Analytics will be introduced in a future platform release. Explore The
-            GeoMoney Brief for current intelligence and updates.
+            Instrument-level analytics are part of {ADVANCED_PLAN.name}: {ADVANCED_PLAN.description}{" "}
+            Explore The GeoMoney Brief for current intelligence and updates — no checkout or
+            payment is enabled while Advanced remains Coming Soon.
           </p>
 
-          <div className="mt-10 flex items-center justify-center">
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <TierInterestButton
+              tier="advanced"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-geo-gold px-6 py-3 text-sm font-bold text-black hover:bg-yellow-500 transition-colors"
+            />
             <Link
               href="/features/newsletter"
               className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white hover:border-geo-gold/40 hover:text-geo-gold transition-colors"
@@ -38,6 +46,13 @@ export default function AnalyticsInstrumentComingSoonPage() {
               Explore The GeoMoney Brief
             </Link>
           </div>
+          <p className="mt-5 text-xs text-gray-500">
+            Prefer the full picture?{" "}
+            <Link href="/pricing" className="text-gray-400 underline hover:text-geo-gold">
+              Compare all plans
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </main>

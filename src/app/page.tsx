@@ -1,7 +1,7 @@
 import Hero, { type CarouselSlide } from "@/components/Hero";
 import Features from "@/components/Features";
 import Newsletter from "@/components/Newsletter";
-import WaitlistSection from "@/components/WaitlistSection";
+import MembershipCta from "@/components/MembershipCta";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Clock, Play, ArrowRight } from "lucide-react";
@@ -247,8 +247,8 @@ export default async function Home() {
 
       <Newsletter />
 
-      {/* Pro Waitlist CTA */}
-      <WaitlistSection />
+      {/* Membership CTA — Start Free / Get Basic (MembershipCta) */}
+      <MembershipCta />
 
       {/* Bottom Quick Links Bar — auto-height, 2x2 grid on mobile so no label is clipped */}
       <div className="fixed bottom-0 z-50 w-full border-t border-white/10 bg-black/90 backdrop-blur-md">

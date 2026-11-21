@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
+import EntitlementProvider from "@/components/EntitlementProvider";
 import Navbar from "@/components/Navbar";
 import Ticker from "@/components/Ticker";
 import Script from "next/script";
@@ -128,6 +129,7 @@ export default async function RootLayout({
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
         <AuthProvider>
+          <EntitlementProvider>
           {/* Google Translate Integration */}
           <div id="google_translate_element" className="hidden"></div>
           <Script id="google-translate-config" strategy="afterInteractive">
@@ -153,6 +155,7 @@ export default async function RootLayout({
           {/* Persistent Navbar */}
           <Navbar logoUrl={logoUrl} />
           {children}
+          </EntitlementProvider>
         </AuthProvider>
       </body>
     </html>
