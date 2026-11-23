@@ -4,6 +4,12 @@ import {
   getToolRecommendations,
   isExploratoryQuery,
 } from '@/lib/ai-navigation';
+import {
+  aiTrialBlockedResponse,
+  aiTrialPayload,
+  checkAiTrial,
+  consumeAiTrialUse,
+} from '@/lib/ai-trial';
 
 export async function POST(req: Request) {
   try {
@@ -16,16 +22,24 @@ export async function POST(req: Request) {
       );
     }
 
+    // Free AI trial guard rail — counted tool (see src/lib/ai-trial.ts).
+    // The try is consumed only when the assistant actually responds with a
+    // destination/recommendations (below), so errors never burn free tries.
+    const trial = await checkAiTrial();
+    if (!trial.allowed) return aiTrialBlockedResponse(trial);
+
     const lowerPrompt = prompt.toLowerCase();
 
     if (isExploratoryQuery(prompt)) {
       const topic = extractSearchTerm(prompt) || prompt.trim();
+      const remainingAfter = consumeAiTrialUse(trial);
       return NextResponse.json({
         path: null,
         message: `Found GeoMoney tools and intelligence related to "${topic}".`,
         search: topic,
         query: topic,
         recommendations: getToolRecommendations(prompt),
+        ...aiTrialPayload(trial, remainingAfter),
       });
     }
 
@@ -101,7 +115,8 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ path, message, search });
+    const remainingAfter = consumeAiTrialUse(trial);
+    return NextResponse.json({ path, message, search, ...aiTrialPayload(trial, remainingAfter) });
   } catch (error) {
     console.error('AI Navigation Error:', error);
     return NextResponse.json(

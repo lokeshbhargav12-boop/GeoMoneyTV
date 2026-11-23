@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 import { callOpenRouterJson, getAiFailure } from '@/lib/openrouter';
+import {
+  aiTrialBlockedResponse,
+  aiTrialPayload,
+  checkAiTrial,
+  consumeAiTrialUse,
+} from '@/lib/ai-trial';
 
 const PREFERRED_MODEL = process.env.OPENROUTER_AI_MODEL || 'moonshotai/kimi-k3.1-pro';
 
@@ -91,6 +97,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Enter an energy question of 1–2000 characters.' }, { status: 400 });
         }
 
+        // Free AI trial guard rail — counted tool (see src/lib/ai-trial.ts).
+        // The try is consumed only when the analyzer actually responds (see
+        // the success return below), so provider errors never burn free tries.
+        const trial = await checkAiTrial();
+        if (!trial.allowed) return aiTrialBlockedResponse(trial);
+
         const prompt = `
 You are a senior energy geopolitics analyst working for GeoMoney TV — a geopolitical and market intelligence platform.
 
@@ -143,7 +155,10 @@ INSTRUCTIONS:
             validate: (data: any) => normalizeEnergyAnalysis(data, fallback),
         });
 
-        return NextResponse.json(analysisJson);
+        // Consumed only now that the analyzer responded (provider errors do
+        // not burn free tries).
+        const remainingAfter = consumeAiTrialUse(trial);
+        return NextResponse.json({ ...analysisJson, ...aiTrialPayload(trial, remainingAfter) });
 
     } catch (error) {
         console.error('AI Energy Analysis Error:', error);
@@ -152,4 +167,3 @@ INSTRUCTIONS:
         return NextResponse.json({ ...fallback, notice: failure.error, retryable: failure.retryable });
     }
 }
-

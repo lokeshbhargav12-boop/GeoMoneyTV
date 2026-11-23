@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   DollarSign,
 } from "lucide-react";
+import TierGate from "@/components/entitlement/TierGate";
 import CoalAiBrief from "@/components/CoalAiBrief";
 import CoalCalculators from "@/components/CoalCalculators";
 import CoalArbitrage from "@/components/CoalArbitrage";
@@ -79,7 +80,25 @@ const BENCHMARK_COLORS: Record<string, string> = {
   UINTA: "#fb7185",
 };
 
+/**
+ * Basic-tier gate (src/lib/entitlements.ts): Energy Hub Beta desks are part
+ * of the GeoMoney Basic subscription. Free/guest viewers see the locked panel
+ * with the Get Basic unlock CTA; Basic+ and admins get the full desk.
+ */
 export default function CoalPage() {
+  return (
+    <TierGate
+      module="energy-hub"
+      mode="replace"
+      heading="Coal Intelligence — Energy Hub (Beta)"
+      className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#090806] via-[#120d08] to-black px-4 py-24"
+    >
+      <CoalExperience />
+    </TierGate>
+  );
+}
+
+function CoalExperience() {
   const [data, setData] = useState<CoalMarketData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

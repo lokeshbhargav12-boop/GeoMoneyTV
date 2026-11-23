@@ -22,6 +22,7 @@ import {
   TrendingDown,
   Sliders,
 } from "lucide-react";
+import TierGate from "@/components/entitlement/TierGate";
 
 import MasterMap, {
   type DataLayerKey,
@@ -174,7 +175,25 @@ function buildRefineryRows(assets: MapAsset[]) {
     }));
 }
 
+/**
+ * Basic-tier gate (src/lib/entitlements.ts): Energy Hub Beta desks are part
+ * of the GeoMoney Basic subscription. Free/guest viewers see the locked panel
+ * with the Get Basic unlock CTA; Basic+ and admins get the full desk.
+ */
 export default function EnergyInfrastructurePage() {
+  return (
+    <TierGate
+      module="energy-hub"
+      mode="replace"
+      heading="Infrastructure Matrix — Energy Hub (Beta)"
+      className="flex min-h-screen items-center justify-center bg-gray-950 px-4 py-24"
+    >
+      <InfrastructureExperience />
+    </TierGate>
+  );
+}
+
+function InfrastructureExperience() {
   const [live, setLive] = useState<LiveData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

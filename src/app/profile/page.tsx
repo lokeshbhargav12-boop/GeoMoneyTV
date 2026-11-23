@@ -20,6 +20,7 @@ import PortfolioManager from "@/components/PortfolioManager";
 import BillingCenter from "@/components/BillingCenter";
 import ProfileDetails from "@/components/ProfileDetails";
 import { WAITLIST_LAUNCH_MESSAGE } from "@/lib/waitlist";
+import ProfileApertureBox from "@/components/ProfileApertureBox";
 
 interface TrackedMaterialItem {
   id: string;
@@ -223,7 +224,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Tracked Materials Section */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden mb-8">
           <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Star className="w-5 h-5 text-geo-gold" />
@@ -339,6 +340,10 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
+
+        {/* GeoMoney Aperture — AI Navigator card (client request: like the
+            Tracked Critical Materials box, with the Aperture assistant). */}
+        <ProfileApertureBox />
       </div>
     </div>
   );

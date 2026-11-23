@@ -28,10 +28,12 @@ subscription logic:
   (`src/components/entitlement/PricingCards.tsx`) and by the billing center
   (`src/components/BillingCenter.tsx`).
 - `MODULES` — registry mapping a feature/module key to its `requiredTier`
-  (e.g. `critical-materials -> advanced`, `energy-hub -> basic`).
+  (e.g. `critical-materials -> advanced`, `energy-hub -> basic`, `aperture -> basic`).
 - `buildGateState(moduleKey, viewerTier)` — produces the locked/preview presentation:
   badge, title, message and the correct primary CTA (Get Basic / Notify Me /
-  Request Early Access). No checkout CTA is ever produced for Advanced or Pro.
+  Request Early Access). Basic gates state explicitly that the Basic pack must be
+  purchased to unlock; no checkout CTA is ever produced for Advanced or Pro.
+- `AI_TRIAL` — the free AI trial (tries, counted tools, upgrade-popup copy).
 - `WAITLIST_SOURCES` — interest-list sources recorded with signups:
   `pricing_page` (Basic), `advanced_notify` (Advanced), `pro_early_access` (Pro).
 
@@ -46,14 +48,15 @@ subscription logic:
    `planId: "basic"`) and the Stripe webhook mapping
    (`planKey` is read from subscription metadata) for the new price.
 3. Add a module: add an entry to `MODULES` and wrap the feature surface with
-   `<TierGate module="..." />`.
+   `<TierGate module="...">`.
 
 ## Viewer entitlement state
 
 The platform recognises, at minimum: **guest** (logged out), **free** (account,
 no open subscription), **basic** subscriber, and — for when they launch —
 **advanced** and **pro** (resolved from the `planKey` recorded on the synced
-Stripe subscription).
+Stripe subscription). Platform admins (`role: "admin"`) resolve as full access
+(tier `pro`) so demos, QA and support are never gated.
 
 - `src/lib/subscription-state.ts` — server-side resolver. Open subscription
   statuses: `active`, `trialing`, `past_due` (grace while Stripe retries).
@@ -64,8 +67,9 @@ Stripe subscription).
 
 ## Gating behaviour
 
-- Free/Basic viewers entering a **Basic** feature: contextual lock panel —
-  "Included with GeoMoney Basic" — with a **Get Basic** upgrade CTA.
+- Free/guest viewers entering a **Basic** feature: contextual lock panel —
+  "Included with GeoMoney Basic" — stating that the Basic pack must be purchased
+  to unlock, with a **Get Basic** upgrade CTA. Paid viewers unlock instantly.
 - Free/Basic viewers entering an **Advanced** feature (e.g. the full Critical
   Materials Intelligence module): preview/locked state labelled
   **Advanced — Coming Soon** with **Notify Me** (never a payment CTA).
@@ -89,13 +93,36 @@ Currently wired gates:
 | `/materials/[symbol]` — Pro Features sidebar | professional-workflows | Pro panel + Request Early Access (no checkout) |
 | `/materials` — module tier note | critical-materials | Notify Me |
 | `/features/analytics` (+ instrument) | analytics | Advanced — Coming Soon + Notify Me |
+| `/world-monitor` (Geomoney Aperture) | aperture | Basic lock (replace) for guest/free; full monitor for Basic+; admins exempt |
+| `/energy/coal`, `/energy/fossil-energy`, `/energy/oil-and-gas`, `/energy/infrastructure` | energy-hub | Basic lock (replace) for guest/free; full desks for Basic+; admins exempt — the `/energy` hub overview stays open as "selected public access" |
+| Profile — GeoMoney Aperture AI Navigator card | (AI trial) | Visible to signed-in users; runs through the counted Aperture AI endpoint |
 | Pricing page / Billing center | all tiers | status badges, correct CTAs, no checkout for Advanced/Pro |
+
+## Free AI trial (rate limiter)
+
+`AI_TRIAL` in `src/lib/entitlements.ts` (tries = 3, counted tools, popup copy).
+
+- Free accounts and logged-out visitors may use the counted AI tools **three
+  times combined**; the next attempt is refused with
+  `{ code: "AI_TRIAL_LIMIT", ... }` and the client shows the upgrade popup
+  (`src/components/entitlement/AiLimitModal.tsx`) with the Get Basic CTA.
+- Counted endpoints: `/api/ai/navigate` (AI Navigation Assistant),
+  `/api/ai/energy` (Energy Hub analyzer), `/api/world-monitor/ai-brief`
+  (Aperture AI Navigator — also used by the profile card).
+- Not counted: article AI summaries, bias analysis, cached coal briefs and
+  market sentiment — these run automatically with page loads and never consume
+  a try.
+- A try is consumed only when the tool actually responds — upstream provider
+  errors do not burn a free try.
+- Enforcement: `src/lib/ai-trial.ts`, server-side, via the `gm_ai_tries`
+  cookie (httpOnly, path `/`, 1-year max-age). Basic and above are unlimited;
+  platform admins are exempt. Replace the cookie store with a database column
+  if per-device bypass becomes a problem.
 
 ## Verification
 
 ```bash
 node ./node_modules/typescript/bin/tsc --noEmit --incremental false
-npm run lint
 ```
 
 The entitlement state follows the locally synced `Subscription` rows, so the

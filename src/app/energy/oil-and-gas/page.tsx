@@ -30,6 +30,7 @@ import {
   Database,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import TierGate from "@/components/entitlement/TierGate";
 
 const IntelligenceMap = dynamic(() => import("@/components/IntelligenceMap"), {
   ssr: false,
@@ -117,7 +118,25 @@ const INTELLIGENCE_LAYERS = [
   },
 ];
 
-export default function OilAndGasIntelligence() {
+/**
+ * Basic-tier gate (src/lib/entitlements.ts): Energy Hub Beta desks are part
+ * of the GeoMoney Basic subscription. Free/guest viewers see the locked panel
+ * with the Get Basic unlock CTA; Basic+ and admins get the full desk.
+ */
+export default function OilAndGasPage() {
+  return (
+    <TierGate
+      module="energy-hub"
+      mode="replace"
+      heading="Oil & Gas Intelligence — Energy Hub (Beta)"
+      className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#0a0a0c] to-black px-4 py-24"
+    >
+      <OilAndGasExperience />
+    </TierGate>
+  );
+}
+
+function OilAndGasExperience() {
   const [simulationMode, setSimulationMode] = useState(false);
   const [simulationImpact, setSimulationImpact] = useState(0);
   const [activeLayer, setActiveLayer] = useState("ais");

@@ -322,6 +322,7 @@ export function buildGateState(moduleKey: ModuleKey, viewerTier: ViewerTierId): 
       break;
     case "basic":
       title = "Included with GeoMoney Basic";
+      message = `${message} Purchase the ${BASIC_PLAN.name} pack (${BASIC_PLAN.priceLabel}) to unlock it — access opens immediately after payment.`;
       primaryCta = {
         label: getPlanTier("basic").cta.label, // "Get Basic"
         action: "checkout",
@@ -358,6 +359,43 @@ export function buildGateState(moduleKey: ModuleKey, viewerTier: ViewerTierId): 
     primaryCta,
     secondaryCta: { label: "Compare plans", href: "/pricing" },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Free AI trial — guard rail for the counted AI tools.
+// ---------------------------------------------------------------------------
+
+/**
+ * Free accounts (and logged-out visitors) may use the counted AI tools a
+ * limited number of times; afterwards the tools lock and the upgrade popup
+ * (<AiLimitModal />) appears. Basic and above are unlimited, and platform
+ * admins bypass the trial so demos and QA never lock.
+ *
+ * Enforced server-side by src/lib/ai-trial.ts via the `gm_ai_tries` cookie.
+ * Only user-initiated AI actions are counted — auto-running analysis (article
+ * summaries, bias analysis, cached briefs) never consumes a try.
+ */
+export const AI_TRIAL = {
+  /** Free tries across all counted AI tools, combined. */
+  tries: 3,
+  /** Counted AI tools (user-initiated only) — keep in sync with the routes. */
+  countedTools: [
+    "AI Navigation Assistant (/api/ai/navigate)",
+    "Energy Hub AI analyzer (/api/ai/energy)",
+    "Aperture AI Navigator (/api/world-monitor/ai-brief)",
+  ],
+  /** Upgrade popup copy shown when the free tries are exhausted. */
+  presentation: {
+    badge: "GeoMoney Basic",
+    title: "You've used all your free AI tries",
+    primaryCta: { label: "Get Basic", href: "/payment" },
+    secondaryCta: { label: "Compare plans", href: "/pricing" },
+  },
+} as const;
+
+/** Upgrade message used by the popup and by blocked AI responses. */
+export function buildAiTrialMessage(): string {
+  return `You've used all ${AI_TRIAL.tries} free AI tries. Upgrade to ${BASIC_PLAN.name} (${BASIC_PLAN.priceLabel}) to unlock unlimited AI tools — navigation, energy analysis and Aperture intelligence.`;
 }
 
 // ---------------------------------------------------------------------------

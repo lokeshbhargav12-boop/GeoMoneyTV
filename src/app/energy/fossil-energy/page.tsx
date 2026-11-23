@@ -21,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import TierGate from "@/components/entitlement/TierGate";
 import {
   REGION_BBOX,
   STATUS_LABELS,
@@ -167,7 +168,25 @@ const OVERLAY_STYLES: Record<(typeof OVERLAYS)[number], string> = {
   "Grid Tie-Ins": "stroke-emerald-400/70",
 };
 
+/**
+ * Basic-tier gate (src/lib/entitlements.ts): Energy Hub Beta desks are part
+ * of the GeoMoney Basic subscription. Free/guest viewers see the locked panel
+ * with the Get Basic unlock CTA; Basic+ and admins get the full desk.
+ */
 export default function FossilEnergyPage() {
+  return (
+    <TierGate
+      module="energy-hub"
+      mode="replace"
+      heading="Fossil Energy Desk — Energy Hub (Beta)"
+      className="flex min-h-screen items-center justify-center bg-[#06080d] px-4 py-24"
+    >
+      <FossilEnergyExperience />
+    </TierGate>
+  );
+}
+
+function FossilEnergyExperience() {
   const [technology, setTechnology] =
     useState<(typeof TECHNOLOGIES)[number]>("All");
   const [region, setRegion] = useState<(typeof REGIONS)[number]>("Global");

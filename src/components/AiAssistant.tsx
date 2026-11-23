@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { NavigationRecommendation } from "@/lib/ai-navigation";
+import AiLimitModal from "@/components/entitlement/AiLimitModal";
 
 const SUGGESTIONS = [
   "Show me news about China",
@@ -47,6 +48,8 @@ export default function AiAssistant() {
   const [lastPrompt, setLastPrompt] = useState("");
   const [recommendations, setRecommendations] = useState<NavigationRecommendation[]>([]);
   const [resultQuery, setResultQuery] = useState("");
+  const [aiTrial, setAiTrial] = useState<{ remaining: number; limit: number } | null>(null);
+  const [limitOpen, setLimitOpen] = useState(false);
   const router = useRouter();
   const inFlight = useRef<AbortController | null>(null);
 
@@ -76,8 +79,17 @@ export default function AiAssistant() {
 
       const data = await response.json().catch(() => ({}));
 
+      // Free AI trial exhausted: surface the upgrade popup (see AiLimitModal).
+      if (data?.code === "AI_TRIAL_LIMIT") {
+        setLimitOpen(true);
+      }
+
       if (!response.ok) {
         throw new Error(data?.error || "The assistant could not process your request.");
+      }
+
+      if (typeof data?.aiTrial?.remaining === "number" && typeof data?.aiTrial?.limit === "number") {
+        setAiTrial({ remaining: data.aiTrial.remaining, limit: data.aiTrial.limit });
       }
 
       if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
@@ -124,6 +136,7 @@ export default function AiAssistant() {
   };
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -227,6 +240,12 @@ export default function AiAssistant() {
               )}
               {feedback}
             </motion.span>
+          ) : aiTrial !== null ? (
+            <span className="text-xs text-gray-500">
+              {aiTrial.remaining > 0
+                ? `Free plan · ${aiTrial.remaining} of ${aiTrial.limit} AI tries left`
+                : `Free plan · no AI tries left — upgrade to continue`}
+            </span>
           ) : (
             <span className="opacity-50 text-xs">Powered by GeoMoney AI</span>
           )}
@@ -283,5 +302,7 @@ export default function AiAssistant() {
         )}
       </div>
     </motion.div>
+    <AiLimitModal isOpen={limitOpen} onClose={() => setLimitOpen(false)} />
+    </>
   );
 }

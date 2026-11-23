@@ -7,6 +7,12 @@ import {
   normalizeEvidenceEvents,
   normalizeSourceStatus,
 } from "@/lib/aperture-analysis";
+import {
+  aiTrialBlockedResponse,
+  aiTrialPayload,
+  checkAiTrial,
+  consumeAiTrialUse,
+} from "@/lib/ai-trial";
 
 const CACHE_TTL = 300_000;
 export const maxDuration = 60;
@@ -97,6 +103,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "A JSON request body is required." }, { status: 400 });
     }
 
+    // Free AI trial guard rail — counted tool (see src/lib/ai-trial.ts).
+    // The try is consumed only when the brief actually responds (fresh or
+    // cached, below), so provider errors never burn free tries.
+    const trial = await checkAiTrial();
+    if (!trial.allowed) return aiTrialBlockedResponse(trial);
+
     const payload = body as Record<string, unknown>;
     const events = normalizeEvidenceEvents(payload.events);
     const query = cleanText(payload.query, 600);
@@ -173,7 +185,12 @@ export async function POST(request: Request) {
     const cacheKey = JSON.stringify({ events, query, assetContext, sourceStatus, dataAsOf });
     cachedEntry = cache.get(cacheKey);
     if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL) {
-      return NextResponse.json({ ...cachedEntry.brief, cached: true });
+      const remainingAfter = consumeAiTrialUse(trial);
+      return NextResponse.json({
+        ...cachedEntry.brief,
+        cached: true,
+        ...aiTrialPayload(trial, remainingAfter),
+      });
     }
 
     if (!events.length && !assetContext.aircraft.visibleNow && !assetContext.vessels.visibleNow
@@ -231,7 +248,8 @@ Return ONLY a valid JSON object with this schema:
     const brief = sanitizeBrief(data, model, query, dataAsOf);
     if (cache.size >= 100) cache.delete(cache.keys().next().value as string);
     cache.set(cacheKey, { brief, timestamp: Date.now() });
-    return NextResponse.json(brief);
+    const remainingAfter = consumeAiTrialUse(trial);
+    return NextResponse.json({ ...brief, ...aiTrialPayload(trial, remainingAfter) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown analyzer error";
     console.error("[AI Brief]", message);

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import PublicStreamPlayer from '@/components/PublicStreamPlayer';
 import { headers } from "next/headers";
+import { buildGateState } from "@/lib/entitlements";
+import { getViewerSubscriptionState } from "@/lib/subscription-state";
 import {
   ArrowLeft,
   ExternalLink,
@@ -165,6 +167,42 @@ export default async function WorldMonitorReportPage({
   const resolved = await searchParams;
   const kind = (resolved.kind || "event") as ReportKind;
   const id = resolved.id || "";
+
+  // Basic-tier gate (src/lib/entitlements.ts): Aperture reports require the
+  // GeoMoney Basic subscription. Rendered server-side so free/guest viewers
+  // never receive the underlying monitor data.
+  const { tier } = await getViewerSubscriptionState();
+  const gate = buildGateState("aperture", tier);
+  if (!gate.allowed) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#030812] px-4 py-24 text-white">
+        <div className="mx-auto max-w-2xl rounded-xl border border-geo-gold/25 bg-gradient-to-br from-[#0f0d06] to-black p-6 text-center shadow-2xl">
+          <div className="mx-auto mb-3 inline-flex items-center gap-2 rounded-full border border-geo-gold/30 bg-geo-gold/10 px-3.5 py-1 text-xs font-semibold text-geo-gold">
+            <Shield className="h-3.5 w-3.5" />
+            {gate.badgeLabel}
+          </div>
+          <h3 className="text-lg font-bold text-white">Geomoney Aperture — Report</h3>
+          <p className="mt-1 text-sm font-semibold text-geo-gold">{gate.title}</p>
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-gray-300">{gate.message}</p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href={gate.primaryCta.href || "/payment"}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-geo-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-yellow-500"
+            >
+              {gate.primaryCta.label}
+            </Link>
+            <Link
+              href={gate.secondaryCta.href}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white transition hover:border-geo-gold/40 hover:text-geo-gold"
+            >
+              {gate.secondaryCta.label}
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   const baseUrl = await getBaseUrl();
 
   const [event, aircraft, ship] = await Promise.all([

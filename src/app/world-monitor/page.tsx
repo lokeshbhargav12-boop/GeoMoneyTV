@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import TierGate from "@/components/entitlement/TierGate";
 import {
   ArrowLeft,
   Eye,
@@ -286,7 +287,24 @@ function getNewestEventTimestamp(events: GlobeEvent[]): string | null {
 // ═══════════════════════════════════════════════════════════════
 // MAIN PAGE COMPONENT
 // ═══════════════════════════════════════════════════════════════
+/**
+ * Basic-tier gate (src/lib/entitlements.ts): the Aperture experience mounts
+ * only for viewers whose plan includes it. Free/guest viewers get the locked
+ * panel with the Get Basic upgrade CTA; Basic+ and admins get the full monitor.
+ */
 export default function WorldMonitorPage() {
+  return (
+    <TierGate
+      module="aperture"
+      mode="replace"
+      className="flex min-h-dvh items-center justify-center bg-black px-4 py-24"
+    >
+      <WorldMonitorExperience />
+    </TierGate>
+  );
+}
+
+function WorldMonitorExperience() {
   const router = useRouter();
   const [allEvents, setAllEvents] = useState<GlobeEvent[]>([]);
   const [osintEvents, setOsintEvents] = useState<GlobeEvent[]>([]);

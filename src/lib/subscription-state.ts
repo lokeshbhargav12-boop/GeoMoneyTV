@@ -42,6 +42,12 @@ export async function getViewerSubscriptionState(): Promise<ViewerSubscriptionSt
   const userId = session?.user?.id;
   if (!userId) return emptyState(false);
 
+  // Platform admins keep full access for demos, QA and support. They are never
+  // gated by the subscription tiers or the free AI trial.
+  if (session?.user?.role === "admin") {
+    return { signedIn: true, tier: "pro", planKey: null, status: null };
+  }
+
   try {
     const subscription = await prisma.subscription.findFirst({
       where: {

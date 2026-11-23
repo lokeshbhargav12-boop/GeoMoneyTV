@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { solarEstimate, windEstimate, carbonEstimate } from "@/lib/energy-calculations";
 import EnergyDataNotice from "@/components/EnergyDataNotice";
+import AiLimitModal from "@/components/entitlement/AiLimitModal";
 import {
   ArrowLeft,
   Sun,
@@ -430,6 +431,7 @@ export default function EnergyPage() {
     confidence: string;
   } | null>(null);
   const [aiError, setAiError] = useState("");
+  const [aiLimitOpen, setAiLimitOpen] = useState(false);
   const [calculationErrors, setCalculationErrors] = useState<Record<string, string>>({});
   const [feedError, setFeedError] = useState("");
 
@@ -531,6 +533,7 @@ export default function EnergyPage() {
       });
 
       const data = await response.json();
+      if (data?.code === "AI_TRIAL_LIMIT") setAiLimitOpen(true);
       if (!response.ok) throw new Error(data.error || "Failed to analyze");
       setAiResult(data);
     } catch (error) {
@@ -1604,6 +1607,8 @@ export default function EnergyPage() {
           </div>
         </motion.section>
       </div>
+
+      <AiLimitModal isOpen={aiLimitOpen} onClose={() => setAiLimitOpen(false)} />
     </main>
   );
 }
