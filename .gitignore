@@ -27,3 +27,6 @@ exports/
 # Local scratch files
 1.txt
 COMMIT_MSG.txt
+
+# Live Stripe keys imported manually — never commit
+Key.txt
