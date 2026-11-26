@@ -91,6 +91,7 @@ export default function CoalPage() {
       module="energy-hub"
       mode="replace"
       heading="Coal Intelligence — Energy Hub (Beta)"
+      previewImage="/images/energy/desk-coal.jpg"
       className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#090806] via-[#120d08] to-black px-4 py-24"
     >
       <CoalExperience />

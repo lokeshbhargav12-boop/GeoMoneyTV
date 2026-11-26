@@ -116,7 +116,7 @@ export const PLAN_TIERS: PlanTier[] = [
     cta: { label: "Get Basic", action: "checkout", href: "/payment" },
     features: [
       "Full standard GeoMoney Intelligence access",
-      "Weekly GeoMoney Brief",
+      "GeoMoney Brief — three times a week",
       "Premium intelligence reports",
       "Full standard research and archive access",
       "Energy Hub — Beta",
@@ -206,6 +206,7 @@ export type ModuleKey =
   | "aperture"
   | "premium-research"
   | "critical-materials"
+  | "commodity-alerts"
   | "analytics"
   | "professional-workflows";
 
@@ -258,6 +259,14 @@ export const MODULES: Record<ModuleKey, ModuleEntitlement> = {
     requiredTier: "advanced",
     description:
       "Public/SEO-facing material information stays open to everyone, and selected previews are available to Free and Basic accounts. The full Critical Materials Intelligence module is part of GeoMoney Advanced.",
+    previewForLowerTiers: true,
+  },
+  "commodity-alerts": {
+    key: "commodity-alerts",
+    label: "Commodity Threshold Notifications",
+    requiredTier: "basic",
+    description:
+      "Saved commodity threshold notifications are part of the GeoMoney Basic subscription — set custom price thresholds for gold, silver, copper, oil and more.",
     previewForLowerTiers: true,
   },
   analytics: {

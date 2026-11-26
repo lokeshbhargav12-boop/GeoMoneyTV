@@ -332,7 +332,7 @@ export default function NewslettersPage() {
   async function handleTrigger(type: "daily-report" | "weekly-report") {
     const label =
       type === "daily-report"
-        ? "Daily Materials Report"
+        ? "Critical Materials Report"
         : "Weekly Intelligence Report";
     if (
       !confirm(
@@ -538,7 +538,7 @@ export default function NewslettersPage() {
           Newsletter Management
         </h1>
         <p className="mt-2 text-gray-400">
-          Daily Materials & Weekly Intelligence reports with PDF attachments
+          Critical Materials & Weekly Intelligence reports with PDF attachments
         </p>
       </div>
 
@@ -553,12 +553,12 @@ export default function NewslettersPage() {
         </div>
 
         <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10">
-          {/* Daily Materials Report */}
+          {/* Critical Materials Report */}
           <div className="p-6 space-y-4">
             <div className="flex items-center gap-2">
               <Brain className="w-4 h-4 text-purple-400" />
               <span className="text-sm font-semibold text-white">
-                Daily Materials Report
+                Critical Materials Report
               </span>
               <span className="ml-auto text-[10px] bg-green-500/15 text-green-400 border border-green-500/25 px-2 py-0.5 rounded-full font-medium tracking-wide">
                 AUTO + PDF
@@ -961,7 +961,7 @@ export default function NewslettersPage() {
                 <div className="flex items-center gap-2 mb-1">
                   <Brain className="w-4 h-4 text-purple-400" />
                   <span className="text-sm font-semibold text-white">
-                    Daily Materials Report
+                    Critical Materials Report
                   </span>
                 </div>
                 <p className="text-xs text-gray-500">
@@ -1002,7 +1002,7 @@ export default function NewslettersPage() {
                   <Sparkles className="w-4 h-4" />
                   Generate{" "}
                   {composeType === "daily"
-                    ? "Daily Materials"
+                    ? "Critical Materials"
                     : "Weekly Intelligence"}{" "}
                   Report
                 </>
@@ -1147,7 +1147,7 @@ export default function NewslettersPage() {
                         : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
                     }`}
                   >
-                    Daily Materials
+                    Critical Materials
                   </button>
                   <button
                     onClick={() => setComposeType("weekly")}
@@ -1654,9 +1654,9 @@ export default function NewslettersPage() {
                     <div className="flex items-center gap-2">
                       {report.reportType && (
                         <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${report.reportType === "daily" ? "bg-purple-500/20 text-purple-400" : "bg-blue-500/20 text-blue-400"}`}
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${report.reportType === "daily" ? "bg-purple-500/20 text-purple-400" : report.reportType === "brief" ? "bg-amber-500/20 text-amber-300" : "bg-blue-500/20 text-blue-400"}`}
                         >
-                          {report.reportType === "daily" ? "Daily" : "Weekly"}
+                          {report.reportType === "daily" ? "Critical Materials" : report.reportType === "brief" ? "Brief" : "Weekly"}
                         </span>
                       )}
                       <div className="rounded-full bg-green-500/20 px-3 py-1 text-xs text-green-400 font-medium">

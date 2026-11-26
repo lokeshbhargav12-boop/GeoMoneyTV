@@ -287,6 +287,48 @@ export default function WeeklyBriefPage() {
         </div>
       </div>
 
+      {/* What is the GeoMoney Intelligence Report? — clarifies the product and
+          how it differs from The GeoMoney Brief (3× weekly) and the Critical
+          Materials Intelligence Report. */}
+      <section className="border-t border-white/10 py-16">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-geo-gold/20 bg-geo-gold/[0.04] p-8">
+            <h2 className="text-2xl font-bold text-white">
+              What is the GeoMoney Intelligence Report?
+            </h2>
+            <p className="mt-3 text-sm sm:text-base text-gray-300 leading-relaxed">
+              The GeoMoney Intelligence Report is our flagship weekly deep-dive for members —
+              published every Monday before market open and delivered to your inbox with a PDF
+              edition for your archive. Where <strong>The GeoMoney Brief</strong> (sent three
+              times a week) tracks the fast-moving picture, the Intelligence Report untangles
+              the structures underneath it.
+            </p>
+            <ul className="mt-6 grid gap-3 text-sm text-gray-300 sm:grid-cols-2">
+              <li>
+                <strong className="text-white">Cadence:</strong> Weekly — every Monday before
+                market open
+              </li>
+              <li>
+                <strong className="text-white">Format:</strong> Email + PDF edition
+              </li>
+              <li>
+                <strong className="text-white">Focus:</strong> Geopolitics, energy systems,
+                critical materials and the markets they move
+              </li>
+              <li>
+                <strong className="text-white">Audience:</strong> Decision makers at investment
+                firms, mining companies and sovereign funds
+              </li>
+            </ul>
+            <p className="mt-5 text-xs text-gray-500 leading-relaxed">
+              Not to be confused with the <strong>Critical Materials Intelligence Report</strong> —
+              the separate, materials-focused report covering rare earths and strategic minerals
+              and their supply chains.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* What's Inside */}
       <section className="border-t border-white/10 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

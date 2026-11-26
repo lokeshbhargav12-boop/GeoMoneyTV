@@ -523,7 +523,7 @@ OUTPUT FORMAT — respond ONLY with valid JSON, no markdown fences, no extra key
     ? d.watchpoints.map((w: string) => enforceCompliance(w).cleaned)
     : []
 
-  const subject = `GeoMoney Daily Materials Report — ${publicationDate}`
+  const subject = `GeoMoney Critical Materials Intelligence Report — ${publicationDate}`
   const htmlContent = buildDailyReportHtml({
     publicationDate,
     dailyThesis: s('dailyThesis'),
@@ -581,7 +581,7 @@ function buildDailyReportHtml(p: {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GeoMoney Daily Materials Intelligence Report</title>
+  <title>GeoMoney Critical Materials Intelligence Report</title>
 </head>
 <body style="margin:0;padding:0;background-color:${bg};color:${text};font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
 <div style="max-width:660px;margin:0 auto;padding:32px 20px;">
@@ -590,7 +590,7 @@ function buildDailyReportHtml(p: {
   <div style="text-align:center;margin-bottom:32px;padding-bottom:24px;border-bottom:2px solid ${gold};">
     <p style="color:${muted};font-size:10px;letter-spacing:3px;text-transform:uppercase;margin:0 0 8px;">Intelligence Platform</p>
     <h1 style="color:${gold};margin:0 0 4px;font-size:26px;letter-spacing:3px;font-weight:800;">GEOMONEY</h1>
-    <h2 style="color:#ffffff;margin:0 0 12px;font-size:14px;font-weight:400;letter-spacing:2px;">DAILY MATERIALS INTELLIGENCE REPORT</h2>
+    <h2 style="color:#ffffff;margin:0 0 12px;font-size:14px;font-weight:400;letter-spacing:2px;">CRITICAL MATERIALS INTELLIGENCE REPORT</h2>
     <div style="display:inline-block;background:#1a1a1a;border:1px solid ${border};border-radius:4px;padding:6px 16px;">
       <span style="color:${muted};font-size:11px;">Data as of: </span>
       <span style="color:#ffffff;font-size:11px;font-weight:600;">${p.publicationDate}</span>
@@ -679,16 +679,236 @@ function buildDailyReportHtml(p: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// The GeoMoney Brief — sent three times a week (Mon / Wed / Fri)
+// A short, sharp situational briefing, distinct from the full Weekly
+// Intelligence Report and from the Critical Materials Intelligence Report.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function generateBriefReport(): Promise<{ subject: string; htmlContent: string }> {
+  const { articles, materials, tickers } = await loadNewsletterData({ articleLimit: 8 })
+
+  const aiModel = await getAiModel()
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey) throw new Error('OpenRouter API key not configured')
+
+  const publicationDate = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  })
+
+  const articlesCtx = formatArticlesForPrompt(articles)
+  const materialsCtx = formatMaterialsForPrompt(materials)
+  const tickersCtx = formatTickersForPrompt(tickers)
+  const marketSnapshot = selectMarketSnapshotTickers(tickers)
+
+  const fmtTicker = (t: NewsletterTicker) => {
+    const chg = t.change != null ? ` (${t.change >= 0 ? '+' : ''}${t.change.toFixed(2)})` : ''
+    const pct = t.changePercent != null ? ` / ${t.changePercent >= 0 ? '+' : ''}${t.changePercent.toFixed(2)}%` : ''
+    return `$${t.price.toFixed(2)}${chg}${pct}`
+  }
+
+  const prompt = `You are a senior geopolitical and financial intelligence analyst for GeoMoney. Today is ${publicationDate}.
+
+${COMPLIANCE_PROMPT}
+
+Your task: write THE GEOMONEY BRIEF — the short, sharp briefing published three times a week. It is NOT the full Weekly Intelligence Report and NOT the Critical Materials Intelligence Report: it is a fast situational read of what matters right now. Each field must be concise, analytical and data-grounded. Draw directly from the live data below.
+
+LIVE DATA
+=========
+LATEST ARTICLES (geopolitical events, market developments):
+${articlesCtx}
+
+CRITICAL MATERIALS (rare earths, strategic minerals):
+${materialsCtx}
+
+MARKET TICKERS:
+${tickersCtx}
+
+OUTPUT FORMAT — respond ONLY with valid JSON, no markdown fences, no extra keys:
+{
+  "briefThesis": "2 sentences. The dominant dynamic right now and what it means for markets and strategic systems.",
+  "developments": [
+    { "title": "Short title", "body": "1-2 sentences: what happened and its system/market implication." },
+    { "title": "Short title", "body": "1-2 sentences." },
+    { "title": "Short title", "body": "1-2 sentences." }
+  ],
+  "marketReadout": "2 sentences. What do current moves in energy, materials and currencies signal?",
+  "watchNext": ["watch item 1", "watch item 2", "watch item 3"]
+}`
+
+  const aiData = await fetchOpenRouterWithRetry({
+    model: aiModel,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 1500,
+    temperature: 0.45,
+  }, apiKey)
+
+  let raw = aiData.choices?.[0]?.message?.content || '{}'
+  raw = raw.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim()
+
+  let d: Record<string, any> = {}
+  try {
+    d = JSON.parse(raw)
+  } catch {
+    console.error('Failed to parse brief AI JSON:', raw.slice(0, 200))
+    d = { briefThesis: raw.slice(0, 500) }
+  }
+
+  const s = (key: string, fallback = '') => {
+    const val = typeof d[key] === 'string' ? d[key] : fallback
+    return enforceCompliance(val).cleaned
+  }
+
+  const developments = Array.isArray(d.developments)
+    ? d.developments
+        .filter((item: any) => item && typeof item === 'object')
+        .slice(0, 3)
+        .map((item: any) => ({
+          title: enforceCompliance(typeof item.title === 'string' ? item.title : 'Development').cleaned,
+          body: enforceCompliance(typeof item.body === 'string' ? item.body : '').cleaned,
+        }))
+    : []
+
+  const watchNext: string[] = Array.isArray(d.watchNext)
+    ? d.watchNext.map((w: string) => enforceCompliance(w).cleaned)
+    : []
+
+  const subject = `The GeoMoney Brief — ${publicationDate}`
+
+  const htmlContent = buildBriefHtml({
+    publicationDate,
+    briefThesis: s('briefThesis'),
+    developments,
+    marketSnapshot: marketSnapshot.map(t => ({ label: `${t.label} (${t.symbol})`, level: fmtTicker(t) })),
+    marketReadout: s('marketReadout'),
+    watchNext,
+  })
+
+  return { subject, htmlContent }
+}
+
+function buildBriefHtml(p: {
+  publicationDate: string
+  briefThesis: string
+  developments: Array<{ title: string; body: string }>
+  marketSnapshot: Array<{ label: string; level: string }>
+  marketReadout: string
+  watchNext: string[]
+}): string {
+  const gold = '#D4AF37'
+  const bg = '#0a0a0a'
+  const cardBg = '#111111'
+  const border = '#222222'
+  const text = '#d0d0d0'
+  const muted = '#888888'
+  const accent = '#1a1a1a'
+
+  const sectionTitle = (title: string) =>
+    `<h2 style="color:${gold};font-size:15px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid ${border};">${title}</h2>`
+
+  const card = (content: string) =>
+    `<div style="background:${cardBg};border:1px solid ${border};border-radius:8px;padding:20px 24px;margin-bottom:8px;">${content}</div>`
+
+  const devHtml = p.developments.map((dev, i) => `
+    <div style="padding:14px 0;${i < p.developments.length - 1 ? `border-bottom:1px solid ${border};` : ''}">
+      <div style="color:${gold};font-size:12px;font-weight:700;letter-spacing:0.5px;margin-bottom:5px;">${dev.title}</div>
+      <div style="color:${text};font-size:12px;line-height:1.7;">${dev.body}</div>
+    </div>
+  `).join('')
+
+  const tickerRow = (label: string, level: string) => `
+    <tr>
+      <td style="padding:8px 12px;color:${muted};font-size:12px;border-bottom:1px solid ${border};">${label}</td>
+      <td style="padding:8px 12px;color:#ffffff;font-size:12px;font-family:monospace;border-bottom:1px solid ${border};text-align:right;">${level}</td>
+    </tr>`
+
+  const watchList = p.watchNext
+    .map(w => `<li style="color:${text};font-size:12px;line-height:1.7;margin-bottom:6px;">${w}</li>`)
+    .join('')
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The GeoMoney Brief</title>
+</head>
+<body style="margin:0;padding:0;background-color:${bg};color:${text};font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+<div style="max-width:660px;margin:0 auto;padding:32px 20px;">
+
+  <!-- Header -->
+  <div style="text-align:center;margin-bottom:32px;padding-bottom:24px;border-bottom:2px solid ${gold};">
+    <p style="color:${muted};font-size:10px;letter-spacing:3px;text-transform:uppercase;margin:0 0 8px;">Intelligence Platform</p>
+    <h1 style="color:${gold};margin:0 0 4px;font-size:26px;letter-spacing:3px;font-weight:800;">GEOMONEY</h1>
+    <h2 style="color:#ffffff;margin:0 0 12px;font-size:14px;font-weight:400;letter-spacing:2px;">THE BRIEF</h2>
+    <div style="display:inline-block;background:${accent};border:1px solid ${border};border-radius:4px;padding:6px 16px;">
+      <span style="color:${muted};font-size:11px;">Edition: </span>
+      <span style="color:#ffffff;font-size:11px;font-weight:600;">${p.publicationDate}</span>
+    </div>
+    <div style="margin-top:8px;">
+      <span style="color:${muted};font-size:10px;">Published three times a week&nbsp;&nbsp;&middot;&nbsp;&nbsp;Use: Informational and analytical only</span>
+    </div>
+  </div>
+
+  <!-- Brief Thesis -->
+  <div style="margin-bottom:28px;">
+    ${sectionTitle('The Read')}
+    ${card(`<p style="color:${text};font-size:13px;line-height:1.8;margin:0;font-style:italic;">${p.briefThesis}</p>`)}
+  </div>
+
+  <!-- Developments -->
+  <div style="margin-bottom:28px;">
+    ${sectionTitle('What Matters Now')}
+    ${card(devHtml || `<p style="color:${muted};font-size:12px;">No developments available.</p>`)}
+  </div>
+
+  <!-- Market Snapshot -->
+  <div style="margin-bottom:28px;">
+    ${sectionTitle('Market Snapshot')}
+    ${card(`
+      <table style="width:100%;border-collapse:collapse;">${p.marketSnapshot.map(t => tickerRow(t.label, t.level)).join('')}</table>
+      <p style="color:${text};font-size:12px;line-height:1.75;margin:14px 0 0;">${p.marketReadout}</p>
+    `)}
+  </div>
+
+  <!-- Watch Next -->
+  <div style="margin-bottom:28px;">
+    ${sectionTitle('Watch Next')}
+    ${card(`
+      <ul style="margin:0;padding-left:20px;">${watchList}</ul>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid ${border};">
+        <p style="color:${muted};font-size:11px;font-style:italic;margin:0;">Watch items are system indicators, not trade signals.</p>
+      </div>
+    `)}
+  </div>
+
+  <!-- Footer -->
+  <div style="padding-top:20px;border-top:1px solid ${border};text-align:center;">
+    <p style="color:${gold};font-size:13px;font-weight:700;letter-spacing:2px;margin:0 0 6px;">GEOMONEY</p>
+    <p style="color:${muted};font-size:11px;margin:0 0 12px;">
+      <a href="https://geomoneytv.com" style="color:${gold};text-decoration:none;">geomoneytv.com</a>
+    </p>
+    <p style="color:#555;font-size:10px;margin:0;line-height:1.6;">
+      &copy; ${new Date().getFullYear()} GeoMoney Intelligence Platform. All rights reserved.<br/>
+      This brief is for informational and analytical purposes only and does not constitute financial or investment advice.
+    </p>
+  </div>
+
+</div>
+</body>
+</html>`
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Backward-compatible alias
 // ─────────────────────────────────────────────────────────────────────────────
 export const generateIntelligenceReport = generateWeeklyReport
-export const generateNewsletterContent = generateWeeklyReport
+export const generateNewsletterContent = generateBriefReport
 
 export async function sendNewsletter(
   subject: string,
   htmlContent: string,
   recipients: string[] | 'all' | string,
-  options?: { reportType?: 'daily' | 'weekly'; attachPdf?: boolean },
+  options?: { reportType?: 'daily' | 'weekly' | 'brief'; attachPdf?: boolean },
 ) {
   // Get SMTP settings
   const smtpSettings = await prisma.siteSettings.findMany({
@@ -752,7 +972,7 @@ export async function sendNewsletter(
   if (options?.attachPdf) {
     try {
       const dateStr = new Date().toISOString().split('T')[0]
-      const typeLabel = options.reportType === 'daily' ? 'Daily-Materials' : 'Weekly-Intelligence'
+      const typeLabel = options.reportType === 'daily' ? 'Critical-Materials' : options.reportType === 'brief' ? 'Brief' : 'Weekly-Intelligence'
       pdfFilename = `GeoMoney-${typeLabel}-Report-${dateStr}.pdf`
       pdfBuffer = await generatePdfFromHtml(htmlContent)
       console.log(`[sendNewsletter] PDF generated: ${pdfFilename} (${pdfBuffer.length} bytes)`)

@@ -186,6 +186,7 @@ export default function EnergyInfrastructurePage() {
       module="energy-hub"
       mode="replace"
       heading="Infrastructure Matrix — Energy Hub (Beta)"
+      previewImage="/images/energy/desk-infrastructure.jpg"
       className="flex min-h-screen items-center justify-center bg-gray-950 px-4 py-24"
     >
       <InfrastructureExperience />

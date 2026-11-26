@@ -781,10 +781,18 @@ export async function syncMaterialPrices(): Promise<MaterialPriceSyncResult> {
         update: { price },
       })
 
+      // Touch lastUpdated on every successful observation so the "Last Price
+      // Update" freshness signal reflects the latest sync, not only the last
+      // price change (client feedback: critical material last price update).
       if (seed.isPrimary && !seed.isProxy) {
         await prisma.rareEarthMaterial.update({
           where: { id: material.id },
           data: { price, unit: seed.unit, lastUpdated: new Date() },
+        })
+      } else {
+        await prisma.rareEarthMaterial.update({
+          where: { id: material.id },
+          data: { lastUpdated: new Date() },
         })
       }
 

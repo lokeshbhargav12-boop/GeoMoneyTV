@@ -179,6 +179,7 @@ export default function FossilEnergyPage() {
       module="energy-hub"
       mode="replace"
       heading="Fossil Energy Desk — Energy Hub (Beta)"
+      previewImage="/images/energy/desk-fossil.jpg"
       className="flex min-h-screen items-center justify-center bg-[#06080d] px-4 py-24"
     >
       <FossilEnergyExperience />

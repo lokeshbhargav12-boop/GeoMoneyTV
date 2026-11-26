@@ -19,6 +19,12 @@ interface TierGateProps {
   mode?: "overlay" | "replace";
   /** Heading shown inside the locked panel; defaults to the module label. */
   heading?: string;
+  /**
+   * Optional background image for the locked panel (replace mode only).
+   * Rendered blurred and dimmed behind the panel so locked visitors get a
+   * teaser of the module — e.g. the Aperture globe backdrop.
+   */
+  previewImage?: string;
   className?: string;
 }
 
@@ -60,6 +66,7 @@ export default function TierGate({
   children,
   mode = "overlay",
   heading,
+  previewImage,
   className = "",
 }: TierGateProps) {
   const { tier, loading } = useEntitlements();
@@ -111,7 +118,20 @@ export default function TierGate({
   return (
     <div className={className}>
       {mode === "replace" ? (
-        panel
+        previewImage ? (
+          <div className="relative mx-auto w-full max-w-4xl overflow-hidden rounded-3xl border border-white/10">
+            <img
+              src={previewImage}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full scale-105 object-cover object-top opacity-60 blur-[5px] saturate-75"
+            />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-black/55 to-black/75" />
+            <div className="relative z-10 px-3 py-10 sm:px-8">{panel}</div>
+          </div>
+        ) : (
+          panel
+        )
       ) : (
         <div className="relative min-h-[20rem] overflow-hidden rounded-xl">
           <div className="pointer-events-none select-none opacity-40 blur-[2px] saturate-50" aria-hidden="true">

@@ -21,7 +21,7 @@ export default function RareEarthSection() {
   useEffect(() => {
     fetch('/api/rare-earth')
       .then((res) => res.json())
-      .then((data) => setMaterials(data.materials?.slice(0, 6) || []))
+      .then((data) => setMaterials(data.materials?.slice(0, 3) || []))
       .catch((err) => console.error(err))
   }, [])
 

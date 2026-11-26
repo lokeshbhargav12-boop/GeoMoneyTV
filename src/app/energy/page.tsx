@@ -31,6 +31,7 @@ import {
   ChevronRight,
   Route,
   Mountain,
+  Lock,
 } from "lucide-react";
 
 const ENERGY_DESKS = [
@@ -73,6 +74,31 @@ const ENERGY_DESKS = [
     bg: "bg-cyan-300/10",
     summary:
       "Cross-technology asset layers, constraints, storage, and resilience.",
+  },
+];
+
+// Blurred screenshots of the desks — teasers of what members see inside each
+// operating desk (client feedback: paste blurred screenshots in energy section).
+const ENERGY_DESK_PREVIEWS = [
+  {
+    name: "Coal Intelligence",
+    href: "/energy/coal",
+    image: "/images/energy/desk-coal.jpg",
+  },
+  {
+    name: "Fossil Energy",
+    href: "/energy/fossil-energy",
+    image: "/images/energy/desk-fossil.jpg",
+  },
+  {
+    name: "Oil & Gas",
+    href: "/energy/oil-and-gas",
+    image: "/images/energy/desk-oil-gas.jpg",
+  },
+  {
+    name: "Infrastructure",
+    href: "/energy/infrastructure",
+    image: "/images/energy/desk-infrastructure.jpg",
   },
 ];
 
@@ -644,6 +670,36 @@ export default function EnergyPage() {
               Enabled routes
             </span>
           </div>
+
+          {/* Desk previews — blurred screenshots of the member desks */}
+          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {ENERGY_DESK_PREVIEWS.map((preview) => (
+              <Link
+                key={preview.name}
+                href={preview.href}
+                className="group relative overflow-hidden rounded-xl border border-white/10 bg-black/40"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={preview.image}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-28 w-full object-cover object-top opacity-60 blur-[5px] saturate-[0.75] transition-all duration-300 group-hover:opacity-80 group-hover:blur-[3px]"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-3">
+                  <div className="text-xs font-semibold text-white">
+                    {preview.name}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1 text-[10px] text-gray-400">
+                    <Lock className="w-3 h-3 text-geo-gold" />
+                    Included with Basic
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {ENERGY_DESKS.map((desk) => {
               const Icon = desk.icon;

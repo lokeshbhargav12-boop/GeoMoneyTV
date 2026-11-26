@@ -297,6 +297,7 @@ export default function WorldMonitorPage() {
     <TierGate
       module="aperture"
       mode="replace"
+      previewImage="/images/aperture-preview.jpg"
       className="flex min-h-dvh items-center justify-center bg-black px-4 py-24"
     >
       <WorldMonitorExperience />

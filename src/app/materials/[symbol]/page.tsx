@@ -559,7 +559,7 @@ export default function MaterialDetailPage() {
                     </div>
 
 
-                    {/* Sidebar - Pro Features (Coming Soon / Early Access — no checkout) */}
+                    {/* Sidebar - Advanced Features (Coming Soon — no checkout) */}
                     <div className="space-y-6">
                         <motion.div
                             initial={{ opacity: 0, x: 20 }}
@@ -569,16 +569,16 @@ export default function MaterialDetailPage() {
                         >
                             <div className="flex items-center gap-2 mb-2">
                                 <Lock className="w-5 h-5 text-geo-gold" />
-                                <span className="text-geo-gold font-bold">Pro Features</span>
+                                <span className="text-geo-gold font-bold">Advanced Features</span>
                             </div>
                             <p className="text-xs text-amber-300 font-semibold mb-3">
-                                Pro — Coming Soon / Early Access
+                                Advanced — Coming Soon
                             </p>
                             <p className="text-xs text-gray-400 leading-relaxed mb-4">
-                                Professional monitoring and investigation for users who need
-                                deeper intelligence workflows. Pro is not yet available for
-                                purchase — request early access and we will contact you as
-                                places open.
+                                Advanced analytics and cross-system intelligence for deeper
+                                research and analysis. Advanced is not yet available for
+                                purchase — join the notification list and we will email you
+                                when it launches.
                             </p>
 
                             <div className="space-y-4">
@@ -601,7 +601,7 @@ export default function MaterialDetailPage() {
                             </div>
 
                             <TierInterestButton
-                                tier="pro"
+                                tier="advanced"
                                 className="inline-flex w-full items-center justify-center gap-2 mt-6 py-3 bg-gradient-to-r from-geo-gold to-yellow-600 text-black font-bold rounded-lg hover:from-yellow-500 hover:to-yellow-700 transition-all"
                             />
                             <Link

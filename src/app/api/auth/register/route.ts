@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     if ('error' in parsedProfile) {
       return NextResponse.json({ error: parsedProfile.error }, { status: 400 })
     }
-    const { name: trimmedName, phone: trimmedPhone } = parsedProfile.data
+    const { name: trimmedName, phone: trimmedPhone, userPersona } = parsedProfile.data
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -46,6 +46,8 @@ export async function POST(req: Request) {
         name: trimmedName,
         phone: trimmedPhone,
         password: hashedPassword,
+        // Why the user is on the platform (trader | researcher | casual).
+        ...(userPersona ? { userPersona } : {}),
       },
     })
 
@@ -104,6 +106,20 @@ export async function POST(req: Request) {
       const smtp: Record<string, string> = {}
       smtpSettings.forEach((s) => (smtp[s.key] = s.value))
 
+      // Resolve the configured site logo for the email header (absolute URL —
+      // email clients cannot resolve site-relative paths).
+      let logoAbsolute: string | null = null
+      try {
+        const logoSetting = await prisma.siteSettings.findUnique({ where: { key: 'logo_url' } })
+        const logoValue = logoSetting?.value?.trim()
+        if (logoValue) {
+          const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://geomoneytv.com').replace(/\/$/, '')
+          logoAbsolute = logoValue.startsWith('http') ? logoValue : `${siteUrl}${logoValue}`
+        }
+      } catch {
+        logoAbsolute = null
+      }
+
       if (smtp.smtp_user && smtp.smtp_pass) {
         const smtpPort = parseInt(smtp.smtp_port || '587')
         const smtpSecure = smtpPort === 465
@@ -135,6 +151,7 @@ export async function POST(req: Request) {
 <body style="margin:0;padding:0;background-color:#0a0a0a;color:#e0e0e0;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:40px 24px;">
   <div style="text-align:center;margin-bottom:32px;padding-bottom:24px;border-bottom:2px solid #D4AF37;">
+    ${logoAbsolute ? `<img src="${logoAbsolute}" alt="GeoMoney" width="64" height="64" style="display:block;margin:0 auto 10px;border-radius:12px;" />` : ''}
     <h1 style="color:#D4AF37;margin:0;font-size:28px;letter-spacing:2px;">GeoMoney</h1>
     <p style="color:#888;margin:8px 0 0;font-size:13px;letter-spacing:1px;">INTELLIGENCE PLATFORM</p>
   </div>

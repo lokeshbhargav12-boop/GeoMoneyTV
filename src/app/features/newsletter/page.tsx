@@ -6,7 +6,7 @@ import { ArrowLeft, Mail, Bell, Users, Zap, TrendingUp, Globe, Award, CheckCircl
 import { useNewsletter } from '@/hooks/useNewsletter'
 
 const NEWSLETTER_BENEFITS = [
-    { icon: Zap, title: 'Weekly Market Intel', description: 'Curated insights on commodities, currencies, and rare earths' },
+    { icon: Zap, title: 'Market Intel, 3× a Week', description: 'Curated insights on commodities, currencies, and rare earths' },
     { icon: TrendingUp, title: 'Market Interpretation', description: 'Analysis of how global events impact resource markets' },
     { icon: Globe, title: 'Geopolitical Analysis', description: 'How global events impact resource markets' },
     { icon: Award, title: 'Exclusive Research', description: 'Deep dives into emerging opportunities' },
@@ -47,7 +47,7 @@ export default function NewsletterPage() {
                         >
                             <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full border border-purple-500/30 mb-6">
                                 <Users className="w-4 h-4 text-purple-400" />
-                                <span className="text-purple-400 text-sm font-medium">Your Weekly Intelligence Source</span>
+                                <span className="text-purple-400 text-sm font-medium">Your Intelligence Source — 3× a Week</span>
                             </div>
 
                             <h1 className="text-5xl md:text-6xl font-bold mb-6">
@@ -58,13 +58,14 @@ export default function NewsletterPage() {
 
                             <p className="text-xl text-gray-300 mb-8 leading-relaxed">
                                 The must-read intelligence brief for serious commodity investors.
-                                Get system signals and intelligence delivered to your inbox every week.
+                                Get system signals and intelligence delivered to your inbox three
+                                times a week — Monday, Wednesday and Friday.
                             </p>
 
                             {/* Social Proof — no fake avatar stack (unlicensed placeholders) */}
                             <div className="flex items-center gap-3 mb-8">
                                 <span className="inline-flex items-center gap-1.5 rounded-full border border-geo-gold/30 bg-geo-gold/10 px-3 py-1 text-xs font-semibold text-geo-gold">
-                                    Weekly
+                                    3× Weekly
                                 </span>
                                 <div className="text-sm text-gray-400">
                                     Read by analysts, traders and policy professionals
@@ -157,7 +158,7 @@ export default function NewsletterPage() {
 
                                 {/* Email Content */}
                                 <div className="space-y-4">
-                                    <div className="text-geo-gold font-bold text-xl">This Week in Commodities</div>
+                                    <div className="text-geo-gold font-bold text-xl">What's Moving Now</div>
 
                                     <div className="bg-black/30 rounded-lg p-4">
                                         <div className="text-sm text-gray-400 mb-2">
@@ -184,7 +185,7 @@ export default function NewsletterPage() {
                                     </div>
 
                                     <div className="text-sm text-gray-300 leading-relaxed">
-                                        Each issue opens with the week&apos;s moves across gold, silver,
+                                        Each issue opens with the latest moves across gold, silver,
                                         copper and crude, then explains the geopolitical and supply-chain
                                         drivers behind them. The snapshot above is an illustrative
                                         preview — live levels are shown on the{" "}
@@ -218,7 +219,7 @@ export default function NewsletterPage() {
                         className="text-center mb-12"
                     >
                         <h2 className="text-3xl font-bold mb-4">
-                            What You'll Get <span className="text-geo-gold">Every Week</span>
+                            What You'll Get <span className="text-geo-gold">Three Times a Week</span>
                         </h2>
                     </motion.div>
 

@@ -129,6 +129,7 @@ export default function OilAndGasPage() {
       module="energy-hub"
       mode="replace"
       heading="Oil & Gas Intelligence — Energy Hub (Beta)"
+      previewImage="/images/energy/desk-oil-gas.jpg"
       className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#0a0a0c] to-black px-4 py-24"
     >
       <OilAndGasExperience />

@@ -187,6 +187,48 @@ function runIntelligenceReport(type = "daily") {
   req.end();
 }
 
+function runNewsletterBrief() {
+  console.log(
+    `[Scheduler] Running The GeoMoney Brief at ${new Date().toISOString()}`,
+  );
+  const options = {
+    hostname: "127.0.0.1",
+    port: port,
+    path: `/api/cron/newsletter`,
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${process.env.CRON_SECRET || ""}`,
+    },
+  };
+  const req = require("http").request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => {
+      data += chunk;
+    });
+    res.on("end", () => {
+      try {
+        const result = JSON.parse(data);
+        if (result.success) {
+          console.log(
+            `[Scheduler] The GeoMoney Brief sent — ${result.sentCount}/${result.totalRecipients} recipients.`,
+          );
+        } else {
+          console.error(`[Scheduler] The GeoMoney Brief failed:`, result.error);
+        }
+      } catch {
+        console.log(
+          `[Scheduler] The GeoMoney Brief response:`,
+          data.slice(0, 200),
+        );
+      }
+    });
+  });
+  req.on("error", (err) =>
+    console.error(`[Scheduler] The GeoMoney Brief request failed:`, err.message),
+  );
+  req.end();
+}
+
 /**
  * Schedule a callback to run daily at a specific UTC hour and minute.
  * Fires once at the next occurrence, then repeats every 24 hours.
@@ -251,6 +293,46 @@ function scheduleWeeklyAt(utcDayOfWeek, utcHour, utcMinute, label, fn) {
   schedule();
 }
 
+/**
+ * Schedule a callback to run on specific UTC weekdays at a given UTC time.
+ * utcDays uses JS getUTCDay numbering (0 = Sunday … 6 = Saturday).
+ * Re-arms itself after every fire so the UTC times stay exact.
+ */
+function scheduleDaysAt(utcDays, utcHour, utcMinute, label, fn) {
+  function msUntilNext() {
+    const now = new Date();
+    for (let i = 0; i < 8; i++) {
+      const candidate = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() + i,
+          utcHour,
+          utcMinute,
+          0,
+          0,
+        ),
+      );
+      if (candidate > now && utcDays.includes(candidate.getUTCDay())) {
+        return candidate - now;
+      }
+    }
+    return 24 * 60 * 60 * 1000; // fallback: retry in a day
+  }
+
+  function schedule() {
+    const delay = msUntilNext();
+    const fireAt = new Date(Date.now() + delay).toISOString();
+    console.log(`[Scheduler] ${label} scheduled — next run at ${fireAt} UTC`);
+    setTimeout(() => {
+      fn();
+      schedule();
+    }, delay);
+  }
+
+  schedule();
+}
+
 let missingStaticAssetsCount = 0;
 
 app.prepare().then(() => {
@@ -281,6 +363,11 @@ app.prepare().then(() => {
   // Weekly Intelligence Report — Monday 11:30 AM IST = 06:00 UTC
   scheduleWeeklyAt(1, 6, 0, "Weekly Intelligence Report", () =>
     runIntelligenceReport("weekly"),
+  );
+
+  // The GeoMoney Brief — Monday, Wednesday & Friday 12:00 PM IST = 06:30 UTC
+  scheduleDaysAt([1, 3, 5], 6, 30, "The GeoMoney Brief (3× weekly)", () =>
+    runNewsletterBrief(),
   );
 
   createServer(async (req, res) => {

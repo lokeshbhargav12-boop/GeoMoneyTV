@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Crown, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react'
 import { WAITLIST_LAUNCH_MESSAGE } from '@/lib/waitlist'
@@ -11,8 +11,12 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  // Why the user is on the platform (trader | researcher | casual) — asked at
+  // registration so we can tailor the product experience.
+  const [persona, setPersona] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [logoUrl, setLogoUrl] = useState('')
 
   // Post-registration waitlist state
   const [registered, setRegistered] = useState(false)
@@ -20,6 +24,16 @@ export default function Register() {
   const [waitlistMessage, setWaitlistMessage] = useState('')
 
   const router = useRouter()
+
+  useEffect(() => {
+    // Use the configured site logo wherever a logo is required.
+    fetch('/api/admin/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.logoUrl) setLogoUrl(data.logoUrl)
+      })
+      .catch(() => {})
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,13 +49,18 @@ export default function Register() {
       return
     }
 
+    if (!persona) {
+      setError('Please tell us how you plan to use GeoMoney')
+      return
+    }
+
     setLoading(true)
 
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, email, password }),
+        body: JSON.stringify({ name, phone, email, password, userPersona: persona }),
       })
 
       const data = await response.json()
@@ -197,7 +216,15 @@ export default function Register() {
     <div className="flex min-h-screen items-center justify-center bg-geo-dark px-4 py-12">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <div className="mx-auto h-12 w-12 rounded-full bg-gradient-to-br from-geo-gold to-yellow-600" />
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="GeoMoney"
+              className="mx-auto h-16 w-auto object-contain"
+            />
+          ) : (
+            <div className="mx-auto h-12 w-12 rounded-full bg-gradient-to-br from-geo-gold to-yellow-600" />
+          )}
           <h1 className="mt-6 text-3xl font-bold tracking-tight text-white">
             Create your account
           </h1>
@@ -258,6 +285,27 @@ export default function Register() {
                 className="mt-1 block w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white placeholder-gray-500 focus:border-geo-gold focus:outline-none focus:ring-1 focus:ring-geo-gold"
                 placeholder="Phone number with country code"
               />
+            </div>
+
+            <div>
+              <label htmlFor="userPersona" className="block text-sm font-medium text-gray-300">
+                How will you use GeoMoney?
+              </label>
+              <select
+                id="userPersona"
+                name="userPersona"
+                required
+                value={persona}
+                onChange={(e) => setPersona(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white focus:border-geo-gold focus:outline-none focus:ring-1 focus:ring-geo-gold [&>option]:bg-geo-dark"
+              >
+                <option value="" disabled>
+                  Select one…
+                </option>
+                <option value="trader">Trader</option>
+                <option value="researcher">Researcher</option>
+                <option value="casual">Casual</option>
+              </select>
             </div>
 
             <div>

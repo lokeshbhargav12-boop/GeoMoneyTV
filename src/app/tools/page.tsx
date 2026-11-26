@@ -9,13 +9,13 @@ import {
   DollarSign,
   TrendingUp,
   BarChart3,
-  Gem,
   ArrowLeft,
   Percent,
   Bell,
   Activity,
   Database,
 } from "lucide-react";
+import TierGate from "@/components/entitlement/TierGate";
 
 // Grade classification data
 const GRADE_DATA = {
@@ -129,32 +129,6 @@ const GRADE_DATA = {
     ],
   },
 };
-
-// Rare Earth Prices Data
-const RARE_EARTH_PRICES = [
-  { symbol: "La", name: "Lanthanum", price: 4.5, change: +2.3, unit: "$/kg" },
-  { symbol: "Ce", name: "Cerium", price: 4.2, change: -1.2, unit: "$/kg" },
-  { symbol: "Nd", name: "Neodymium", price: 152.5, change: +5.8, unit: "$/kg" },
-  {
-    symbol: "Pr",
-    name: "Praseodymium",
-    price: 128.0,
-    change: +3.4,
-    unit: "$/kg",
-  },
-  {
-    symbol: "Dy",
-    name: "Dysprosium",
-    price: 425.0,
-    change: +8.2,
-    unit: "$/kg",
-  },
-  { symbol: "Tb", name: "Terbium", price: 1650.0, change: -2.1, unit: "$/kg" },
-  { symbol: "Eu", name: "Europium", price: 35.0, change: +0.5, unit: "$/kg" },
-  { symbol: "Y", name: "Yttrium", price: 32.5, change: +1.8, unit: "$/kg" },
-  { symbol: "Sm", name: "Samarium", price: 8.2, change: -0.8, unit: "$/kg" },
-  { symbol: "Gd", name: "Gadolinium", price: 45.0, change: +2.1, unit: "$/kg" },
-];
 
 // Equivalent grade conversion factors (to Gold equivalent g/t)
 const GRADE_CONVERSIONS: { [key: string]: { factor: number; unit: string } } = {
@@ -626,51 +600,6 @@ export default function ToolsPage() {
           </div>
         </motion.section>
 
-        {/* Rare Earth Price Tracker */}
-        <motion.section
-          id="rare-earth-prices"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-12"
-        >
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-            <Gem className="w-6 h-6 text-geo-gold" />
-            Rare Earth Price Tracker
-          </h2>
-
-          <div className="bg-white/5 rounded-xl border border-white/10 p-6">
-            <p className="text-gray-400 text-sm mb-6">
-              Track prices for rare earth elements with market insights.
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {RARE_EARTH_PRICES.map((element) => (
-                <Link
-                  key={element.symbol}
-                  href={`/materials/${element.symbol}`}
-                  className="bg-black/30 rounded-lg p-4 border border-white/10 hover:border-geo-gold/30 transition-all group"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-geo-gold font-bold text-lg">
-                      {element.symbol}
-                    </span>
-                    <span
-                      className={`text-xs font-medium ${element.change >= 0 ? "text-green-400" : "text-red-400"}`}
-                    >
-                      {element.change >= 0 ? "+" : ""}
-                      {element.change}%
-                    </span>
-                  </div>
-                  <div className="text-white font-semibold">
-                    ${element.price}
-                  </div>
-                  <div className="text-gray-500 text-xs">{element.name}</div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </motion.section>
-
         {/* Project Economics Scenario Calculator (Analytical Tool) */}
         <motion.section
           id="project-economics"
@@ -772,7 +701,7 @@ export default function ToolsPage() {
           </div>
         </motion.section>
 
-        {/* Price Alerts — UNLOCKED */}
+        {/* Commodity Threshold Notifications — included with GeoMoney Basic */}
         <motion.section
           id="price-alerts"
           initial={{ opacity: 0, y: 20 }}
@@ -782,9 +711,10 @@ export default function ToolsPage() {
         >
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <Bell className="w-6 h-6 text-geo-gold" />
-Commodity Threshold Notifications
+            Commodity Threshold Notifications
           </h2>
 
+          <TierGate module="commodity-alerts" heading="Commodity Threshold Notifications">
           <div className="bg-white/5 rounded-xl border border-white/10 p-6">
             <p className="text-gray-400 text-sm mb-6">
 Set custom notifications for commodity price thresholds. Notifications are saved
@@ -882,6 +812,7 @@ Set custom notifications for commodity price thresholds. Notifications are saved
               </div>
             )}
           </div>
+          </TierGate>
         </motion.section>
 
         {/* Resource Estimation — UNLOCKED */}

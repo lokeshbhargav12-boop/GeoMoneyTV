@@ -40,6 +40,9 @@ export default function PricingCards({ className = "" }: { className?: string })
         {PLAN_TIERS.map((plan) => {
           const isBasic = plan.id === "basic";
           const isCurrent = tierToViewerCurrent(plan.id, viewerTier);
+          // "US$39 / month" -> amount "US$39" + suffix "month" so the price
+          // typography stays clean and never crowds the status badges.
+          const [priceAmount, priceSuffix] = plan.priceLabel.split(/\s*\/\s*/);
           return (
             <article
               key={plan.id}
@@ -52,26 +55,34 @@ export default function PricingCards({ className = "" }: { className?: string })
               } ${isCurrent ? "ring-1 ring-emerald-500/50" : ""}`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">{plan.name}</p>
-                  <p className="mt-2 whitespace-nowrap text-xl font-bold text-white sm:text-2xl">{plan.priceLabel}</p>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold ${STATUS_STYLES[plan.status]}`}>
-                    {plan.statusLabel}
-                  </span>
-                  {isCurrent && (
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">{plan.name}</p>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  {isCurrent ? (
                     <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-semibold text-emerald-400">
                       Current plan
                     </span>
-                  )}
-                  {isBasic && !isCurrent && (
+                  ) : isBasic ? (
                     <span className="rounded-full border border-geo-gold/40 bg-geo-gold/10 px-3 py-1 text-[10px] font-semibold text-geo-gold">
                       Monthly subscription
+                    </span>
+                  ) : (
+                    <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold ${STATUS_STYLES[plan.status]}`}>
+                      {plan.statusLabel}
                     </span>
                   )}
                 </div>
               </div>
+
+              {plan.status === "available" ? (
+                <p className="mt-3 flex flex-wrap items-baseline gap-x-1.5">
+                  <span className="whitespace-nowrap text-2xl font-bold text-white">{priceAmount}</span>
+                  {priceSuffix && (
+                    <span className="text-sm font-medium text-gray-400">/ {priceSuffix}</span>
+                  )}
+                </p>
+              ) : (
+                <p className="mt-3 text-lg font-semibold text-gray-500">Coming soon</p>
+              )}
 
               <p className="mt-4 text-sm leading-relaxed text-gray-300">{plan.description}</p>
 

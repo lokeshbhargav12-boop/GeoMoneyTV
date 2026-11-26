@@ -34,6 +34,24 @@ export default function AnalyticsComingSoonPage() {
             is enabled while Advanced remains Coming Soon.
           </p>
 
+          {/* Dashboard preview screenshot (design preview) */}
+          <div className="mt-10 overflow-hidden rounded-2xl border border-white/10 bg-black/40 text-left">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+                Dashboard preview
+              </span>
+              <span className="rounded-full border border-geo-gold/30 bg-geo-gold/10 px-2.5 py-0.5 text-[10px] font-semibold text-geo-gold">
+                Design preview
+              </span>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/images/analytics-preview.png"
+              alt="Preview of the GeoMoney Analytics dashboard"
+              className="w-full"
+            />
+          </div>
+
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <TierInterestButton
               tier="advanced"
