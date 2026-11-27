@@ -81,13 +81,17 @@ Stripe subscription). Platform admins (`role: "admin"`) resolve as full access
   open, while the advanced intel sections lock.
 - Non-subscribers (guest/free) on `/materials`: the first
   `MATERIALS_FREE_PREVIEW_COUNT` (3) results of the current view stay open;
-  the remainder of the library renders blurred behind a Basic paywall panel
-  (module `critical-materials-library`, **Get Basic** CTA). Basic and above
-  see the full list; `/materials/[symbol]` detail pages stay public.
+  the remainder of the library is hidden behind the Basic paywall panel
+  (module `critical-materials-library`). Guests are asked to **Register**
+  (`guestRegisterPrompt`, CTA -> `/auth/register`); signed-in free viewers get
+  the **Get Basic** checkout CTA. Basic and above see the full list;
+  `/materials/[symbol]` detail pages stay public.
 
 Gates are rendered with `src/components/entitlement/TierGate.tsx`
 (`mode="overlay"` keeps a blurred, non-interactive preview behind the lock;
-`mode="replace"` replaces the feature). Interest CTAs use
+`mode="replace"` replaces the feature). Basic-tier gates can opt into a
+guest register prompt (`guestRegisterPrompt`) — guests see a **Register**
+CTA while signed-in free viewers keep the checkout CTA. Interest CTAs use
 `src/components/entitlement/TierInterestButton.tsx`; the waitlist modal is
 source-aware (`src/components/WaitlistModal.tsx`).
 
@@ -98,7 +102,7 @@ Currently wired gates:
 | `/materials/[symbol]` — Cross-Material Impact, Shock Simulation | critical-materials | Advanced preview/locked for guest/free/basic |
 | `/materials/[symbol]` — Pro Features sidebar | professional-workflows | Pro panel + Request Early Access (no checkout) |
 | `/materials` — module tier note | critical-materials | Notify Me |
-| `/materials` — full library grid | critical-materials-library | First `MATERIALS_FREE_PREVIEW_COUNT` (3) results visible for guest/free; remainder blurred behind a Basic paywall panel; Basic+ see all |
+| `/materials` — full library grid | critical-materials-library | First `MATERIALS_FREE_PREVIEW_COUNT` (3) results visible for guest/free; remainder hidden behind the Basic paywall panel (Register for guests / Get Basic for free accounts); Basic+ see all |
 | `/features/analytics` (+ instrument) | analytics | Advanced — Coming Soon + Notify Me |
 | `/world-monitor` (Geomoney Aperture) | aperture | Basic lock (replace) for guest/free; full monitor for Basic+; admins exempt |
 | `/energy/coal`, `/energy/fossil-energy`, `/energy/oil-and-gas`, `/energy/infrastructure` | energy-hub | Basic lock (replace) for guest/free; full desks for Basic+; admins exempt — the `/energy` hub overview stays open as "selected public access" |

@@ -521,21 +521,17 @@ export default function MaterialsPage() {
           </div>
         )}
 
-        {/* Paywall — non-subscribers: blurred teaser cards of the remaining
-            materials behind the "Included with GeoMoney Basic" upgrade panel. */}
+        {/* Paywall — non-subscribers (guest/free): the remainder of the
+            library is hidden behind the Basic paywall panel. Guests are asked
+            to register; signed-in free viewers to subscribe. */}
         {!loading && !entitlementLoading && !hasFullLibrary && lockedCount > 0 && (
           <TierGate
             module="critical-materials-library"
-            mode="overlay"
+            mode="replace"
+            guestRegisterPrompt
             heading={`Unlock ${lockedCount} more material${lockedCount === 1 ? "" : "s"}`}
             className="mt-6"
-          >
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredMaterials
-                .slice(MATERIALS_FREE_PREVIEW_COUNT, MATERIALS_FREE_PREVIEW_COUNT + 3)
-                .map(renderMaterialCard)}
-            </div>
-          </TierGate>
+          />
         )}
       </div>
     </div>

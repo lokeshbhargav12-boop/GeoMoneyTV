@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BellRing, Loader2, Lock, Sparkles } from "lucide-react";
+import { BellRing, Loader2, Lock, Sparkles, UserPlus } from "lucide-react";
 import { buildGateState, type GateCta, type ModuleKey } from "@/lib/entitlements";
 import { useEntitlements } from "@/components/EntitlementProvider";
 import WaitlistModal from "@/components/WaitlistModal";
@@ -10,7 +10,8 @@ import WaitlistModal from "@/components/WaitlistModal";
 interface TierGateProps {
   /** Module key from the central MODULES registry in src/lib/entitlements.ts. */
   module: ModuleKey;
-  children: React.ReactNode;
+  /** Feature content; required for overlay mode, unused in replace mode. */
+  children?: React.ReactNode;
   /**
    * overlay: children stay visible as a blurred, non-interactive preview
    * behind the locked panel (selected previews for Free/Basic).
@@ -25,17 +26,23 @@ interface TierGateProps {
    * teaser of the module — e.g. the Aperture globe backdrop.
    */
   previewImage?: string;
+  /**
+   * Basic-tier gates only: when the viewer is a guest (not signed in), ask
+   * them to register first — the primary CTA becomes "Register"
+   * (-> /auth/register) instead of the checkout CTA.
+   */
+  guestRegisterPrompt?: boolean;
   className?: string;
 }
 
 function PrimaryCta({ cta, onOpenModal }: { cta: GateCta; onOpenModal: (source: string) => void }) {
-  if (cta.action === "checkout" && cta.href) {
+  if ((cta.action === "checkout" || cta.action === "register") && cta.href) {
     return (
       <Link
         href={cta.href}
         className="inline-flex items-center justify-center gap-2 rounded-full bg-geo-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-yellow-500"
       >
-        <Sparkles className="h-4 w-4" />
+        {cta.action === "register" ? <UserPlus className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
         {cta.label}
       </Link>
     );
@@ -58,6 +65,7 @@ function PrimaryCta({ cta, onOpenModal }: { cta: GateCta; onOpenModal: (source: 
  * includes the module's required tier. Otherwise shows the tier-appropriate
  * locked/preview state defined centrally in src/lib/entitlements.ts:
  *  - Basic required  -> "Included with GeoMoney Basic" + Get Basic CTA
+ *    (guests instead get a Register CTA when `guestRegisterPrompt` is set)
  *  - Advanced        -> "Advanced — Coming Soon" + Notify Me
  *  - Pro             -> "Pro — Coming Soon / Early Access" + Request Early Access
  */
@@ -67,12 +75,13 @@ export default function TierGate({
   mode = "overlay",
   heading,
   previewImage,
+  guestRegisterPrompt = false,
   className = "",
 }: TierGateProps) {
-  const { tier, loading } = useEntitlements();
+  const { tier, signedIn, loading } = useEntitlements();
   const [modalSource, setModalSource] = useState<string | null>(null);
 
-  const gate = buildGateState(module, tier);
+  const gate = buildGateState(module, tier, guestRegisterPrompt ? { signedIn } : undefined);
 
   if (loading) {
     // Neutral placeholder: never flash a locked state at viewers who own the

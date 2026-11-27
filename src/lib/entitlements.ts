@@ -305,8 +305,8 @@ export const MODULES: Record<ModuleKey, ModuleEntitlement> = {
 
 export interface GateCta {
   label: string;
-  action: "checkout" | "notify" | "request-access";
-  /** Navigation target for action "checkout" (the Basic checkout page). */
+  action: "checkout" | "register" | "notify" | "request-access";
+  /** Navigation target for navigation CTAs (checkout -> payment page, register -> signup page). */
   href?: string;
   /** Source recorded with waitlist/interest-list signups for notify/request-access. */
   waitlistSource?: string;
@@ -326,8 +326,16 @@ export interface TierGateState {
 /**
  * Build the presentation for a gated module for the given viewer tier.
  * Consumed by <TierGate /> and any bespoke locked/preview state.
+ *
+ * `opts.signedIn: false` swaps the Basic-tier checkout CTA for a Register
+ * prompt — used where guests should be asked to create an account first
+ * (e.g. the /materials library paywall via TierGate `guestRegisterPrompt`).
  */
-export function buildGateState(moduleKey: ModuleKey, viewerTier: ViewerTierId): TierGateState {
+export function buildGateState(
+  moduleKey: ModuleKey,
+  viewerTier: ViewerTierId,
+  opts?: { signedIn?: boolean },
+): TierGateState {
   const module = MODULES[moduleKey];
   const requiredTier = getPlanTier(module.requiredTier);
   const allowed = tierHasAccess(viewerTier, module.requiredTier);
@@ -347,12 +355,23 @@ export function buildGateState(moduleKey: ModuleKey, viewerTier: ViewerTierId): 
       break;
     case "basic":
       title = "Included with GeoMoney Basic";
-      message = `${message} Purchase the ${BASIC_PLAN.name} pack (${BASIC_PLAN.priceLabel}) to unlock it — access opens immediately after payment.`;
-      primaryCta = {
-        label: getPlanTier("basic").cta.label, // "Get Basic"
-        action: "checkout",
-        href: getPlanTier("basic").cta.href || "/payment",
-      };
+      if (opts?.signedIn === false) {
+        // Guests: ask them to register first — a GeoMoney account is required
+        // before a Basic subscription can be purchased.
+        message = `${message} Register a free GeoMoney account to continue, then subscribe to the ${BASIC_PLAN.name} pack (${BASIC_PLAN.priceLabel}) to unlock it.`;
+        primaryCta = {
+          label: "Register",
+          action: "register",
+          href: "/auth/register",
+        };
+      } else {
+        message = `${message} Purchase the ${BASIC_PLAN.name} pack (${BASIC_PLAN.priceLabel}) to unlock it — access opens immediately after payment.`;
+        primaryCta = {
+          label: getPlanTier("basic").cta.label, // "Get Basic"
+          action: "checkout",
+          href: getPlanTier("basic").cta.href || "/payment",
+        };
+      }
       break;
     case "advanced":
       title = "Advanced — Coming Soon";
