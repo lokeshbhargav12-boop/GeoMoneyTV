@@ -206,6 +206,7 @@ export type ModuleKey =
   | "aperture"
   | "premium-research"
   | "critical-materials"
+  | "critical-materials-library"
   | "commodity-alerts"
   | "analytics"
   | "professional-workflows";
@@ -220,6 +221,14 @@ export interface ModuleEntitlement {
   /** Selected previews stay visible to lower tiers while the full feature is locked. */
   previewForLowerTiers: boolean;
 }
+
+/**
+ * Free preview for the /materials list — guest/free viewers see only the
+ * first N results of the current view; the remainder of the library is
+ * covered by the Basic paywall panel (module `critical-materials-library`).
+ * Basic and above see the full list.
+ */
+export const MATERIALS_FREE_PREVIEW_COUNT = 3;
 
 export const MODULES: Record<ModuleKey, ModuleEntitlement> = {
   "ai-navigation": {
@@ -259,6 +268,13 @@ export const MODULES: Record<ModuleKey, ModuleEntitlement> = {
     requiredTier: "advanced",
     description:
       "Public/SEO-facing material information stays open to everyone, and selected previews are available to Free and Basic accounts. The full Critical Materials Intelligence module is part of GeoMoney Advanced.",
+    previewForLowerTiers: true,
+  },
+  "critical-materials-library": {
+    key: "critical-materials-library",
+    label: "Critical Materials — Full Library",
+    requiredTier: "basic",
+    description: `Beyond the free preview of the first ${MATERIALS_FREE_PREVIEW_COUNT} materials, the full Critical Materials library — every tracked material with live reference prices, risk pulse and intelligence — is included with the GeoMoney Basic subscription.`,
     previewForLowerTiers: true,
   },
   "commodity-alerts": {

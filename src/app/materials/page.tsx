@@ -17,6 +17,9 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import TierInterestButton from "@/components/entitlement/TierInterestButton";
+import TierGate from "@/components/entitlement/TierGate";
+import { useEntitlements } from "@/components/EntitlementProvider";
+import { BASIC_PLAN, MATERIALS_FREE_PREVIEW_COUNT, tierHasAccess } from "@/lib/entitlements";
 import WhatMovedToday, { type MovedEvent } from "@/components/materials/WhatMovedToday";
 import MaterialsStatusBoard, { type BoardEntry } from "@/components/materials/MaterialsStatusBoard";
 
@@ -63,6 +66,10 @@ function ChangeChip({ pct }: { pct: number }) {
 
 export default function MaterialsPage() {
   const { data: session } = useSession();
+  const { tier, loading: entitlementLoading } = useEntitlements();
+  // Subscribers (Basic and above) see the full library; guests/free preview the
+  // first few materials only, with the remainder behind the Basic paywall.
+  const hasFullLibrary = tierHasAccess(tier, "basic");
   const [materials, setMaterials] = useState<RareEarthMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>("All");
@@ -207,6 +214,109 @@ export default function MaterialsPage() {
     return sorted;
   }, [materials, activeCategory, search, sort]);
 
+  // Non-subscribers (guest/free) get a preview of the first few matches; the
+  // remainder of the library sits behind the Basic paywall panel below the grid.
+  const previewMaterials = hasFullLibrary
+    ? filteredMaterials
+    : filteredMaterials.slice(0, MATERIALS_FREE_PREVIEW_COUNT);
+  const lockedCount = filteredMaterials.length - previewMaterials.length;
+
+  const renderMaterialCard = (material: RareEarthMaterial) => {
+    const displayPrice = material.effectivePrice ?? material.price ?? null;
+    const displayUnit = material.effectiveUnit ?? material.unit ?? null;
+    const priceDate = material.priceAsOf
+      ? new Date(material.priceAsOf).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })
+      : null;
+    return (
+      <Link
+        key={material.id ?? material.symbol}
+        href={`/materials/${encodeURIComponent(material.symbol)}`}
+        className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition-all hover:border-geo-gold/50 hover:bg-white/10 cursor-pointer"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-geo-gold/25 to-yellow-600/10 border border-geo-gold/30 flex items-center justify-center text-geo-gold font-bold text-lg flex-shrink-0">
+              {material.symbol}
+            </div>
+            <div>
+              <h3 className="text-xl font-bold group-hover:text-geo-gold transition-colors">
+                {material.name}
+              </h3>
+              <p className="text-xs font-medium text-geo-gold/80">{material.category}</p>
+            </div>
+          </div>
+          {material.priceIsLive && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex-shrink-0"
+              title="Live price feed"
+            >
+              <Activity className="w-2.5 h-2.5" /> LIVE
+            </span>
+          )}
+        </div>
+
+        {displayPrice != null && (
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <span className="text-lg font-bold text-white">
+              ${formatPrice(displayPrice)}
+              {displayUnit && (
+                <span className="text-sm text-gray-400 font-normal ml-1">/{displayUnit}</span>
+              )}
+            </span>
+            {material.priceChangePercent != null && (
+              <ChangeChip pct={material.priceChangePercent} />
+            )}
+          </div>
+        )}
+        {(material.benchmarkLabel || priceDate) && (
+          <p className="mt-1 text-xs text-gray-500">
+            {material.benchmarkLabel}
+            {material.benchmarkLabel && priceDate ? " · " : ""}
+            {priceDate ? `as of ${priceDate}` : ""}
+          </p>
+        )}
+
+        <p className="mt-3 text-sm text-gray-400 line-clamp-2">{material.description}</p>
+
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-xs text-gray-500 flex items-center gap-2">
+            Critical Material
+            {pulseBySymbol.get(material.symbol)?.score != null && (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-geo-gold/10 border border-geo-gold/30 text-geo-gold font-semibold"
+                title={`GeoMoney Risk Pulse: ${pulseBySymbol.get(material.symbol)!.score}/100 · ${pulseBySymbol.get(material.symbol)!.status}`}
+              >
+                Pulse {pulseBySymbol.get(material.symbol)!.score}
+              </span>
+            )}
+          </span>
+          <div className="flex items-center gap-2">
+            {session?.user && material.id && (
+              <button
+                onClick={(e) => toggleTrack(e, material.id as string)}
+                disabled={trackingInProgress === material.id}
+                className={`p-1.5 rounded-md transition-all ${
+                  trackedIds.has(material.id)
+                    ? "text-geo-gold bg-geo-gold/20"
+                    : "text-gray-500 hover:text-geo-gold hover:bg-white/10"
+                } disabled:opacity-50`}
+                title={trackedIds.has(material.id) ? "Untrack material" : "Track material"}
+              >
+                <Star
+                  className={`w-4 h-4 ${trackedIds.has(material.id) ? "fill-current" : ""}`}
+                />
+              </button>
+            )}
+            <span className="text-geo-gold group-hover:translate-x-1 transition-transform">→</span>
+          </div>
+        </div>
+      </Link>
+    );
+  };
+
 
   return (
     <div className="min-h-screen bg-geo-dark text-white pt-32 pb-24">
@@ -233,15 +343,22 @@ export default function MaterialsPage() {
           </div>
         </div>
 
-        {/* Module tier note — public pages stay open; the full intel module is Advanced. */}
+        {/* Module tier note — free viewers preview the first few materials; the
+            full library is Basic; the full intel module is Advanced. */}
         <div className="mb-8 flex flex-col gap-3 rounded-xl border border-geo-gold/20 bg-geo-gold/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <Lock className="mt-0.5 h-4 w-4 shrink-0 text-geo-gold" />
             <p className="text-sm leading-relaxed text-gray-300">
-              Public material pages stay open to everyone, and selected previews are available
-              to Free and Basic accounts. The full{" "}
+              Public material pages stay open to everyone, and free viewers can preview the
+              first {MATERIALS_FREE_PREVIEW_COUNT} materials below. The full{" "}
+              <span className="font-semibold text-geo-gold">Critical Materials library</span> is
+              included with{" "}
+              <span className="font-semibold text-geo-gold">
+                GeoMoney Basic ({BASIC_PLAN.priceLabel})
+              </span>
+              , and the complete{" "}
               <span className="font-semibold text-geo-gold">Critical Materials Intelligence</span>{" "}
-              module is included in{" "}
+              module arrives with{" "}
               <span className="font-semibold text-geo-gold">Advanced — Coming Soon</span>.
             </p>
           </div>
@@ -381,110 +498,18 @@ export default function MaterialsPage() {
         </div>
 
 
-        {/* Materials grid */}
-        {loading ? (
+        {/* Materials grid — non-subscribers (guest/free) preview the first few
+            materials; the remainder of the library sits behind the Basic
+            paywall panel rendered below the grid. */}
+        {loading || entitlementLoading ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-56 rounded-xl border border-white/10 bg-white/5 animate-pulse" />
             ))}
           </div>
-        ) : filteredMaterials.length > 0 ? (
+        ) : previewMaterials.length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredMaterials.map((material) => {
-              const displayPrice = material.effectivePrice ?? material.price ?? null;
-              const displayUnit = material.effectiveUnit ?? material.unit ?? null;
-              const priceDate = material.priceAsOf
-                ? new Date(material.priceAsOf).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })
-                : null;
-              return (
-                <Link
-                  key={material.id ?? material.symbol}
-                  href={`/materials/${encodeURIComponent(material.symbol)}`}
-                  className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition-all hover:border-geo-gold/50 hover:bg-white/10 cursor-pointer"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-geo-gold/25 to-yellow-600/10 border border-geo-gold/30 flex items-center justify-center text-geo-gold font-bold text-lg flex-shrink-0">
-                        {material.symbol}
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold group-hover:text-geo-gold transition-colors">
-                          {material.name}
-                        </h3>
-                        <p className="text-xs font-medium text-geo-gold/80">{material.category}</p>
-                      </div>
-                    </div>
-                    {material.priceIsLive && (
-                      <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex-shrink-0"
-                        title="Live price feed"
-                      >
-                        <Activity className="w-2.5 h-2.5" /> LIVE
-                      </span>
-                    )}
-                  </div>
-
-                  {displayPrice != null && (
-                    <div className="mt-4 flex items-center gap-2 flex-wrap">
-                      <span className="text-lg font-bold text-white">
-                        ${formatPrice(displayPrice)}
-                        {displayUnit && (
-                          <span className="text-sm text-gray-400 font-normal ml-1">/{displayUnit}</span>
-                        )}
-                      </span>
-                      {material.priceChangePercent != null && (
-                        <ChangeChip pct={material.priceChangePercent} />
-                      )}
-                    </div>
-                  )}
-                  {(material.benchmarkLabel || priceDate) && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      {material.benchmarkLabel}
-                      {material.benchmarkLabel && priceDate ? " · " : ""}
-                      {priceDate ? `as of ${priceDate}` : ""}
-                    </p>
-                  )}
-
-                  <p className="mt-3 text-sm text-gray-400 line-clamp-2">{material.description}</p>
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="text-xs text-gray-500 flex items-center gap-2">
-                      Critical Material
-                      {pulseBySymbol.get(material.symbol)?.score != null && (
-                        <span
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-geo-gold/10 border border-geo-gold/30 text-geo-gold font-semibold"
-                          title={`GeoMoney Risk Pulse: ${pulseBySymbol.get(material.symbol)!.score}/100 · ${pulseBySymbol.get(material.symbol)!.status}`}
-                        >
-                          Pulse {pulseBySymbol.get(material.symbol)!.score}
-                        </span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {session?.user && material.id && (
-                        <button
-                          onClick={(e) => toggleTrack(e, material.id as string)}
-                          disabled={trackingInProgress === material.id}
-                          className={`p-1.5 rounded-md transition-all ${
-                            trackedIds.has(material.id)
-                              ? "text-geo-gold bg-geo-gold/20"
-                              : "text-gray-500 hover:text-geo-gold hover:bg-white/10"
-                          } disabled:opacity-50`}
-                          title={trackedIds.has(material.id) ? "Untrack material" : "Track material"}
-                        >
-                          <Star
-                            className={`w-4 h-4 ${trackedIds.has(material.id) ? "fill-current" : ""}`}
-                          />
-                        </button>
-                      )}
-                      <span className="text-geo-gold group-hover:translate-x-1 transition-transform">→</span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+            {previewMaterials.map(renderMaterialCard)}
           </div>
         ) : (
           <div className="rounded-xl border border-white/10 bg-white/5 p-16 text-center">
@@ -495,8 +520,24 @@ export default function MaterialsPage() {
             </p>
           </div>
         )}
+
+        {/* Paywall — non-subscribers: blurred teaser cards of the remaining
+            materials behind the "Included with GeoMoney Basic" upgrade panel. */}
+        {!loading && !entitlementLoading && !hasFullLibrary && lockedCount > 0 && (
+          <TierGate
+            module="critical-materials-library"
+            mode="overlay"
+            heading={`Unlock ${lockedCount} more material${lockedCount === 1 ? "" : "s"}`}
+            className="mt-6"
+          >
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredMaterials
+                .slice(MATERIALS_FREE_PREVIEW_COUNT, MATERIALS_FREE_PREVIEW_COUNT + 3)
+                .map(renderMaterialCard)}
+            </div>
+          </TierGate>
+        )}
       </div>
     </div>
   );
 }
-
